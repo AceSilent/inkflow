@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm create tauri-app@latest:*)",
+      "Bash(pnpm install:*)",
+      "Bash(tree:*)",
+      "Bash(pnpm run build:*)",
+      "Bash(cargo check:*)",
+      "Bash(rustc:*)",
+      "Bash(git add:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
