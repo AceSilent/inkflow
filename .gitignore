@@ -1,0 +1,20 @@
+node_modules/
+dist/
+.DS_Store
+*.log
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+# Rust
+target/
+Cargo.lock
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+# Tauri
+src-tauri/target/
