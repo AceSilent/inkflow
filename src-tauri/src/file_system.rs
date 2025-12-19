@@ -1,8 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
-use tauri::api::dialog::FileDialogBuilder;
-use tauri::{Manager, Window};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FileInfo {
@@ -54,18 +52,15 @@ pub async fn file_exists(path: String) -> Result<bool, String> {
 }
 
 // Utility function to open file dialog
-pub fn open_file_dialog(window: &Window) -> Option<String> {
-    FileDialogBuilder::new()
-        .add_filter("Text Files", &["txt", "md"])
-        .add_filter("JSON Files", &["json"])
-        .pick_file()
+pub fn open_file_dialog() -> Option<String> {
+    // For now, return None. In a real implementation,
+    // we would use async/await or callback-based dialogs
+    None
 }
 
 // Utility function to save file dialog
-pub fn save_file_dialog(window: &Window, default_name: &str) -> Option<String> {
-    FileDialogBuilder::new()
-        .add_filter("Text Files", &["txt", "md"])
-        .add_filter("JSON Files", &["json"])
-        .set_file_name(default_name)
-        .save_file()
+pub fn save_file_dialog(_default_name: &str) -> Option<String> {
+    // For now, return None. In a real implementation,
+    // we would use async/await or callback-based dialogs
+    None
 }

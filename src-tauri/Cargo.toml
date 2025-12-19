@@ -16,12 +16,12 @@ tauri-build = { version = "1.5.0", features = [] }
 [dependencies]
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
-tauri = { version = "1.5.0", features = ["api-all", "shell-open"] }
+tauri = { version = "1.5.0", features = ["shell-open", "dialog-open", "dialog-save", "fs-create-dir", "fs-exists", "fs-read-file", "fs-write-file"] }
 tokio = { version = "1", features = ["full"] }
 reqwest = { version = "0.11", features = ["json"] }
 async-trait = "0.1"
 thiserror = "1.0"
-tiktoken-rs = "0.3"
+tiktoken-rs = "0.2"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem and the built-in dev server is disabled.

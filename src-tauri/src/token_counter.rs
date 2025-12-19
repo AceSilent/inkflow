@@ -1,5 +1,5 @@
-use std::collections::HashMap;
-use tiktoken_rs::{cl100k_base, CoreBPE};
+use std::collections::{HashMap, HashSet};
+use tiktoken_rs::{CoreBPE};
 
 pub struct TokenCounter {
     bpe_map: HashMap<String, CoreBPE>,
@@ -10,10 +10,11 @@ impl TokenCounter {
         let mut bpe_map = HashMap::new();
 
         // Initialize common model tokenizers
-        if let Ok(bpe) = cl100k_base() {
-            bpe_map.insert("gpt-3.5-turbo".to_string(), bpe);
-            bpe_map.insert("gpt-4".to_string(), cl100k_base().unwrap());
-            bpe_map.insert("gpt-4-turbo".to_string(), cl100k_base().unwrap());
+        if let Ok(bpe) = tiktoken_rs::cl100k_base() {
+            let bpe_clone = bpe.clone();
+            bpe_map.insert("gpt-3.5-turbo".to_string(), bpe_clone);
+            bpe_map.insert("gpt-4".to_string(), bpe.clone());
+            bpe_map.insert("gpt-4-turbo".to_string(), bpe);
         }
 
         Self { bpe_map }
@@ -30,7 +31,7 @@ impl TokenCounter {
         let bpe = self.get_bpe_for_model(model)
             .ok_or_else(|| format!("Model {} is not supported", model))?;
 
-        let tokens = bpe.encode_ordinary(text);
+        let tokens = bpe.encode(text, HashSet::new());
         Ok(tokens.len())
     }
 
@@ -38,7 +39,7 @@ impl TokenCounter {
         let bpe = self.get_bpe_for_model(model)
             .ok_or_else(|| format!("Model {} is not supported", model))?;
 
-        let tokens = bpe.encode_ordinary(text);
+        let tokens = bpe.encode(text, HashSet::new());
 
         if tokens.len() <= target_tokens {
             return Ok(text.len());
@@ -46,7 +47,7 @@ impl TokenCounter {
 
         // Try to truncate at sentence boundaries
         let truncated_tokens = &tokens[..target_tokens];
-        let truncated_text = bpe.decode(truncated_tokens.to_vec());
+        let truncated_text = bpe.decode(truncated_tokens.to_vec()).map_err(|e| e.to_string())?;
 
         // Find the nearest sentence ending
         let sentence_endings = [".", "!", "?", "。", "！", "？"];
@@ -93,7 +94,7 @@ impl TokenCounter {
 pub async fn count_tokens_exact(
     text: String,
     model: String,
-    token_counter: tauri::State<'_, std::sync::Arc<std::sync::Mutex<TokenCounter>>
+    token_counter: tauri::State<'_, std::sync::Arc<std::sync::Mutex<TokenCounter>>>
 ) -> Result<usize, String> {
     let counter = token_counter.lock().unwrap();
     counter.count_tokens(&text, &model)
