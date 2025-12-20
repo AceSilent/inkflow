@@ -26,23 +26,19 @@
 
 /* Ghost text styles */
 @layer base {
-  /* Main ghost text styles - final version */
+  /* Main ghost text styles */
   .ghost-text {
     color: #9ca3af !important;
-    opacity: 0.7 !important;
-    font-style: italic !important;
-    pointer-events: none !important;
-    user-select: none !important;
+    opacity: 0.8 !important;
+    font-style: italic;
+    pointer-events: none;
     background: transparent !important;
     display: inline-block !important;
-    padding: 0 2px !important;
   }
 
-  /* Ghost text decoration style */
+  /* Alternative ghost text style for Monaco Editor */
   .ghost-text-decoration {
-    border-left: 2px solid #9ca3af !important;
-    background: rgba(156, 163, 175, 0.1) !important;
-    margin: 0 2px !important;
+    opacity: 0;
   }
 
   /* Ghost text for Monaco Editor afterContent */
@@ -75,15 +71,17 @@
   /* Dark theme support for ghost text */
   .monaco-editor.vs-dark .ghost-text {
     color: #9ca3af !important;
-    opacity: 0.7 !important;
-    font-style: italic !important;
-    pointer-events: none !important;
-    user-select: none !important;
+    opacity: 0.8 !important;
   }
 
-  .monaco-editor.vs-dark .ghost-text-decoration {
-    border-left: 2px solid #9ca3af !important;
-    background: rgba(156, 163, 175, 0.1) !important;
+  .monaco-editor.vs-dark .ghost-text-hover-area {
+    background-color: rgba(156, 163, 175, 0.08);
+    border-bottom: 1px dashed rgba(156, 163, 175, 0.3);
+  }
+
+  .monaco-editor.vs-dark .ghost-text-hover-area:hover {
+    background-color: rgba(156, 163, 175, 0.15);
+    border-bottom-color: rgba(156, 163, 175, 0.5);
   }
 
   /* High contrast theme support for ghost text */

@@ -1,0 +1,219 @@
+import * as monaco from 'monaco-editor';
+import type { CursorContext } from '../../types';
+
+export class GhostTextManager {
+  private decorations: string[] = [];
+  private editor: monaco.editor.IStandaloneCodeEditor;
+  private ghostTextWidget: monaco.editor.IContentWidget | null = null;
+
+  constructor(editor: monaco.editor.IStandaloneCodeEditor) {
+    this.editor = editor;
+  }
+
+  /**
+   * Show ghost text at the specified position
+   */
+  show(text: string, position: CursorContext): void {
+    this.clear();
+
+    if (!text || text.trim() === '') {
+      return;
+    }
+
+    // Create Monaco Range object
+    const range = new monaco.Range(
+      position.line,
+      position.column,
+      position.line,
+      position.column
+    );
+
+    // Create decoration with correct Monaco API
+    const decoration = {
+      range: range,
+      options: {
+        after: {
+          content: text,
+          inlineClassName: 'ghost-text',
+        },
+        showIfCollapsed: true, // 必须！
+        stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+        hoverMessage: {
+          value: `**${text}**\n\nPress **Tab** to accept, **Esc** to dismiss`
+        },
+      },
+    };
+
+    this.decorations = this.editor.deltaDecorations([], [decoration]);
+  }
+
+  /**
+   * Clear all ghost text decorations
+   */
+  clear(): void {
+    // Clear decorations
+    if (this.decorations.length > 0) {
+      this.editor.deltaDecorations(this.decorations, []);
+      this.decorations = [];
+    }
+
+    // Clear widget
+    if (this.ghostTextWidget) {
+      this.editor.removeContentWidget(this.ghostTextWidget);
+      this.ghostTextWidget = null;
+    }
+  }
+
+  /**
+   * Get current ghost text position if exists
+   */
+  getCurrentGhostTextPosition(): CursorContext | null {
+    if (this.decorations.length === 0) return null;
+
+    const decorations = this.editor.getModel()?.getAllDecorations();
+    if (!decorations) return null;
+
+    // Find ghost text decoration
+    const ghostTextDecoration = decorations.find(
+      (dec) =>
+        dec.options.className === 'ghost-text-decoration' ||
+        dec.options.afterContentClassName === 'ghost-text'
+    );
+
+    if (!ghostTextDecoration?.range) return null;
+
+    return {
+      line: ghostTextDecoration.range.startLineNumber,
+      column: ghostTextDecoration.range.startColumn,
+      offset: this.editor.getModel()?.getOffsetAt(ghostTextDecoration.range.getStartPosition()) || 0,
+    };
+  }
+
+  /**
+   * Check if position is near ghost text
+   */
+  isNearGhostText(position: CursorContext, threshold: number = 50): boolean {
+    const ghostPosition = this.getCurrentGhostTextPosition();
+    if (!ghostPosition) return false;
+
+    return Math.abs(ghostPosition.offset - position.offset) <= threshold;
+  }
+
+  /**
+   * Get ghost text content if exists
+   */
+  getGhostTextContent(): string | null {
+    const decorations = this.editor.getModel()?.getAllDecorations();
+    if (!decorations) return null;
+
+    const ghostTextDecoration = decorations.find(
+      (dec) =>
+        dec.options.className === 'ghost-text-decoration' ||
+        dec.options.afterContentClassName === 'ghost-text'
+    );
+
+    return (ghostTextDecoration?.options as any).afterContent as string || null;
+  }
+
+  /**
+   * Check if ghost text is visible
+   */
+  isVisible(): boolean {
+    return this.decorations.length > 0;
+  }
+
+  /**
+   * Handle cursor position change
+   * Returns true if ghost text should be cleared
+   */
+  handleCursorPositionChange(newPosition: CursorContext): boolean {
+    const ghostPosition = this.getCurrentGhostTextPosition();
+    if (!ghostPosition) return false;
+
+    // Clear if cursor moved significantly
+    const distance = Math.abs(ghostPosition.offset - newPosition.offset);
+    return distance > 50;
+  }
+
+  /**
+   * Handle text selection change
+   * Returns true if ghost text should be cleared
+   */
+  handleSelectionChange(selection: monaco.Selection): boolean {
+    if (!selection.isEmpty()) return true;
+
+    const ghostPosition = this.getCurrentGhostTextPosition();
+    if (!ghostPosition) return false;
+
+    // Clear if selection doesn't include ghost text position
+    return !selection.containsPosition({
+      lineNumber: ghostPosition.line,
+      column: ghostPosition.column,
+    });
+  }
+
+  /**
+   * Calculate cursor position in content offset
+   */
+  static calculateCursorPosition(
+    editor: monaco.editor.IStandaloneCodeEditor,
+    position: monaco.Position
+  ): CursorContext {
+    const model = editor.getModel();
+    if (!model) {
+      return { line: 1, column: 1, offset: 0 };
+    }
+
+    return {
+      line: position.lineNumber,
+      column: position.column,
+      offset: model.getOffsetAt(position),
+    };
+  }
+}
+
+// CSS styles for ghost text (should be added to global styles)
+export const ghostTextCSS = `
+/* Ghost text styling */
+.ghost-text {
+  color: #6a6a6a;
+  opacity: 0.7;
+  font-style: italic;
+  pointer-events: none;
+}
+
+.ghost-text-decoration {
+  /* Additional styling for the decoration */
+}
+
+.ghost-text-hover-area {
+  /* Hover area for showing tooltip */
+  background-color: rgba(106, 106, 106, 0.05);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.ghost-text-hover-area:hover {
+  background-color: rgba(106, 106, 106, 0.1);
+}
+
+/* Dark theme support */
+.monaco-editor.vs-dark .ghost-text {
+  color: #8a8a8a;
+  opacity: 0.6;
+}
+
+.monaco-editor.vs-dark .ghost-text-hover-area {
+  background-color: rgba(138, 138, 138, 0.05);
+}
+
+.monaco-editor.vs-dark .ghost-text-hover-area:hover {
+  background-color: rgba(138, 138, 138, 0.1);
+}
+
+/* High contrast theme support */
+.monaco-editor.hc-black .ghost-text {
+  color: #6a6a6a;
+  opacity: 0.8;
+}
+`;

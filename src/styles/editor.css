@@ -1,0 +1,211 @@
+/* Ghost text styling from GhostTextManager */
+.ghost-text {
+  color: #6a6a6a;
+  opacity: 0.7;
+  font-style: italic;
+  pointer-events: none;
+}
+
+.ghost-text-decoration {
+  /* Additional styling for the decoration */
+}
+
+.ghost-text-hover-area {
+  /* Hover area for showing tooltip */
+  background-color: rgba(106, 106, 106, 0.05);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.ghost-text-hover-area:hover {
+  background-color: rgba(106, 106, 106, 0.1);
+}
+
+/* Dark theme support for ghost text */
+.monaco-editor.vs-dark .ghost-text {
+  color: #8a8a8a;
+  opacity: 0.6;
+}
+
+.monaco-editor.vs-dark .ghost-text-hover-area {
+  background-color: rgba(138, 138, 138, 0.05);
+}
+
+.monaco-editor.vs-dark .ghost-text-hover-area:hover {
+  background-color: rgba(138, 138, 138, 0.1);
+}
+
+/* High contrast theme support for ghost text */
+.monaco-editor.hc-black .ghost-text {
+  color: #6a6a6a;
+  opacity: 0.8;
+}
+
+/* Immersive editor styles from MainEditor */
+.monaco-editor {
+  background: transparent !important;
+}
+
+.monaco-editor .margin {
+  background: transparent !important;
+}
+
+.monaco-editor .lines-content {
+  background: transparent !important;
+}
+
+.monaco-editor .current-line {
+  border: none !important;
+  background: rgba(255, 255, 255, 0.02) !important;
+}
+
+.monaco-editor.vs-dark .current-line {
+  background: rgba(255, 255, 255, 0.02) !important;
+}
+
+/* Custom scrollbar for editor */
+.monaco-editor .monaco-scrollable-element {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(128, 128, 128, 0.3) transparent;
+}
+
+.monaco-editor .monaco-scrollable-element::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.monaco-editor .monaco-scrollable-element::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.monaco-editor .monaco-scrollable-element::-webkit-scrollbar-thumb {
+  background-color: rgba(128, 128, 128, 0.3);
+  border-radius: 4px;
+  border: none;
+}
+
+.monaco-editor .monaco-scrollable-element::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(128, 128, 128, 0.5);
+}
+
+.monaco-editor .monaco-scrollable-element::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Loading overlay animation */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.loading-pulse {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* Custom Monaco Editor theme for InkFlow */
+.monaco-editor.inkflow-theme {
+  --vscode-editor-background: transparent;
+  --vscode-editor-foreground: #333333;
+  --vscode-editor-lineHighlightBackground: rgba(255, 255, 255, 0.02);
+  --vscode-editor-selectionBackground: rgba(100, 149, 237, 0.3);
+  --vscode-editor-inactiveSelectionBackground: rgba(100, 149, 237, 0.1);
+  --vscode-editorCursor-foreground: #333333;
+  --vscode-editorWhitespace-foreground: rgba(51, 51, 51, 0.2);
+  --vscode-editorIndentGuide-background: rgba(51, 51, 51, 0.1);
+  --vscode-editorLineNumber-foreground: rgba(51, 51, 51, 0.4);
+}
+
+.monaco-editor.vs-dark.inkflow-theme {
+  --vscode-editor-foreground: #cccccc;
+  --vscode-editor-lineHighlightBackground: rgba(255, 255, 255, 0.02);
+  --vscode-editor-selectionBackground: rgba(100, 149, 237, 0.4);
+  --vscode-editor-inactiveSelectionBackground: rgba(100, 149, 237, 0.2);
+  --vscode-editorCursor-foreground: #cccccc;
+  --vscode-editorWhitespace-foreground: rgba(204, 204, 204, 0.2);
+  --vscode-editorIndentGuide-background: rgba(204, 204, 204, 0.1);
+  --vscode-editorLineNumber-foreground: rgba(204, 204, 204, 0.4);
+}
+
+/* Immersive focus mode styles */
+.immersive-mode .monaco-editor {
+  --vscode-editor-font-family: 'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+  --vscode-editor-font-size: 16px;
+  --vscode-editor-line-height: 1.8;
+}
+
+/* Feedback panel customizations */
+.feedback-panel-enter {
+  opacity: 0;
+  transform: scale(0.8) translateY(10px);
+}
+
+.feedback-panel-enter-active {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+  transition: opacity 200ms, transform 200ms;
+}
+
+.feedback-panel-exit {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+}
+
+.feedback-panel-exit-active {
+  opacity: 0;
+  transform: scale(0.8) translateY(10px);
+  transition: opacity 150ms, transform 150ms;
+}
+
+/* Keyboard shortcut styling */
+.kbd {
+  display: inline-block;
+  padding: 0.125rem 0.25rem;
+  font-size: 0.75rem;
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+  line-height: 1;
+  color: #374151;
+  background-color: #f3f4f6;
+  border: 1px solid #d1d5db;
+  border-radius: 0.25rem;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.dark .kbd {
+  color: #d1d5db;
+  background-color: #374151;
+  border-color: #4b5563;
+}
+
+/* Smooth transitions for theme changes */
+.monaco-editor {
+  transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+/* Loading overlay styles */
+.loading-overlay {
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+/* Custom selection styles for better readability */
+.monaco-editor .selected-text {
+  background-color: rgba(100, 149, 237, 0.2) !important;
+}
+
+.monaco-editor.vs-dark .selected-text {
+  background-color: rgba(100, 149, 237, 0.3) !important;
+}
+
+/* Remove all chrome from editor for immersive experience */
+.monaco-editor .decorationsOverviewRuler,
+.monaco-editor .minimap,
+.monaco-editor .scrollbar.vertical,
+.monaco-editor .scrollbar.horizontal {
+  opacity: 0.3;
+}
+
+.monaco-editor .decorationsOverviewRuler:hover,
+.monaco-editor .scrollbar.vertical:hover,
+.monaco-editor .scrollbar.horizontal:hover {
+  opacity: 0.6;
+}
