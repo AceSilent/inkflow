@@ -86,9 +86,39 @@ export const MainEditor: React.FC<MainEditorProps> = ({
         label: 'Accept Ghost Text',
         keybindings: [monaco.KeyCode.Tab],
         run: async () => {
-          if (ghostTextManagerRef.current?.isVisible()) {
-            await acceptSuggestion();
+          const editor = editorRef.current;
+          const { ghostText, acceptSuggestion } = useEditorStore.getState();
+
+          if (!editor || !ghostText?.isShowing) {
+            return;
           }
+
+          console.log('🎯 Accepting suggestion with Monaco native operations');
+
+          // Use Monaco's native text insertion with proper cursor management
+          const text = ghostText.suggestion;
+          const position = ghostText.position;
+
+          // Ensure the suggestion doesn't have trailing newlines that would cause cursor jumping
+          const cleanedText = text.trimEnd();
+
+          // Execute edit operation using Monaco's native API
+          editor.executeEdits('ai-suggestion', [{
+            range: new monaco.Range(
+              position.line,
+              position.column,
+              position.line,
+              position.column
+            ),
+            text: cleanedText,
+            forceMoveMarkers: true // Ensures cursor moves to the end of inserted text
+          }]);
+
+          // Sync state to Store (only state update, no text manipulation)
+          await acceptSuggestion(editorRef);
+
+          // Force focus back to editor after operation
+          setTimeout(() => editor.focus(), 10);
         },
       });
 
@@ -399,10 +429,43 @@ export const MainEditor: React.FC<MainEditorProps> = ({
           // You could call generateAISuggestion() again here with feedback
         }}
         onAccept={async () => {
+          const editor = editorRef.current;
+          const { ghostText, acceptSuggestion } = useEditorStore.getState();
+
+          if (!editor || !ghostText?.isShowing) {
+            return;
+          }
+
+          console.log('🎯 Accepting suggestion via button with Monaco native operations');
+
+          // Use Monaco's native text insertion with proper cursor management
+          const text = ghostText.suggestion;
+          const position = ghostText.position;
+
+          // Ensure the suggestion doesn't have trailing newlines that would cause cursor jumping
+          const cleanedText = text.trimEnd();
+
+          // Execute edit operation using Monaco's native API
+          editor.executeEdits('ai-suggestion-button', [{
+            range: new monaco.Range(
+              position.line,
+              position.column,
+              position.line,
+              position.column
+            ),
+            text: cleanedText,
+            forceMoveMarkers: true // Ensures cursor moves to the end of inserted text
+          }]);
+
+          // Sync state to Store (only state update, no text manipulation)
           await acceptSuggestion(editorRef);
+
+          // Update UI state
           setFeedbackVisible(false);
           setShouldAutoExpand(false);
-          // Focus is already handled in acceptSuggestion
+
+          // Force focus back to editor after operation
+          setTimeout(() => editor.focus(), 10);
         }}
         onDismiss={() => {
           clearGhostText();

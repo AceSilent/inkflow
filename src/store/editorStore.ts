@@ -144,26 +144,23 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
     const state = get();
     if (!state.ghostText) return;
 
-    const { suggestion, position } = state.ghostText;
-    const cursorOffset = position.offset;
+    console.log('📝 Syncing Store state after suggestion acceptance');
 
-    // Insert ghost text at cursor position
-    const newContent =
-      state.content.slice(0, cursorOffset) +
-      suggestion +
-      state.content.slice(cursorOffset);
+    // Get the latest content from Monaco editor if available
+    const updatedContent = editorRef?.current ?
+      editorRef.current.getValue() :
+      state.content;
 
+    // Store should only manage state synchronization, not text manipulation
+    // The actual text insertion is handled by Monaco's native operations in MainEditor
     set({
-      content: newContent,
+      content: updatedContent, // Sync with Monaco's actual content
       ghostText: null,
       feedbackPanelVisible: false,
       isDirty: true,
     });
 
-    // Force focus back to editor after accepting suggestion
-    if (editorRef?.current) {
-      setTimeout(() => editorRef.current?.focus(), 10);
-    }
+    // Note: Focus management is now handled by the caller (MainEditor) for better control
   },
 
   // Feedback panel management
@@ -246,13 +243,17 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
 
       if (responseContent && responseContent.trim()) {
         console.log('✅ AI suggestion generated:', responseContent);
-        get().setGhostText(responseContent, cursorPos);
+        // Clean up suggestion to prevent unwanted newlines that cause cursor jumping
+        const cleanedSuggestion = responseContent.trimEnd();
+        get().setGhostText(cleanedSuggestion, cursorPos);
       } else {
         console.log('❌ No valid AI response received');
         // Fallback to mock suggestions
         console.log('🔄 Falling back to mock suggestions due to empty response');
         const fallbackSuggestion = MOCK_SUGGESTIONS[Math.floor(Math.random() * MOCK_SUGGESTIONS.length)];
-        get().setGhostText(fallbackSuggestion, cursorPos);
+        // Ensure mock suggestions are also clean
+        const cleanedFallback = fallbackSuggestion.trimEnd();
+        get().setGhostText(cleanedFallback, cursorPos);
       }
     } catch (error) {
       console.error('💥 Failed to generate AI suggestion:', error);
@@ -263,7 +264,9 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
       await minDisplayPromise;
 
       const fallbackSuggestion = MOCK_SUGGESTIONS[Math.floor(Math.random() * MOCK_SUGGESTIONS.length)];
-      get().setGhostText(fallbackSuggestion, state.cursorPosition);
+      // Ensure fallback suggestions are also clean
+      const cleanedFallback = fallbackSuggestion.trimEnd();
+      get().setGhostText(cleanedFallback, state.cursorPosition);
     } finally {
       set({ isAISuggesting: false });
       console.log('🔚 AI suggestion generation completed');
