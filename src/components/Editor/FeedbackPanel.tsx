@@ -50,6 +50,10 @@ export const FeedbackPanel: React.FC<FeedbackPanelProps> = ({
   useEffect(() => {
     if (!isVisible) {
       setFeedback('');
+      // Ensure no focus remnants when panel is hidden
+      if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
     }
   }, [isVisible]);
 

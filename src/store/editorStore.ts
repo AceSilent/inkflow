@@ -1,10 +1,21 @@
 import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/tauri';
+import { type RefObject } from 'react';
 
 // Check if running in Tauri environment
 const isTauriAvailable = () => {
   return typeof window !== 'undefined' && window.__TAURI__ !== undefined;
 };
+
+// Unified mock suggestions for all environments
+const MOCK_SUGGESTIONS = [
+  "夜幕降临，城市的霓虹灯开始闪烁，街道上的行人渐渐稀少。",
+  "微风吹过，带来了远方的花香，也吹起了心中的涟漪。",
+  "雨滴敲打着窗户，发出清脆的声响，仿佛在诉说着什么。",
+  "阳光透过云层的缝隙洒向大地，给这个清晨带来了温暖。",
+  "月光如水般洒在湖面上，泛起层层银色的涟漪。",
+  "远山如黛，近水含烟，构成了一幅绝美的山水画卷。",
+];
 import type {
   GhostTextState,
   CursorContext,
@@ -48,7 +59,7 @@ export interface EditorActions {
   // Ghost text management
   setGhostText: (suggestion: string, position: CursorContext) => void;
   clearGhostText: () => void;
-  acceptSuggestion: () => Promise<void>;
+  acceptSuggestion: (editorRef?: RefObject<monaco.editor.IStandaloneCodeEditor>) => Promise<void>;
 
   // Feedback panel management
   setFeedbackVisible: (visible: boolean) => void;
@@ -129,7 +140,7 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
     });
   },
 
-  acceptSuggestion: async () => {
+  acceptSuggestion: async (editorRef?: RefObject<monaco.editor.IStandaloneCodeEditor>) => {
     const state = get();
     if (!state.ghostText) return;
 
@@ -148,6 +159,11 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
       feedbackPanelVisible: false,
       isDirty: true,
     });
+
+    // Force focus back to editor after accepting suggestion
+    if (editorRef?.current) {
+      setTimeout(() => editorRef.current?.focus(), 10);
+    }
   },
 
   // Feedback panel management
@@ -162,6 +178,10 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
 
     console.log('🤖 Starting AI suggestion generation...');
     set({ isAISuggesting: true });
+
+    // Minimum display time to ensure users can see the loading animation
+    const MIN_DISPLAY_TIME = 800; // 800ms
+    const minDisplayPromise = new Promise(resolve => setTimeout(resolve, MIN_DISPLAY_TIME));
 
     try {
       // Get current context for AI generation
@@ -178,9 +198,13 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
         recentContextLength: recentContext.length
       });
 
+      // Unified prompt construction
+      const prompt = `请基于以下小说内容，续写下一段文字（约100-200字）：\n\n${recentContext}`;
+
       // Remove length restriction - just ensure cursor is at a valid position
       if (cursorPos.offset === 0 && state.content.trim().length === 0) {
         console.log('⏭️ Skipping AI generation - empty document');
+        await minDisplayPromise; // Still wait minimum time
         set({ isAISuggesting: false });
         return;
       }
@@ -189,31 +213,35 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
 
       if (isTauriAvailable()) {
         // Call Rust backend
+        console.log('🚀 Using Tauri backend for AI suggestion');
         const aiRequest: AIRequest = {
-          prompt: `请基于以下小说内容，续写下一段文字（约100-200字）：\n\n${recentContext}`,
+          prompt,
           max_tokens: 300,
           temperature: 0.8,
           model: 'gpt-4',
           stream: false,
         };
 
-        const response: AIResponse = await invoke('generate_ai_suggestion', {
+        const aiPromise = invoke('generate_ai_suggestion', {
           request: aiRequest,
-        });
+        }) as Promise<AIResponse>;
+
+        const [response] = await Promise.all([aiPromise, minDisplayPromise]);
         responseContent = response.content;
       } else {
         // Mock AI suggestion for web development
         console.log('🌐 Using mock AI suggestion for web development');
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API delay
 
-        const mockSuggestions = [
-          "夜幕降临，城市的霓虹灯开始闪烁，街道上的行人渐渐稀少。",
-          "微风吹过，带来了远方的花香，也吹起了心中的涟漪。",
-          "雨滴敲打着窗户，发出清脆的声响，仿佛在诉说着什么。",
-          "阳光透过云层的缝隙洒向大地，给这个清晨带来了温暖。"
-        ];
+        // Use Promise.all to ensure minimum display time
+        const mockPromise = new Promise<string>((resolve) => {
+          setTimeout(() => {
+            const mockSuggestion = MOCK_SUGGESTIONS[Math.floor(Math.random() * MOCK_SUGGESTIONS.length)];
+            resolve(mockSuggestion);
+          }, 1000); // Simulate API delay
+        });
 
-        responseContent = mockSuggestions[Math.floor(Math.random() * mockSuggestions.length)];
+        const [mockResponse] = await Promise.all([mockPromise, minDisplayPromise]);
+        responseContent = mockResponse;
       }
 
       if (responseContent && responseContent.trim()) {
@@ -221,9 +249,21 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
         get().setGhostText(responseContent, cursorPos);
       } else {
         console.log('❌ No valid AI response received');
+        // Fallback to mock suggestions
+        console.log('🔄 Falling back to mock suggestions due to empty response');
+        const fallbackSuggestion = MOCK_SUGGESTIONS[Math.floor(Math.random() * MOCK_SUGGESTIONS.length)];
+        get().setGhostText(fallbackSuggestion, cursorPos);
       }
     } catch (error) {
       console.error('💥 Failed to generate AI suggestion:', error);
+      // Fallback to mock suggestions on error
+      console.log('🔄 Falling back to mock suggestions due to error');
+
+      // Ensure minimum display time even during error handling
+      await minDisplayPromise;
+
+      const fallbackSuggestion = MOCK_SUGGESTIONS[Math.floor(Math.random() * MOCK_SUGGESTIONS.length)];
+      get().setGhostText(fallbackSuggestion, state.cursorPosition);
     } finally {
       set({ isAISuggesting: false });
       console.log('🔚 AI suggestion generation completed');

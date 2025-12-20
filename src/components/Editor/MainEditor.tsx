@@ -114,8 +114,17 @@ export const MainEditor: React.FC<MainEditorProps> = ({
         label: 'Toggle Feedback Panel',
         keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK],
         run: () => {
-          console.log('Ctrl+K pressed, checking ghostText existence');
+          console.log('Ctrl+K pressed, checking panel and ghost text state');
           const { ghostText, setFeedbackVisible } = useEditorStore.getState();
+
+          // If panel is already visible, user might want to focus on input, no need to process
+          if (feedbackPanelVisible) {
+            console.log('Panel already visible, focusing on input instead');
+            setShouldAutoExpand(true); // Ensure it's expanded
+            return;
+          }
+
+          // If panel not expanded and ghost text exists, expand it
           if (ghostText?.isShowing) {
             console.log('Ghost text exists, setting feedback panel visible and expanded');
             setFeedbackVisible(true);
@@ -134,6 +143,15 @@ export const MainEditor: React.FC<MainEditorProps> = ({
           e.stopPropagation();
 
           const { ghostText, setFeedbackVisible } = useEditorStore.getState();
+
+          // If panel is already visible, user might want to focus on input, no need to process
+          if (feedbackPanelVisible) {
+            console.log('Panel already visible in onKeyDown, focusing on input instead');
+            setShouldAutoExpand(true); // Ensure it's expanded
+            return;
+          }
+
+          // If panel not expanded and ghost text exists, expand it
           if (ghostText?.isShowing) {
             console.log('Ghost text exists in onKeyDown, setting feedback panel visible and expanded');
             setFeedbackVisible(true);
@@ -313,17 +331,17 @@ export const MainEditor: React.FC<MainEditorProps> = ({
     if (!isLoading && !isAISuggesting) return null;
 
     return (
-      <div className="absolute top-4 right-4 bg-black bg-opacity-75 text-white px-3 py-2 rounded-md text-sm flex items-center space-x-2 z-10">
+      <div className="absolute top-4 right-4 bg-blue-600/20 backdrop-blur-sm text-blue-100 border border-blue-400/30 px-3 py-2 rounded-lg text-sm flex items-center space-x-2 z-[9999] shadow-lg">
         {isLoading && (
           <>
-            <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />
-            <span>Saving...</span>
+            <div className="w-3 h-3 border-2 border-blue-300 border-t-transparent rounded-full animate-spin" />
+            <span className="animate-pulse">Saving...</span>
           </>
         )}
         {isAISuggesting && (
           <>
-            <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />
-            <span>AI thinking...</span>
+            <div className="w-3 h-3 border-2 border-blue-300 border-t-transparent rounded-full animate-spin" />
+            <span className="animate-pulse">AI thinking...</span>
           </>
         )}
       </div>
@@ -376,21 +394,28 @@ export const MainEditor: React.FC<MainEditorProps> = ({
           clearGhostText();
           setFeedbackVisible(false);
           setShouldAutoExpand(false);
+          // Key: Return focus to editor after feedback submission
+          setTimeout(() => editorRef.current?.focus(), 10);
           // You could call generateAISuggestion() again here with feedback
         }}
         onAccept={async () => {
-          await acceptSuggestion();
+          await acceptSuggestion(editorRef);
           setFeedbackVisible(false);
           setShouldAutoExpand(false);
+          // Focus is already handled in acceptSuggestion
         }}
         onDismiss={() => {
           clearGhostText();
           setFeedbackVisible(false);
           setShouldAutoExpand(false);
+          // Key: Return focus to editor after dismissing
+          setTimeout(() => editorRef.current?.focus(), 10);
         }}
         onCollapse={() => {
           console.log('onCollapse callback triggered, collapsing to capsule');
           setShouldAutoExpand(false);
+          // Key: Return focus to editor after collapsing
+          setTimeout(() => editorRef.current?.focus(), 10);
         }}
         onExpandRequest={() => {
           setFeedbackVisible(true);
