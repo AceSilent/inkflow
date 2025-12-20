@@ -18,9 +18,10 @@ export const MainEditor: React.FC<MainEditorProps> = ({
   const ghostTextManagerRef = useRef<GhostTextManager | null>(null);
   const debounceTimerRef = useRef<number | null>(null);
 
-  // State for feedback panel positioning
+  // State for feedback panel positioning and expansion
   const [feedbackPanelPosition, setFeedbackPanelPosition] = useState<{ top: number; left: number } | null>(null);
-  const [shouldExpandFeedback, setShouldExpandFeedback] = useState(false);
+  const [lastValidPosition, setLastValidPosition] = useState<{ top: number; left: number } | null>(null);
+  const [shouldAutoExpand, setShouldAutoExpand] = useState(false);
 
   // Store hooks
   const content = useEditorContent();
@@ -96,7 +97,15 @@ export const MainEditor: React.FC<MainEditorProps> = ({
         label: 'Dismiss Ghost Text',
         keybindings: [monaco.KeyCode.Escape],
         run: () => {
-          clearGhostText();
+          // Logic: If panel is expanded, ESC collapses to capsule; if already capsule, clear ghost text
+          if (shouldAutoExpand) {
+            console.log('ESC pressed while panel expanded, collapsing to capsule');
+            setShouldAutoExpand(false);
+            setFeedbackVisible(false);
+          } else {
+            console.log('ESC pressed while in capsule state, clearing ghost text');
+            clearGhostText();
+          }
         },
       });
 
@@ -108,9 +117,9 @@ export const MainEditor: React.FC<MainEditorProps> = ({
           console.log('Ctrl+K pressed, checking ghostText existence');
           const { ghostText, setFeedbackVisible } = useEditorStore.getState();
           if (ghostText?.isShowing) {
-            console.log('Ghost text exists, setting feedback panel visible');
+            console.log('Ghost text exists, setting feedback panel visible and expanded');
             setFeedbackVisible(true);
-            setShouldExpandFeedback(true);
+            setShouldAutoExpand(true);
           } else {
             console.log('No ghost text showing, ignoring Ctrl+K');
           }
@@ -126,9 +135,9 @@ export const MainEditor: React.FC<MainEditorProps> = ({
 
           const { ghostText, setFeedbackVisible } = useEditorStore.getState();
           if (ghostText?.isShowing) {
-            console.log('Ghost text exists in onKeyDown, setting feedback panel visible');
+            console.log('Ghost text exists in onKeyDown, setting feedback panel visible and expanded');
             setFeedbackVisible(true);
-            setShouldExpandFeedback(true);
+            setShouldAutoExpand(true);
           }
         }
       });
@@ -172,6 +181,7 @@ export const MainEditor: React.FC<MainEditorProps> = ({
                   left: visiblePosition.left + editorRect.left,
                 };
                 setFeedbackPanelPosition(pixelPosition);
+                setLastValidPosition(pixelPosition); // Save for fallback
               }
             }
           } catch (error) {
@@ -267,6 +277,7 @@ export const MainEditor: React.FC<MainEditorProps> = ({
                 left: visiblePosition.left + editorRect.left,
               };
               setFeedbackPanelPosition(pixelPosition);
+              setLastValidPosition(pixelPosition); // Save for fallback
             }
           }
         } catch (error) {
@@ -277,15 +288,14 @@ export const MainEditor: React.FC<MainEditorProps> = ({
       console.log('🧹 Clearing ghost text');
       ghostTextManagerRef.current.clear();
       setFeedbackPanelPosition(null);
-      setShouldExpandFeedback(false);
     }
   }, [ghostText]);
 
-  // Reset expand state when ghost text is hidden
+  // Reset feedback panel state when ghost text is hidden
   useEffect(() => {
     if (!ghostText?.isShowing) {
-      setShouldExpandFeedback(false);
       setFeedbackVisible(false);
+      setShouldAutoExpand(false);
     }
   }, [ghostText?.isShowing, setFeedbackVisible]);
 
@@ -357,30 +367,34 @@ export const MainEditor: React.FC<MainEditorProps> = ({
       {/* Feedback Panel */}
       <FeedbackPanel
         isVisible={(ghostText?.isShowing ?? false) || feedbackPanelVisible}
-        position={feedbackPanelPosition || undefined}
-        isExpanded={shouldExpandFeedback || feedbackPanelVisible}
+        position={feedbackPanelPosition || lastValidPosition || undefined}
+        isExpanded={shouldAutoExpand}
         onFeedback={async (feedback: string) => {
           // Handle feedback submission
           console.log('User feedback:', feedback);
           // Could trigger AI regeneration with feedback
           clearGhostText();
-          setShouldExpandFeedback(false);
           setFeedbackVisible(false);
+          setShouldAutoExpand(false);
           // You could call generateAISuggestion() again here with feedback
         }}
         onAccept={async () => {
           await acceptSuggestion();
-          setShouldExpandFeedback(false);
           setFeedbackVisible(false);
+          setShouldAutoExpand(false);
         }}
         onDismiss={() => {
           clearGhostText();
-          setShouldExpandFeedback(false);
           setFeedbackVisible(false);
+          setShouldAutoExpand(false);
+        }}
+        onCollapse={() => {
+          console.log('onCollapse callback triggered, collapsing to capsule');
+          setShouldAutoExpand(false);
         }}
         onExpandRequest={() => {
-          setShouldExpandFeedback(true);
           setFeedbackVisible(true);
+          setShouldAutoExpand(true);
         }}
       />
     </div>

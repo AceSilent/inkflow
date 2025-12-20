@@ -3,29 +3,27 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 interface FeedbackPanelProps {
   isVisible: boolean;
-  position?: { top: number; left: number }; // Changed to pixel coordinates
-  isExpanded?: boolean; // New prop to control expanded state from parent
+  position?: { top: number; left: number }; // Pixel coordinates for positioning
+  isExpanded?: boolean; // Controls expanded state from parent
   onFeedback: (feedback: string) => void;
   onAccept?: () => void;
   onDismiss?: () => void;
-  onExpandRequest?: () => void; // New callback for K key handling
+  onCollapse?: () => void; // Callback for collapsing to capsule state
+  onExpandRequest?: () => void; // Callback for Ctrl+K handling
 }
 
 export const FeedbackPanel: React.FC<FeedbackPanelProps> = ({
   isVisible,
   position,
-  isExpanded: externalExpanded = false,
+  isExpanded = false,
   onFeedback,
   onAccept,
   onDismiss,
+  onCollapse,
   onExpandRequest,
 }) => {
   const [feedback, setFeedback] = useState('');
-  const [internalExpanded, setInternalExpanded] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-
-  // Use external expanded state if provided, otherwise use internal state
-  const isExpanded = externalExpanded || internalExpanded;
 
   // Quick feedback options - simplified for minimal design
   const quickFeedbackOptions = [
@@ -52,7 +50,6 @@ export const FeedbackPanel: React.FC<FeedbackPanelProps> = ({
   useEffect(() => {
     if (!isVisible) {
       setFeedback('');
-      setInternalExpanded(false);
     }
   }, [isVisible]);
 
@@ -60,11 +57,11 @@ export const FeedbackPanel: React.FC<FeedbackPanelProps> = ({
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isExpanded && isVisible) {
-        console.log('Global ESC handler triggered in FeedbackPanel');
+        console.log('Global ESC handler triggered in FeedbackPanel, collapsing to capsule');
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
-        setInternalExpanded(false);
+        onCollapse?.();
       }
     };
 
@@ -74,53 +71,35 @@ export const FeedbackPanel: React.FC<FeedbackPanelProps> = ({
         document.removeEventListener('keydown', handleGlobalKeyDown, true);
       };
     }
-  }, [isExpanded, isVisible]);
-
-  // Sync internal expanded state with external when it changes
-  useEffect(() => {
-    if (externalExpanded) {
-      setInternalExpanded(false); // Let external control the state
-    }
-  }, [externalExpanded]);
+  }, [isExpanded, isVisible, onCollapse]);
 
   // Handle expand request from K key
   const handleExpandRequest = useCallback(() => {
-    if (!externalExpanded) {
-      setInternalExpanded(true);
-    }
     onExpandRequest?.();
-  }, [onExpandRequest, externalExpanded]);
+  }, [onExpandRequest]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (feedback.trim()) {
       onFeedback(feedback.trim());
       setFeedback('');
-      setInternalExpanded(false);
     }
   };
 
   const handleQuickFeedback = (value: string) => {
     onFeedback(value);
-    setInternalExpanded(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
       e.preventDefault();
       e.stopPropagation();
-      console.log('ESC pressed in FeedbackPanel');
-      if (isExpanded) {
-        // If expanded, collapse to capsule state, don't dismiss the panel
-        console.log('Collapsing to capsule state');
-        setInternalExpanded(false);
-      } else {
-        // If already in capsule state, dismiss the entire panel
-        console.log('Dismissing entire panel');
-        onDismiss?.();
-      }
+      e.stopImmediatePropagation();
+      console.log('ESC pressed in FeedbackPanel, collapsing to capsule');
+      onCollapse?.();
     } else if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
+      e.stopPropagation();
       handleSubmit(e);
     }
   };
@@ -129,15 +108,12 @@ export const FeedbackPanel: React.FC<FeedbackPanelProps> = ({
   const handleCollapse = (e?: React.MouseEvent) => {
     e?.preventDefault();
     e?.stopPropagation();
-    console.log('Close button clicked in FeedbackPanel');
-    setInternalExpanded(false);
+    console.log('Close button clicked in FeedbackPanel, collapsing to capsule');
+    onCollapse?.();
   };
 
   // Handle capsule click to expand
   const handleCapsuleClick = () => {
-    if (!externalExpanded) {
-      setInternalExpanded(true);
-    }
     onExpandRequest?.();
   };
 
