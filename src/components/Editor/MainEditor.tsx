@@ -1,8 +1,8 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef, useCallback, useState } from 'react';
 import Editor from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
 import { GhostTextManager } from './GhostTextManager';
-import { useEditorStore, useEditorContent, useGhostText, useEditorLoading } from '../../store/editorStore';
+import { useEditorStore, useEditorContent, useGhostText, useEditorLoading, useFeedbackPanelVisible } from '../../store/editorStore';
 import { FeedbackPanel } from './FeedbackPanel';
 
 interface MainEditorProps {
@@ -18,9 +18,14 @@ export const MainEditor: React.FC<MainEditorProps> = ({
   const ghostTextManagerRef = useRef<GhostTextManager | null>(null);
   const debounceTimerRef = useRef<number | null>(null);
 
+  // State for feedback panel positioning
+  const [feedbackPanelPosition, setFeedbackPanelPosition] = useState<{ top: number; left: number } | null>(null);
+  const [shouldExpandFeedback, setShouldExpandFeedback] = useState(false);
+
   // Store hooks
   const content = useEditorContent();
   const ghostText = useGhostText();
+  const feedbackPanelVisible = useFeedbackPanelVisible();
   const { isLoading, isAISuggesting } = useEditorLoading();
 
   const {
@@ -32,6 +37,7 @@ export const MainEditor: React.FC<MainEditorProps> = ({
     generateAISuggestion,
     shouldTriggerAI,
     autoSave,
+    setFeedbackVisible,
   } = useEditorStore();
 
   // Handle editor mount
@@ -94,6 +100,39 @@ export const MainEditor: React.FC<MainEditorProps> = ({
         },
       });
 
+      editor.addAction({
+        id: 'toggle-feedback-panel',
+        label: 'Toggle Feedback Panel',
+        keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK],
+        run: () => {
+          console.log('Ctrl+K pressed, checking ghostText existence');
+          const { ghostText, setFeedbackVisible } = useEditorStore.getState();
+          if (ghostText?.isShowing) {
+            console.log('Ghost text exists, setting feedback panel visible');
+            setFeedbackVisible(true);
+            setShouldExpandFeedback(true);
+          } else {
+            console.log('No ghost text showing, ignoring Ctrl+K');
+          }
+        },
+      });
+
+      // Add keyboard event listener for extra Ctrl+K interception
+      const keyDownDisposable = editor.onKeyDown((e) => {
+        if (e.keyCode === monaco.KeyCode.KeyK && (e.ctrlKey || e.metaKey)) {
+          console.log('Ctrl+K intercepted in onKeyDown listener');
+          e.preventDefault();
+          e.stopPropagation();
+
+          const { ghostText, setFeedbackVisible } = useEditorStore.getState();
+          if (ghostText?.isShowing) {
+            console.log('Ghost text exists in onKeyDown, setting feedback panel visible');
+            setFeedbackVisible(true);
+            setShouldExpandFeedback(true);
+          }
+        }
+      });
+
       // Add content change listener with debouncing
       const disposable = editor.onDidChangeModelContent(() => {
         const newContent = editor.getValue();
@@ -116,11 +155,36 @@ export const MainEditor: React.FC<MainEditorProps> = ({
         const position = GhostTextManager.calculateCursorPosition(editor, e.position);
         updateCursorPosition(position);
 
+        // Calculate feedback panel position when ghost text is visible
+        if (ghostText?.isShowing && ghostText.position) {
+          try {
+            // Convert cursor position to pixel coordinates
+            const cursorPosition = new monaco.Position(ghostText.position.line, ghostText.position.column);
+            const visiblePosition = editor.getScrolledVisiblePosition(cursorPosition);
+
+            if (visiblePosition) {
+              // Get the editor's DOM element for accurate positioning
+              const editorDomNode = editor.getDomNode();
+              if (editorDomNode) {
+                const editorRect = editorDomNode.getBoundingClientRect();
+                const pixelPosition = {
+                  top: visiblePosition.top + editorRect.top,
+                  left: visiblePosition.left + editorRect.left,
+                };
+                setFeedbackPanelPosition(pixelPosition);
+              }
+            }
+          } catch (error) {
+            console.warn('Failed to calculate feedback panel position:', error);
+          }
+        }
+
         // Handle ghost text visibility based on cursor movement
         if (ghostTextManagerRef.current) {
           const shouldClear = ghostTextManagerRef.current.handleCursorPositionChange(position);
           if (shouldClear) {
             clearGhostText();
+            setFeedbackPanelPosition(null);
           }
         }
       });
@@ -163,13 +227,14 @@ export const MainEditor: React.FC<MainEditorProps> = ({
       // Cleanup function
       return () => {
         disposable.dispose();
+        keyDownDisposable.dispose();
         if (debounceTimerRef.current) {
           clearTimeout(debounceTimerRef.current);
         }
         clearInterval(autoSaveInterval);
       };
     },
-    [updateContent, updateCursorPosition, updateSelectionRange, acceptSuggestion, clearGhostText, generateAISuggestion, shouldTriggerAI, autoSave, onMount]
+    [updateContent, updateCursorPosition, updateSelectionRange, acceptSuggestion, clearGhostText, generateAISuggestion, shouldTriggerAI, autoSave, onMount, ghostText]
   );
 
   // Sync ghost text with store
@@ -186,11 +251,43 @@ export const MainEditor: React.FC<MainEditorProps> = ({
     if (ghostText?.isShowing) {
       console.log('👻 Showing ghost text:', ghostText.suggestion);
       ghostTextManagerRef.current.show(ghostText.suggestion, ghostText.position);
+
+      // Calculate feedback panel position when ghost text appears
+      if (editorRef.current && ghostText.position) {
+        try {
+          const cursorPosition = new monaco.Position(ghostText.position.line, ghostText.position.column);
+          const visiblePosition = editorRef.current.getScrolledVisiblePosition(cursorPosition);
+
+          if (visiblePosition) {
+            const editorDomNode = editorRef.current.getDomNode();
+            if (editorDomNode) {
+              const editorRect = editorDomNode.getBoundingClientRect();
+              const pixelPosition = {
+                top: visiblePosition.top + editorRect.top,
+                left: visiblePosition.left + editorRect.left,
+              };
+              setFeedbackPanelPosition(pixelPosition);
+            }
+          }
+        } catch (error) {
+          console.warn('Failed to calculate feedback panel position:', error);
+        }
+      }
     } else {
       console.log('🧹 Clearing ghost text');
       ghostTextManagerRef.current.clear();
+      setFeedbackPanelPosition(null);
+      setShouldExpandFeedback(false);
     }
   }, [ghostText]);
+
+  // Reset expand state when ghost text is hidden
+  useEffect(() => {
+    if (!ghostText?.isShowing) {
+      setShouldExpandFeedback(false);
+      setFeedbackVisible(false);
+    }
+  }, [ghostText?.isShowing, setFeedbackVisible]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -259,14 +356,31 @@ export const MainEditor: React.FC<MainEditorProps> = ({
 
       {/* Feedback Panel */}
       <FeedbackPanel
-        isVisible={ghostText?.isShowing ?? false}
-        position={ghostText?.position}
+        isVisible={(ghostText?.isShowing ?? false) || feedbackPanelVisible}
+        position={feedbackPanelPosition || undefined}
+        isExpanded={shouldExpandFeedback || feedbackPanelVisible}
         onFeedback={async (feedback: string) => {
           // Handle feedback submission
           console.log('User feedback:', feedback);
           // Could trigger AI regeneration with feedback
           clearGhostText();
+          setShouldExpandFeedback(false);
+          setFeedbackVisible(false);
           // You could call generateAISuggestion() again here with feedback
+        }}
+        onAccept={async () => {
+          await acceptSuggestion();
+          setShouldExpandFeedback(false);
+          setFeedbackVisible(false);
+        }}
+        onDismiss={() => {
+          clearGhostText();
+          setShouldExpandFeedback(false);
+          setFeedbackVisible(false);
+        }}
+        onExpandRequest={() => {
+          setShouldExpandFeedback(true);
+          setFeedbackVisible(true);
         }}
       />
     </div>

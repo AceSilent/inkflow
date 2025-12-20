@@ -24,6 +24,9 @@ export interface EditorState {
   ghostText: GhostTextState | null;
   ghostTextSnapshot?: GhostTextSnapshot;
 
+  // Feedback panel state
+  feedbackPanelVisible: boolean;
+
   // Cursor and selection
   cursorPosition: CursorContext;
   selectionRange?: { start: number; end: number };
@@ -46,6 +49,9 @@ export interface EditorActions {
   setGhostText: (suggestion: string, position: CursorContext) => void;
   clearGhostText: () => void;
   acceptSuggestion: () => Promise<void>;
+
+  // Feedback panel management
+  setFeedbackVisible: (visible: boolean) => void;
 
   // AI suggestion generation
   generateAISuggestion: () => Promise<void>;
@@ -78,6 +84,7 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
   isAISuggesting: false,
   isLoading: false,
   ghostText: null,
+  feedbackPanelVisible: false,
   cursorPosition: { line: 1, column: 1, offset: 0 },
   currentChapterPath: '',
   lastSavedContent: '',
@@ -118,6 +125,7 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
   clearGhostText: () => {
     set({
       ghostText: null,
+      feedbackPanelVisible: false,
     });
   },
 
@@ -137,8 +145,14 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
     set({
       content: newContent,
       ghostText: null,
+      feedbackPanelVisible: false,
       isDirty: true,
     });
+  },
+
+  // Feedback panel management
+  setFeedbackVisible: (visible: boolean) => {
+    set({ feedbackPanelVisible: visible });
   },
 
   // AI suggestion generation
@@ -332,6 +346,7 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
 // Selectors for easier access to specific state
 export const useEditorContent = () => useEditorStore((state) => state.content);
 export const useGhostText = () => useEditorStore((state) => state.ghostText);
+export const useFeedbackPanelVisible = () => useEditorStore((state) => state.feedbackPanelVisible);
 export const useEditorLoading = () => useEditorStore((state) => ({
   isLoading: state.isLoading,
   isAISuggesting: state.isAISuggesting,
