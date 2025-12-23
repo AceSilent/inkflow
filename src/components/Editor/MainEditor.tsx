@@ -418,15 +418,18 @@ export const MainEditor: React.FC<MainEditorProps> = ({
         position={feedbackPanelPosition || lastValidPosition || undefined}
         isExpanded={shouldAutoExpand}
         onFeedback={async (feedback: string) => {
-          // Handle feedback submission
-          console.log('User feedback:', feedback);
-          // Could trigger AI regeneration with feedback
-          clearGhostText();
+          // Handle feedback submission and trigger AI regeneration with feedback
+          console.log('User feedback submitted, regenerating AI suggestion:', feedback);
+
+          // Close expanded panel (collapse to capsule state or hide)
           setFeedbackVisible(false);
           setShouldAutoExpand(false);
-          // Key: Return focus to editor after feedback submission
+
+          // Trigger AI regeneration with user feedback
+          await generateAISuggestion(feedback);
+
+          // Return focus to editor after feedback submission
           setTimeout(() => editorRef.current?.focus(), 10);
-          // You could call generateAISuggestion() again here with feedback
         }}
         onAccept={async () => {
           const editor = editorRef.current;

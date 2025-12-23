@@ -98,7 +98,7 @@ export const FeedbackPanel: React.FC<FeedbackPanelProps> = ({
     if (e.key === 'Escape') {
       e.preventDefault();
       e.stopPropagation();
-      e.stopImmediatePropagation();
+      e.nativeEvent.stopImmediatePropagation();
       console.log('ESC pressed in FeedbackPanel, collapsing to capsule');
       onCollapse?.();
     } else if (e.key === 'Enter' && !e.shiftKey) {

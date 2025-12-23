@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/tauri';
 import { type RefObject } from 'react';
+import type * as monaco from 'monaco-editor';
 
 // Check if running in Tauri environment
 const isTauriAvailable = () => {
@@ -65,7 +66,7 @@ export interface EditorActions {
   setFeedbackVisible: (visible: boolean) => void;
 
   // AI suggestion generation
-  generateAISuggestion: () => Promise<void>;
+  generateAISuggestion: (feedback?: string) => Promise<void>;
 
   // Cursor management
   updateCursorPosition: (position: CursorContext) => void;
@@ -169,12 +170,15 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
   },
 
   // AI suggestion generation
-  generateAISuggestion: async () => {
+  generateAISuggestion: async (feedback?: string) => {
     const state = get();
     if (state.isAISuggesting || state.isLoading) return;
 
-    console.log('🤖 Starting AI suggestion generation...');
+    console.log('🤖 Starting AI suggestion generation...', feedback ? `with feedback: ${feedback}` : '');
     set({ isAISuggesting: true });
+
+    // Clear existing ghost text before regeneration
+    set({ ghostText: null, feedbackPanelVisible: false });
 
     // Minimum display time to ensure users can see the loading animation
     const MIN_DISPLAY_TIME = 800; // 800ms
@@ -195,8 +199,19 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
         recentContextLength: recentContext.length
       });
 
-      // Unified prompt construction
-      const prompt = `请基于以下小说内容，续写下一段文字（约100-200字）：\n\n${recentContext}`;
+      // Unified prompt construction with feedback support
+      let prompt: string;
+      if (feedback) {
+        prompt = `你是小说续写助手。用户对刚才的续写有以下要求：${feedback}
+
+请直接续写以下内容，不要任何解释、前缀或对话式语言（如"按照你的要求"、"好的"等），直接开始小说正文：
+
+${recentContext}`;
+      } else {
+        prompt = `你是小说续写助手。请基于以下小说内容续写下一段（约100-200字），直接开始正文，不要任何解释或前缀：
+
+${recentContext}`;
+      }
 
       // Remove length restriction - just ensure cursor is at a valid position
       if (cursorPos.offset === 0 && state.content.trim().length === 0) {
@@ -215,7 +230,7 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
           prompt,
           max_tokens: 300,
           temperature: 0.8,
-          model: 'gpt-4',
+          model: 'glm-4-plus', // ChatGLM 模型
           stream: false,
         };
 

@@ -18,6 +18,27 @@ use crate::token_counter::{TokenCounter, count_tokens_exact, smart_truncate_text
 type SharedTokenCounter = Arc<Mutex<TokenCounter>>;
 
 fn main() {
+    // Load environment variables from .env file
+    // Try to load .env file, but don't panic if it doesn't exist
+    if let Ok(_) = dotenv::dotenv() {
+        println!("✅ Loaded .env file");
+    } else {
+        println!("⚠️  No .env file found, using system environment variables");
+    }
+
+    // Log API configuration status (without exposing the key)
+    if std::env::var("CHATGLM_API_KEY").is_ok() {
+        println!("✅ CHATGLM_API_KEY is configured");
+    } else {
+        println!("⚠️  CHATGLM_API_KEY not configured - will use mock suggestions");
+    }
+
+    if let Ok(base) = std::env::var("CHATGLM_API_BASE") {
+        println!("✅ CHATGLM_API_BASE: {}", base);
+    } else {
+        println!("ℹ️  CHATGLM_API_BASE not configured, using default");
+    }
+
     let token_counter = Arc::new(Mutex::new(TokenCounter::new()));
 
     tauri::Builder::default()
