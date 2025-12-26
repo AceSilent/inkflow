@@ -19,6 +19,18 @@
     -moz-osx-font-smoothing: grayscale;
   }
 
+  /* Light theme */
+  html.light body {
+    background-color: #ffffff;
+    color: #1e1e1e;
+  }
+
+  /* Dark theme (default) */
+  html.dark body {
+    background-color: #1e1e1e;
+    color: #e1e1e1;
+  }
+
   * {
     box-sizing: border-box;
   }
@@ -203,9 +215,7 @@
 
 /* Monaco Editor customization */
 @layer components {
-  .monaco-editor {
-    background: transparent !important;
-  }
+  /* 移除透明背景，让 Monaco Editor 使用自己的主题颜色 */
 
   .monaco-editor .margin {
     background: transparent !important;
@@ -218,6 +228,11 @@
   .monaco-editor .current-line {
     border: none !important;
     background: rgba(255, 255, 255, 0.02) !important;
+  }
+
+  /* 浅色主题下的当前行高亮 */
+  html.light .monaco-editor .current-line {
+    background: rgba(0, 0, 0, 0.02) !important;
   }
 
   /* Custom scrollbar */

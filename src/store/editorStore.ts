@@ -2,6 +2,9 @@ import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/tauri';
 import { type RefObject } from 'react';
 import type * as monaco from 'monaco-editor';
+import { useWorkspaceStore } from './workspaceStore';
+import { useConfigStore } from './configStore';
+import { showWarning } from './toastStore';
 
 // Check if running in Tauri environment
 const isTauriAvailable = () => {
@@ -199,18 +202,54 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
         recentContextLength: recentContext.length
       });
 
+      // 构建"上帝视角" Prompt
+      const workspaceState = useWorkspaceStore.getState();
+      const globalOutline = workspaceState.globalOutline;
+      const lastTwoSummaries = workspaceState.getLastTwoChapterSummaries();
+
+      // 生成全局背景设定文本
+      let globalContext = '';
+      if (globalOutline) {
+        globalContext = `【全局背景设定】
+标题：${globalOutline.title}
+简介：${globalOutline.summary}
+人物：${globalOutline.characters.map(c => `${c.name}（${c.role}）- ${c.description}`).join('；')}
+情节：${globalOutline.plot_points.join('、')}
+${globalOutline.world_setting ? `世界观：${globalOutline.world_setting}` : ''}
+
+`;
+      }
+
+      // 生成前情提要文本
+      let previousContext = '';
+      if (lastTwoSummaries.length > 0) {
+        previousContext = `【前情提要】
+${lastTwoSummaries.join('\n')}
+
+`;
+      }
+
+      // 生成当前光标位置标记
+      const cursorMarker = recentContext.length > 0
+        ? recentContext.slice(0, cursorPos.offset) + '[光标位置]' + recentContext.slice(cursorPos.offset)
+        : '[光标位置]';
+
       // Unified prompt construction with feedback support
       let prompt: string;
       if (feedback) {
         prompt = `你是小说续写助手。用户对刚才的续写有以下要求：${feedback}
 
-请直接续写以下内容，不要任何解释、前缀或对话式语言（如"按照你的要求"、"好的"等），直接开始小说正文：
+${globalContext}${previousContext}【本章当前内容】
+${cursorMarker}
 
-${recentContext}`;
+请直接续写内容，不要任何解释、前缀或对话式语言（如"按照你的要求"、"好的"等），直接开始小说正文：`;
       } else {
-        prompt = `你是小说续写助手。请基于以下小说内容续写下一段（约100-200字），直接开始正文，不要任何解释或前缀：
+        prompt = `你是小说续写助手。请基于以下信息续写小说：
 
-${recentContext}`;
+${globalContext}${previousContext}【本章当前内容】
+${cursorMarker}
+
+请续写下一段（约100-200字），直接开始正文，不要任何解释或前缀：`;
       }
 
       // Remove length restriction - just ensure cursor is at a valid position
@@ -226,16 +265,29 @@ ${recentContext}`;
       if (isTauriAvailable()) {
         // Call Rust backend
         console.log('🚀 Using Tauri backend for AI suggestion');
+
+        // Get API configuration from config store
+        const config = useConfigStore.getState();
+        if (!config.apiKey) {
+          console.error('❌ API Key not configured');
+          showWarning('请先在设置中配置 API Key', 4000);
+          await minDisplayPromise;
+          set({ isAISuggesting: false });
+          return;
+        }
+
         const aiRequest: AIRequest = {
           prompt,
           max_tokens: 300,
           temperature: 0.8,
-          model: 'glm-4-plus', // ChatGLM 模型
+          model: 'glm-4-plus', // AI 模型
           stream: false,
         };
 
         const aiPromise = invoke('generate_ai_suggestion', {
           request: aiRequest,
+          apiKey: config.apiKey,
+          apiBaseUrl: config.apiBaseUrl,
         }) as Promise<AIResponse>;
 
         const [response] = await Promise.all([aiPromise, minDisplayPromise]);

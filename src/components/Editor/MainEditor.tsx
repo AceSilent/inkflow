@@ -3,15 +3,16 @@ import Editor from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
 import { GhostTextManager } from './GhostTextManager';
 import { useEditorStore, useEditorContent, useGhostText, useEditorLoading, useFeedbackPanelVisible } from '../../store/editorStore';
+import { useConfigStore } from '../../store/configStore';
 import { FeedbackPanel } from './FeedbackPanel';
 
 interface MainEditorProps {
-  theme?: 'light' | 'dark' | 'vs-dark';
+  theme?: 'light' | 'vs-dark';
   onMount?: (editor: monaco.editor.IStandaloneCodeEditor) => void;
 }
 
 export const MainEditor: React.FC<MainEditorProps> = ({
-  theme = 'dark',
+  theme = 'vs-dark',
   onMount,
 }) => {
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
@@ -28,6 +29,7 @@ export const MainEditor: React.FC<MainEditorProps> = ({
   const ghostText = useGhostText();
   const feedbackPanelVisible = useFeedbackPanelVisible();
   const { isLoading, isAISuggesting } = useEditorLoading();
+  const aiDelay = useConfigStore((state) => state.aiDelay);
 
   const {
     updateContent,
@@ -204,7 +206,7 @@ export const MainEditor: React.FC<MainEditorProps> = ({
           if (shouldTriggerAI()) {
             generateAISuggestion();
           }
-        }, 2000);
+        }, aiDelay);
       });
 
       // Add cursor position change listener

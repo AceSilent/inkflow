@@ -2,7 +2,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::sync::{Arc, Mutex};
-use tauri::State;
 
 // Import modules
 mod ai;
@@ -11,7 +10,16 @@ mod token_counter;
 
 // Import all the command functions
 use crate::ai::generate_ai_suggestion;
-use crate::file_system::{read_file, write_file, create_directory, directory_exists, file_exists};
+use crate::file_system::{
+    read_file, write_file, create_directory, directory_exists, file_exists,
+    // Sprint 3: 小说工程管理
+    list_chapters, get_novel_outline, save_chapter_summary, create_new_novel, create_new_chapter,
+    open_folder_dialog,
+    // Sprint 3.1: 配置管理与小说列表
+    load_config, save_config, list_novels,
+    // 导出类型
+    AppConfig, NovelInfo,
+};
 use crate::token_counter::{TokenCounter, count_tokens_exact, smart_truncate_text, estimate_api_cost, count_tokens_batch};
 
 // Shared state for token counter
@@ -53,7 +61,18 @@ fn main() {
             count_tokens_exact,
             smart_truncate_text,
             estimate_api_cost,
-            count_tokens_batch
+            count_tokens_batch,
+            // Sprint 3: 小说工程管理命令
+            list_chapters,
+            get_novel_outline,
+            save_chapter_summary,
+            create_new_novel,
+            create_new_chapter,
+            open_folder_dialog,
+            // Sprint 3.1: 配置管理与小说列表
+            load_config,
+            save_config,
+            list_novels
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

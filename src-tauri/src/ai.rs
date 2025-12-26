@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use reqwest::Client;
-use std::env;
 use rand::Rng;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -81,23 +80,26 @@ struct Usage {
 }
 
 #[tauri::command]
-pub async fn generate_ai_suggestion(request: AIRequest) -> Result<AIResponse, String> {
-    // 尝试获取 API 配置
-    let api_key = env::var("CHATGLM_API_KEY");
-    let api_base = env::var("CHATGLM_API_BASE").ok();
+pub async fn generate_ai_suggestion(
+    request: AIRequest,
+    api_key: Option<String>,
+    api_base_url: Option<String>,
+) -> Result<AIResponse, String> {
+    // 检查是否配置了 API Key
+    let api_key = match api_key {
+        Some(key) if !key.is_empty() => key,
+        _ => {
+            let error_msg = "未配置 API Key，请在设置中配置";
+            println!("⚠️  {}", error_msg);
+            return Err(error_msg.to_string());
+        }
+    };
 
-    // 如果没有配置 API Key，回退到 Mock 模式
-    if api_key.is_err() {
-        println!("⚠️  CHATGLM_API_KEY not configured, using mock suggestions");
-        return generate_mock_response(&request).await;
-    }
-
-    let api_key = api_key.unwrap();
-    let api_base = api_base.unwrap_or_else(||
-        "https://open.bigmodel.cn/api/anthropic/v1/messages".to_string()
+    let api_base = api_base_url.unwrap_or_else(||
+        "https://open.bigmodel.cn/api/paas/v4/chat/completions".to_string()
     );
 
-    println!("🚀 Calling ChatGLM API: {}", api_base);
+    println!("🚀 Calling AI API: {}", api_base);
     println!("📝 Model: {}", request.model);
 
     let client = Client::new();

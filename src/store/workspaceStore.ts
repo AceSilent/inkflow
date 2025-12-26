@@ -1,0 +1,433 @@
+import { create } from 'zustand';
+import { invoke } from '@tauri-apps/api/tauri';
+import { open } from '@tauri-apps/api/dialog';
+
+// Check if running in Tauri environment
+const isTauriAvailable = () => {
+  return typeof window !== 'undefined' && window.__TAURI__ !== undefined;
+};
+
+// ============== Type Definitions ==============
+
+export interface ChapterInfo {
+  filename: string;
+  title: string;
+  chapter_number: number;
+  word_count: number;
+  path: string;
+  has_summary: boolean;
+  modified_time?: string;
+}
+
+export interface NovelProjectInfo {
+  name: string;
+  path: string;
+  chapters: ChapterInfo[];
+  has_outline: boolean;
+  has_inkflow_folder: boolean;
+  total_word_count: number;
+}
+
+export interface Character {
+  name: string;
+  description: string;
+  role: string;
+}
+
+export interface NovelOutline {
+  title: string;
+  summary: string;
+  characters: Character[];
+  plot_points: string[];
+  world_setting?: string;
+}
+
+export interface ChapterSummary {
+  chapter_path: string;
+  summary: string;
+  keywords: string[];
+  generated_at: string;
+}
+
+export interface WorkspaceState {
+  // 当前工作区状态
+  rootPath: string | null;
+  projectName: string;
+  chapters: ChapterInfo[];
+  globalOutline: NovelOutline | null;
+  chapterSummaries: Map<string, ChapterSummary>; // key: chapter filename
+  currentChapter: ChapterInfo | null;
+  isLoading: boolean;
+  error: string | null;
+
+  // UI 状态
+  activeTab: 'chapters' | 'outline'; // 侧边栏切换卡
+  outlinePanelExpanded: boolean;
+}
+
+export interface WorkspaceActions {
+  // 工作区操作
+  openWorkspace: () => Promise<void>;
+  closeWorkspace: () => void;
+  refreshChapterList: () => Promise<void>;
+
+  // 章节操作
+  selectChapter: (chapter: ChapterInfo) => Promise<void>;
+  createNewChapter: (title: string) => Promise<void>;
+
+  // 大纲操作
+  loadGlobalOutline: () => Promise<void>;
+  updateGlobalOutline: (outline: NovelOutline) => Promise<void>;
+  loadChapterSummaries: () => Promise<void>;
+
+  // UI 操作
+  setActiveTab: (tab: 'chapters' | 'outline') => void;
+  setOutlinePanelExpanded: (expanded: boolean) => void;
+  clearError: () => void;
+
+  // 辅助方法
+  getLastTwoChapterSummaries: () => string[];
+  getChapterContext: (chapterNumber: number) => Promise<string>;
+}
+
+export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>((set, get) => ({
+  // Initial state
+  rootPath: null,
+  projectName: '',
+  chapters: [],
+  globalOutline: null,
+  chapterSummaries: new Map(),
+  currentChapter: null,
+  isLoading: false,
+  error: null,
+  activeTab: 'chapters',
+  outlinePanelExpanded: false,
+
+  // 打开工作区（选择文件夹）
+  openWorkspace: async () => {
+    if (!isTauriAvailable()) {
+      set({ error: '文件对话框仅支持桌面应用' });
+      return;
+    }
+
+    set({ isLoading: true, error: null });
+
+    try {
+      // 使用 Tauri 的 dialog API 打开文件夹选择对话框
+      const selected = await open({
+        directory: true,
+        multiple: false,
+        title: '选择小说文件夹',
+      });
+
+      if (!selected) {
+        set({ isLoading: false });
+        return; // 用户取消选择
+      }
+
+      // selected 是 string | string[]，这里处理单个文件夹
+      const folderPath = typeof selected === 'string' ? selected : selected[0];
+
+      if (!folderPath) {
+        set({ isLoading: false });
+        return;
+      }
+
+      // 调用 Rust 后端扫描章节
+      const projectInfo = await invoke<NovelProjectInfo>('list_chapters', {
+        path: folderPath,
+      });
+
+      set({
+        rootPath: folderPath,
+        projectName: projectInfo.name,
+        chapters: projectInfo.chapters,
+        isLoading: false,
+        error: null,
+      });
+
+      console.log('✅ 工作区已打开:', projectInfo.name);
+
+      // 自动加载大纲
+      if (projectInfo.has_outline) {
+        get().loadGlobalOutline();
+      }
+
+      // 加载章节总结
+      get().loadChapterSummaries();
+    } catch (error) {
+      console.error('❌ 打开工作区失败:', error);
+      set({
+        error: `打开工作区失败: ${error}`,
+        isLoading: false,
+      });
+    }
+  },
+
+  // 关闭工作区
+  closeWorkspace: () => {
+    set({
+      rootPath: null,
+      projectName: '',
+      chapters: [],
+      globalOutline: null,
+      chapterSummaries: new Map(),
+      currentChapter: null,
+      error: null,
+    });
+  },
+
+  // 刷新章节列表
+  refreshChapterList: async () => {
+    const { rootPath } = get();
+    if (!rootPath) return;
+
+    set({ isLoading: true });
+
+    try {
+      const projectInfo = await invoke<NovelProjectInfo>('list_chapters', {
+        path: rootPath,
+      });
+
+      set({
+        chapters: projectInfo.chapters,
+        isLoading: false,
+      });
+    } catch (error) {
+      console.error('❌ 刷新章节列表失败:', error);
+      set({
+        error: `刷新失败: ${error}`,
+        isLoading: false,
+      });
+    }
+  },
+
+  // 选择章节
+  selectChapter: async (chapter: ChapterInfo) => {
+    set({ currentChapter: chapter, isLoading: true });
+
+    try {
+      // 读取章节内容
+      const content = await invoke<string>('read_file', {
+        path: chapter.path,
+      });
+
+      // 这里需要通知 editorStore 更新内容
+      // 暂时先设置当前章节，后续会整合
+      set({
+        currentChapter: { ...chapter, word_count: content.length },
+        isLoading: false,
+      });
+
+      console.log('✅ 章节已加载:', chapter.title);
+    } catch (error) {
+      console.error('❌ 加载章节失败:', error);
+      set({
+        error: `加载章节失败: ${error}`,
+        isLoading: false,
+      });
+    }
+  },
+
+  // 创建新章节
+  createNewChapter: async (title: string) => {
+    const { rootPath } = get();
+    if (!rootPath) {
+      set({ error: '请先打开一个小说工程' });
+      return;
+    }
+
+    set({ isLoading: true });
+
+    try {
+      const newChapter = await invoke<ChapterInfo>('create_new_chapter', {
+        novelPath: rootPath,
+        title,
+      });
+
+      // 刷新章节列表
+      await get().refreshChapterList();
+
+      console.log('✅ 新章节已创建:', newChapter.title);
+    } catch (error) {
+      console.error('❌ 创建章节失败:', error);
+      set({
+        error: `创建章节失败: ${error}`,
+        isLoading: false,
+      });
+    }
+  },
+
+  // 加载全局大纲
+  loadGlobalOutline: async () => {
+    const { rootPath } = get();
+    if (!rootPath) return;
+
+    try {
+      const outline = await invoke<NovelOutline>('get_novel_outline', {
+        path: rootPath,
+      });
+
+      set({ globalOutline: outline });
+      console.log('✅ 全局大纲已加载');
+    } catch (error) {
+      console.error('❌ 加载大纲失败:', error);
+    }
+  },
+
+  // 更新全局大纲
+  updateGlobalOutline: async (outline: NovelOutline) => {
+    const { rootPath } = get();
+    if (!rootPath) return;
+
+    try {
+      // 生成大纲 Markdown 内容
+      const outlineMd = generateOutlineMarkdown(outline);
+
+      // 写入 outline.md
+      await invoke('write_file', {
+        path: `${rootPath}/outline.md`,
+        content: outlineMd,
+      });
+
+      set({ globalOutline: outline });
+      console.log('✅ 全局大纲已更新');
+    } catch (error) {
+      console.error('❌ 更新大纲失败:', error);
+      set({ error: `更新大纲失败: ${error}` });
+    }
+  },
+
+  // 加载所有章节总结
+  loadChapterSummaries: async () => {
+    const { rootPath, chapters } = get();
+    if (!rootPath) return;
+
+    try {
+      const summaries: Map<string, ChapterSummary> = new Map();
+
+      for (const chapter of chapters) {
+        if (chapter.has_summary) {
+          try {
+            const summaryPath = `${rootPath}/.inkflow/${chapter.filename.replace(/\.(md|txt)$/i, '')}.json`;
+            const summaryJson = await invoke<string>('read_file', {
+              path: summaryPath,
+            });
+
+            const parsedSummary = JSON.parse(summaryJson) as ChapterSummary;
+            summaries.set(chapter.filename, parsedSummary);
+          } catch (error) {
+            console.warn(`⚠️ 无法加载章节总结: ${chapter.filename}`, error);
+          }
+        }
+      }
+
+      set({ chapterSummaries: summaries });
+      console.log(`✅ 已加载 ${summaries.size} 个章节总结`);
+    } catch (error) {
+      console.error('❌ 加载章节总结失败:', error);
+    }
+  },
+
+  // 获取最后两章的总结
+  getLastTwoChapterSummaries: () => {
+    const { chapterSummaries, currentChapter, chapters } = get();
+
+    if (!currentChapter) return [];
+
+    // 找到当前章节的索引
+    const currentIndex = chapters.findIndex(ch => ch.chapter_number === currentChapter.chapter_number);
+    if (currentIndex === -1) return [];
+
+    // 获取前两章
+    const summaries: string[] = [];
+    let count = 0;
+
+    for (let i = currentIndex - 1; i >= 0 && count < 2; i--) {
+      const chapter = chapters[i];
+      const summary = chapterSummaries.get(chapter.filename);
+
+      if (summary) {
+        summaries.unshift(`【${chapter.title}】${summary.summary}`);
+        count++;
+      }
+    }
+
+    return summaries;
+  },
+
+  // 获取章节上下文（用于 AI 生成）
+  getChapterContext: async (chapterNumber: number) => {
+    const { chapters } = get();
+    const chapter = chapters.find(ch => ch.chapter_number === chapterNumber);
+
+    if (!chapter) return '';
+
+    try {
+      return await invoke<string>('read_file', {
+        path: chapter.path,
+      });
+    } catch (error) {
+      console.error('❌ 读取章节内容失败:', error);
+      return '';
+    }
+  },
+
+  // UI 操作
+  setActiveTab: (tab: 'chapters' | 'outline') => {
+    set({ activeTab: tab });
+  },
+
+  setOutlinePanelExpanded: (expanded: boolean) => {
+    set({ outlinePanelExpanded: expanded });
+  },
+
+  clearError: () => {
+    set({ error: null });
+  },
+}));
+
+// ============== Helper Functions ==============
+
+// 生成大纲 Markdown 内容
+function generateOutlineMarkdown(outline: NovelOutline): string {
+  const lines: string[] = [];
+
+  lines.push('# 标题');
+  lines.push(outline.title);
+  lines.push('');
+
+  lines.push('# 简介');
+  lines.push(outline.summary);
+  lines.push('');
+
+  if (outline.characters.length > 0) {
+    lines.push('# 人物');
+    outline.characters.forEach(char => {
+      lines.push(`${char.name} - ${char.description}`);
+    });
+    lines.push('');
+  }
+
+  if (outline.plot_points.length > 0) {
+    lines.push('# 情节');
+    outline.plot_points.forEach(point => {
+      lines.push(`- ${point}`);
+    });
+    lines.push('');
+  }
+
+  if (outline.world_setting) {
+    lines.push('# 世界观');
+    lines.push(outline.world_setting);
+    lines.push('');
+  }
+
+  return lines.join('\n');
+}
+
+// Selectors for easier access
+export const useRootPath = () => useWorkspaceStore((state) => state.rootPath);
+export const useChapters = () => useWorkspaceStore((state) => state.chapters);
+export const useGlobalOutline = () => useWorkspaceStore((state) => state.globalOutline);
+export const useCurrentChapter = () => useWorkspaceStore((state) => state.currentChapter);
