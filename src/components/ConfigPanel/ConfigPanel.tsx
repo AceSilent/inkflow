@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useConfigStore } from '../../store/configStore';
 import { useEditorStore } from '../../store/editorStore';
+import { useWorkspaceStore } from '../../store/workspaceStore';
 
 export const ConfigPanel: React.FC = () => {
   const {
@@ -17,6 +18,8 @@ export const ConfigPanel: React.FC = () => {
     fontSize,
     lineHeight,
     autoSaveInterval,
+    // 工作区配置
+    workspaceRoot,
     // 状态和方法
     isLoading,
     error,
@@ -32,10 +35,12 @@ export const ConfigPanel: React.FC = () => {
     setFontSize,
     setLineHeight,
     setAutoSaveInterval,
+    setWorkspaceRoot,
     clearError,
   } = useConfigStore();
 
   const { clearGhostText } = useEditorStore();
+  const { setWorkspaceRoot: setWorkspaceRootState, scanWorkspace } = useWorkspaceStore();
 
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'ai' | 'editor' | 'workspace'>('ai');
@@ -346,12 +351,77 @@ export const ConfigPanel: React.FC = () => {
                   {/* 工作区设置 */}
                   {activeTab === 'workspace' && (
                     <div className="space-y-6">
-                      <div className="text-center py-8">
-                        <svg className="w-16 h-16 mx-auto text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                        </svg>
-                        <p className="text-gray-500 text-sm">工作区设置</p>
-                        <p className="text-gray-600 text-xs mt-2">从左侧边栏打开小说文件夹</p>
+                      <div>
+                        <h3 className="text-lg font-medium text-white mb-4">工作区设置</h3>
+
+                        {/* 当前工作区 */}
+                        <div className="mb-4">
+                          <label className="block text-sm font-medium text-gray-300 mb-2">
+                            当前工作区根目录
+                          </label>
+                          <div className="flex items-center space-x-2">
+                            <div className="flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-300 text-sm truncate">
+                              {workspaceRoot || '未设置工作区'}
+                            </div>
+                            <button
+                              onClick={async () => {
+                                const { open } = await import('@tauri-apps/api/dialog');
+                                const selected = await open({
+                                  directory: true,
+                                  multiple: false,
+                                  title: '选择工作区根目录',
+                                });
+                                if (selected) {
+                                  const path = typeof selected === 'string' ? selected : selected[0];
+                                  if (path) {
+                                    // 同时更新configStore和workspaceStore
+                                    setWorkspaceRoot(path);
+                                    setWorkspaceRootState(path);
+                                    // 自动扫描工作空间
+                                    await scanWorkspace();
+                                    // 标记为需要保存
+                                    saveConfig();
+                                  }
+                                }
+                              }}
+                              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
+                            >
+                              {workspaceRoot ? '更换' : '选择'}
+                            </button>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-2">
+                            工作区根目录是包含所有小说项目的父文件夹
+                          </p>
+                        </div>
+
+                        {/* 工作区信息 */}
+                        {workspaceRoot && (
+                          <div className="p-4 bg-gray-800 rounded-lg border border-gray-700">
+                            <div className="flex items-start space-x-3">
+                              <svg className="w-5 h-5 text-blue-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              <div className="flex-1">
+                                <p className="text-sm text-gray-300">
+                                  工作区已设置
+                                </p>
+                                <p className="text-xs text-gray-500 mt-1">
+                                  点击"选择"按钮可更换其他工作区
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 使用说明 */}
+                        <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700/50">
+                          <h4 className="text-sm font-medium text-gray-300 mb-2">工作区说明</h4>
+                          <ul className="text-xs text-gray-500 space-y-1">
+                            <li>• 工作区是一个包含多个小说项目的根文件夹</li>
+                            <li>• 每个子文件夹代表一个独立的小说项目</li>
+                            <li>• 示例：D:\MyNovels\小说1、D:\MyNovels\小说2</li>
+                          </ul>
+                        </div>
                       </div>
                     </div>
                   )}

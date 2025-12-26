@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/tauri';
 import { open } from '@tauri-apps/api/dialog';
+import { useConfigStore } from './configStore';
 
 // Check if running in Tauri environment
 const isTauriAvailable = () => {
@@ -49,6 +50,14 @@ export interface ChapterSummary {
   generated_at: string;
 }
 
+export interface NovelInfo {
+  name: string;
+  path: string;
+  chapter_count: number;
+  total_word_count: number;
+  has_outline: boolean;
+}
+
 export interface WorkspaceState {
   // 当前工作区状态
   rootPath: string | null;
@@ -60,6 +69,10 @@ export interface WorkspaceState {
   isLoading: boolean;
   error: string | null;
 
+  // 工作空间管理
+  workspaceRoot: string | null; // 工作空间根目录（包含多个小说的父目录）
+  novels: NovelInfo[]; // 工作空间中的所有小说项目
+
   // UI 状态
   activeTab: 'chapters' | 'outline'; // 侧边栏切换卡
   outlinePanelExpanded: boolean;
@@ -70,6 +83,11 @@ export interface WorkspaceActions {
   openWorkspace: () => Promise<void>;
   closeWorkspace: () => void;
   refreshChapterList: () => Promise<void>;
+
+  // 工作空间管理
+  openWorkspaceRoot: () => Promise<void>; // 打开工作空间根目录
+  scanWorkspace: () => Promise<void>; // 扫描工作空间中的所有小说
+  openNovelProject: (novelPath: string) => Promise<void>; // 打开指定的小说项目
 
   // 章节操作
   selectChapter: (chapter: ChapterInfo) => Promise<void>;
@@ -84,6 +102,7 @@ export interface WorkspaceActions {
   setActiveTab: (tab: 'chapters' | 'outline') => void;
   setOutlinePanelExpanded: (expanded: boolean) => void;
   clearError: () => void;
+  setWorkspaceRoot: (root: string | null) => void;
 
   // 辅助方法
   getLastTwoChapterSummaries: () => string[];
@@ -100,6 +119,8 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>((set,
   currentChapter: null,
   isLoading: false,
   error: null,
+  workspaceRoot: null,
+  novels: [],
   activeTab: 'chapters',
   outlinePanelExpanded: false,
 
@@ -384,6 +405,120 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>((set,
 
   clearError: () => {
     set({ error: null });
+  },
+
+  setWorkspaceRoot: (root: string | null) => {
+    set({ workspaceRoot: root });
+  },
+
+  // 打开工作空间根目录
+  openWorkspaceRoot: async () => {
+    if (!isTauriAvailable()) {
+      set({ error: '文件对话框仅支持桌面应用' });
+      return;
+    }
+
+    set({ isLoading: true, error: null });
+
+    try {
+      const selected = await open({
+        directory: true,
+        multiple: false,
+        title: '选择工作空间根目录',
+      });
+
+      if (!selected) {
+        set({ isLoading: false });
+        return;
+      }
+
+      const rootPath = typeof selected === 'string' ? selected : selected[0];
+      if (!rootPath) {
+        set({ isLoading: false });
+        return;
+      }
+
+      // 同时更新workspaceStore和configStore
+      set({ workspaceRoot: rootPath, isLoading: false });
+
+      // 更新configStore并保存
+      const configStore = useConfigStore.getState();
+      configStore.setWorkspaceRoot(rootPath);
+      await configStore.saveConfig();
+
+      // 自动扫描工作空间
+      await get().scanWorkspace();
+
+      console.log('✅ 工作空间根目录已打开:', rootPath);
+    } catch (error) {
+      console.error('❌ 打开工作空间失败:', error);
+      set({
+        error: `打开工作空间失败: ${error}`,
+        isLoading: false,
+      });
+    }
+  },
+
+  // 扫描工作空间中的所有小说
+  scanWorkspace: async () => {
+    const { workspaceRoot } = get();
+    if (!workspaceRoot) {
+      set({ error: '请先打开工作空间根目录' });
+      return;
+    }
+
+    set({ isLoading: true });
+
+    try {
+      const novels = await invoke<NovelInfo[]>('list_novels', {
+        rootPath: workspaceRoot,
+      });
+
+      set({ novels, isLoading: false });
+      console.log(`✅ 扫描完成：找到 ${novels.length} 个小说项目`);
+    } catch (error) {
+      console.error('❌ 扫描工作空间失败:', error);
+      set({
+        error: `扫描工作空间失败: ${error}`,
+        isLoading: false,
+      });
+    }
+  },
+
+  // 打开指定的小说项目
+  openNovelProject: async (novelPath: string) => {
+    set({ isLoading: true, error: null });
+
+    try {
+      // 调用 Rust 后端扫描章节
+      const projectInfo = await invoke<NovelProjectInfo>('list_chapters', {
+        path: novelPath,
+      });
+
+      set({
+        rootPath: novelPath,
+        projectName: projectInfo.name,
+        chapters: projectInfo.chapters,
+        isLoading: false,
+        error: null,
+      });
+
+      console.log('✅ 小说项目已打开:', projectInfo.name);
+
+      // 自动加载大纲
+      if (projectInfo.has_outline) {
+        get().loadGlobalOutline();
+      }
+
+      // 加载章节总结
+      get().loadChapterSummaries();
+    } catch (error) {
+      console.error('❌ 打开小说项目失败:', error);
+      set({
+        error: `打开小说项目失败: ${error}`,
+        isLoading: false,
+      });
+    }
   },
 }));
 

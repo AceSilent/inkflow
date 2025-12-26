@@ -7,6 +7,7 @@ import { ToastContainer } from './components/Toast/Toast';
 import { ResizableSidebar } from './components/ResizableSidebar/ResizableSidebar';
 import { useEditorStore } from './store/editorStore';
 import { useConfigStore } from './store/configStore';
+import { useWorkspaceStore } from './store/workspaceStore';
 import { useToastStore } from './store/toastStore';
 import './index.css'; // Use the new index.css instead of editor.css
 import type { editor } from 'monaco-editor';
@@ -90,10 +91,17 @@ function App() {
   useEffect(() => {
     const initializeApp = async () => {
       // 1. 首先加载配置
-      const { loadConfig } = useConfigStore.getState();
+      const { loadConfig, workspaceRoot } = useConfigStore.getState();
       await loadConfig();
 
-      // 2. 然后初始化编辑器
+      // 2. 如果配置中有工作区根目录，自动加载工作空间
+      if (workspaceRoot) {
+        const { setWorkspaceRoot, scanWorkspace } = useWorkspaceStore.getState();
+        setWorkspaceRoot(workspaceRoot);
+        await scanWorkspace();
+      }
+
+      // 3. 然后初始化编辑器
       try {
         // For demo purposes, create a sample chapter
         // In a real app, this would be loaded from the file system
