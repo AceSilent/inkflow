@@ -160,15 +160,22 @@ export const useConfigStore = create<ConfigState & ConfigActions>((set, get) => 
     }
   },
 
-  // 重置配置
+  // 重置配置（保留 API Key）
   resetConfig: async () => {
     set({ isLoading: true, error: null });
 
     try {
-      await invoke('save_config', { config: defaultConfig });
-      console.log('✅ 配置已重置');
-      set({
+      // 保留当前的 API Key
+      const state = get();
+      const resetConfig = {
         ...defaultConfig,
+        apiKey: state.apiKey, // 保留 API Key
+      };
+
+      await invoke('save_config', { config: resetConfig });
+      console.log('✅ 配置已重置（API Key 已保留）');
+      set({
+        ...resetConfig,
         isLoading: false,
         isDirty: false,
       });

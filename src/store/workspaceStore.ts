@@ -330,7 +330,7 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>((set,
       for (const chapter of chapters) {
         if (chapter.has_summary) {
           try {
-            const summaryPath = `${rootPath}/.inkflow/${chapter.filename.replace(/\.(md|txt)$/i, '')}.json`;
+            const summaryPath = `${rootPath}/.inkflow/summaries/${chapter.filename.replace(/\.(md|txt)$/i, '')}.json`;
             const summaryJson = await invoke<string>('read_file', {
               path: summaryPath,
             });

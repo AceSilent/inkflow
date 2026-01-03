@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { useWorkspaceStore } from '../../store/workspaceStore';
 import { useEditorStore } from '../../store/editorStore';
+import { useConfigStore } from '../../store/configStore';
+import { useTranslation } from '../../i18n';
 import { ChapterList } from './ChapterList';
 import { OutlinePanel } from './OutlinePanel';
 import { CreateNewNovel } from '../CreateNewNovel';
@@ -22,6 +24,8 @@ export const Sidebar: React.FC = () => {
   } = useWorkspaceStore();
 
   const { clearGhostText } = useEditorStore();
+  const { isAIEnabled, setIsAIEnabled } = useConfigStore();
+  const { t } = useTranslation();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const handleOpenWorkspaceRoot = async () => {
@@ -41,30 +45,55 @@ export const Sidebar: React.FC = () => {
     useWorkspaceStore.getState().scanWorkspace();
   };
 
+  const handleToggleAI = async (enabled: boolean) => {
+    setIsAIEnabled(enabled);
+    // 自动保存配置
+    await useConfigStore.getState().saveConfig();
+  };
+
+  const handleBackToWorkspace = () => {
+    // 清除当前打开的小说项目，返回工作区项目列表
+    useWorkspaceStore.getState().closeWorkspace();
+  };
+
   return (
     <div className="w-80 dark:bg-gray-900 bg-transparent dark:border-gray-700 border-gray-200 border-r flex flex-col h-full">
       {/* 顶部：工作空间信息 */}
       <div className="p-4 dark:border-b border-b dark:border-gray-700 border-gray-200">
         <div className="flex items-center justify-between mb-3">
-          <div className="flex-1 min-w-0">
-            <h2 className="text-lg font-semibold dark:text-white text-gray-900 truncate">
-              {rootPath ? projectName : workspaceRoot ? '选择小说项目' : '未打开工作空间'}
-            </h2>
-            {workspaceRoot && (
-              <div className="text-xs dark:text-gray-500 text-gray-600 truncate" title={workspaceRoot}>
-                {workspaceRoot}
-              </div>
+          <div className="flex items-center space-x-2 flex-1 min-w-0">
+            {/* 返回按钮 - 只在打开小说项目时显示 */}
+            {rootPath && workspaceRoot && (
+              <button
+                onClick={handleBackToWorkspace}
+                className="p-1 dark:hover:bg-gray-700 hover:bg-gray-200 rounded-lg transition-colors flex-shrink-0"
+                title="返回项目列表"
+              >
+                <svg className="w-5 h-5 dark:text-gray-400 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
             )}
-            {rootPath && (
-              <div className="text-xs dark:text-gray-500 text-gray-600 truncate" title={rootPath}>
-                {rootPath}
-              </div>
-            )}
+            <div className="flex-1 min-w-0">
+              <h2 className="text-lg font-semibold dark:text-white text-gray-900 truncate">
+                {rootPath ? projectName : workspaceRoot ? t.sidebar.selectNovel : t.sidebar.noWorkspace}
+              </h2>
+              {workspaceRoot && !rootPath && (
+                <div className="text-xs dark:text-gray-500 text-gray-600 truncate" title={workspaceRoot}>
+                  {workspaceRoot}
+                </div>
+              )}
+              {rootPath && (
+                <div className="text-xs dark:text-gray-500 text-gray-600 truncate" title={rootPath}>
+                  {rootPath}
+                </div>
+              )}
+            </div>
           </div>
           <button
             onClick={handleOpenWorkspaceRoot}
             className="p-2 dark:hover:bg-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
-            title={workspaceRoot ? "更换工作空间" : "打开工作空间"}
+            title={workspaceRoot ? t.sidebar.changeWorkspaceRoot : t.sidebar.openWorkspace}
           >
             <svg className="w-5 h-5 dark:text-gray-400 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
@@ -81,7 +110,7 @@ export const Sidebar: React.FC = () => {
         {isLoading && (
           <div className="flex items-center space-x-2 text-sm dark:text-gray-400 text-gray-600">
             <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
-            <span>加载中...</span>
+            <span>{t.sidebar.loading}</span>
           </div>
         )}
 
@@ -90,14 +119,14 @@ export const Sidebar: React.FC = () => {
           <div className="mt-3 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium dark:text-gray-400 text-gray-600">
-                小说项目 ({novels.length})
+                {t.sidebar.novelProjects} ({novels.length})
               </span>
               <button
                 onClick={() => setIsCreateModalOpen(true)}
                 className="px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded transition-colors"
-                title="创建新小说"
+                title={t.sidebar.createFirstNovel}
               >
-                + 新建
+                {t.common.new}
               </button>
             </div>
             <div className="max-h-48 overflow-y-auto space-y-1">
@@ -132,16 +161,39 @@ export const Sidebar: React.FC = () => {
         {workspaceRoot && !rootPath && novels.length === 0 && (
           <div className="mt-3 text-center py-4 dark:bg-gray-800 bg-gray-200 rounded-lg">
             <p className="text-sm dark:text-gray-400 text-gray-600 mb-3">
-              工作空间中暂无小说项目
+              {t.sidebar.noNovelsInWorkspace}
             </p>
             <button
               onClick={() => setIsCreateModalOpen(true)}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
             >
-              + 创建第一个小说
+              {t.sidebar.createFirstNovel}
             </button>
           </div>
         )}
+
+        {/* AI 续写开关 */}
+        <div className="mt-3 px-3 py-2 dark:bg-gray-800 bg-gray-200 rounded-lg flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <svg className={`w-4 h-4 ${isAIEnabled ? 'dark:text-blue-400 text-blue-600' : 'dark:text-gray-500 text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            <span className="text-xs font-medium dark:text-gray-300 text-gray-700">{t.sidebar.aiContinuation}</span>
+          </div>
+          <button
+            onClick={() => handleToggleAI(!isAIEnabled)}
+            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+              isAIEnabled ? 'bg-blue-600' : 'dark:bg-gray-600 bg-gray-400'
+            }`}
+            title={isAIEnabled ? t.sidebar.disableAIContinuation : t.sidebar.enableAIContinuation}
+          >
+            <span
+              className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
+                isAIEnabled ? 'translate-x-5' : 'translate-x-1'
+              }`}
+            />
+          </button>
+        </div>
       </div>
 
       {/* 切换卡 - 只在有打开项目时显示 */}
@@ -155,7 +207,7 @@ export const Sidebar: React.FC = () => {
                 : 'dark:text-gray-400 text-gray-600 dark:hover:text-gray-300 hover:text-gray-900'
             }`}
           >
-            章节列表
+            {t.sidebar.chapterList}
           </button>
           <button
             onClick={() => setActiveTab('outline')}
@@ -165,7 +217,7 @@ export const Sidebar: React.FC = () => {
                 : 'dark:text-gray-400 text-gray-600 dark:hover:text-gray-300 hover:text-gray-900'
             }`}
           >
-            大纲讨论
+            {t.sidebar.outline}
           </button>
         </div>
       )}
@@ -178,8 +230,8 @@ export const Sidebar: React.FC = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
             </svg>
             <div>
-              <p className="text-sm dark:text-gray-400 text-gray-600 font-medium">未打开工作空间</p>
-              <p className="text-xs dark:text-gray-600 text-gray-500 mt-1">点击上方文件夹图标打开工作空间</p>
+              <p className="text-sm dark:text-gray-400 text-gray-600 font-medium">{t.sidebar.noWorkspace}</p>
+              <p className="text-xs dark:text-gray-600 text-gray-500 mt-1">{t.sidebar.noWorkspaceDesc}</p>
             </div>
           </div>
         )}

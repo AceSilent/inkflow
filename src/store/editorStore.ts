@@ -49,6 +49,11 @@ export interface EditorState {
   // Chapter management
   currentChapterPath: string;
   lastSavedContent: string;
+  currentChapterOrder: number; // 章节序号，用于获取前文摘要
+
+  // Auto-summary state
+  lastSummaryWordCount: number; // 上次生成摘要时的字数
+  summaryThreshold: number; // 自动生成摘要的字数阈值
 
   // Debounce timing
   aiTriggerDelay: number;
@@ -77,8 +82,13 @@ export interface EditorActions {
 
   // Chapter management
   setCurrentChapterPath: (path: string) => void;
+  setCurrentChapterOrder: (order: number) => void;
   loadChapterContent: (path: string) => Promise<void>;
   saveChapterContent: () => Promise<void>;
+
+  // Auto-summary functionality
+  generateAndSaveChapterSummary: () => Promise<void>;
+  checkAndTriggerAutoSummary: () => Promise<void>;
 
   // Loading states
   setLoading: (loading: boolean) => void;
@@ -103,6 +113,9 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
   cursorPosition: { line: 1, column: 1, offset: 0 },
   currentChapterPath: '',
   lastSavedContent: '',
+  currentChapterOrder: 0,
+  lastSummaryWordCount: 0,
+  summaryThreshold: 500, // 自动生成摘要的阈值：500字
   aiTriggerDelay: 2000, // 2 seconds
   lastTypingTime: 0,
 
@@ -114,6 +127,11 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
       isDirty: newContent !== state.lastSavedContent,
     });
     get().updateLastTypingTime();
+
+    // 检查是否需要自动生成摘要（异步执行，不阻塞用户输入）
+    setTimeout(() => {
+      get().checkAndTriggerAutoSummary();
+    }, 100);
   },
 
   resetDirty: () => set({ isDirty: false }),
@@ -175,6 +193,14 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
   // AI suggestion generation
   generateAISuggestion: async (feedback?: string) => {
     const state = get();
+    const config = useConfigStore.getState();
+
+    // 检查 AI 是否启用
+    if (!config.isAIEnabled) {
+      console.log('⏭️ AI suggestion is disabled in config');
+      return;
+    }
+
     if (state.isAISuggesting || state.isLoading) return;
 
     console.log('🤖 Starting AI suggestion generation...', feedback ? `with feedback: ${feedback}` : '');
@@ -374,6 +400,7 @@ ${cursorMarker}
       lastSavedContent: '',
       isDirty: false,
       ghostText: null,
+      lastSummaryWordCount: 0, // 重置摘要字数计数
     });
   },
 
@@ -390,6 +417,7 @@ ${cursorMarker}
         lastSavedContent: content,
         isDirty: false,
         ghostText: null,
+        lastSummaryWordCount: content.length, // 初始化为当前字数
       });
     } catch (error) {
       console.error('Failed to load chapter content:', error);
@@ -419,10 +447,159 @@ ${cursorMarker}
         lastSavedContent: state.content,
         isDirty: false,
       });
+
+      // 保存后自动生成摘要
+      await get().generateAndSaveChapterSummary();
     } catch (error) {
       console.error('Failed to save chapter content:', error);
     } finally {
       set({ isLoading: false });
+    }
+  },
+
+  setCurrentChapterOrder: (order: number) => {
+    set({ currentChapterOrder: order });
+  },
+
+  // Auto-summary functionality
+  generateAndSaveChapterSummary: async () => {
+    const state = get();
+    if (!state.currentChapterPath || state.content.length < 100) {
+      console.log('⏭️ Skipping summary - content too short or no chapter loaded');
+      return;
+    }
+
+    console.log('📝 Generating chapter summary...');
+    set({ isLoading: true });
+
+    try {
+      // 获取前N-1和N-2章的摘要
+      let previousSummaries = '';
+      if (state.currentChapterOrder > 1) {
+        try {
+          const workspaceState = useWorkspaceStore.getState();
+          const novelPath = workspaceState.rootPath;
+          if (novelPath && isTauriAvailable()) {
+            previousSummaries = await invoke<string>('get_previous_summaries', {
+              novelPath,
+              currentChapterOrder: state.currentChapterOrder,
+              count: 2,
+            });
+          }
+        } catch (error) {
+          console.warn('⚠️ Failed to get previous summaries:', error);
+        }
+      }
+
+      // 构建AI摘要生成Prompt
+      const summaryPrompt = `你是一个小说摘要助手。请为当前章节生成简短摘要。
+
+${previousSummaries ? `【前文摘要】\n${previousSummaries}\n` : ''}【当前章节内容】
+${state.content}
+
+请生成：
+1. 摘要（50-100字，概括本章主要情节、事件、人物发展）
+2. 关键词（3-5个，用顿号分隔，如：冲突、揭秘、感情升温）
+
+请直接以JSON格式返回，格式如下：
+{
+  "summary": "摘要内容",
+  "keywords": ["关键词1", "关键词2", "关键词3"]
+}
+
+不要添加任何其他文字或说明。`;
+
+      // 调用AI生成摘要
+      const config = useConfigStore.getState();
+      if (!config.apiKey) {
+        console.warn('⚠️ API Key not configured, skipping summary generation');
+        set({ isLoading: false });
+        return;
+      }
+
+      const aiRequest: AIRequest = {
+        prompt: summaryPrompt,
+        max_tokens: 500,
+        temperature: 0.7,
+        model: 'glm-4-plus',
+        stream: false,
+      };
+
+      let summaryText: string;
+      if (isTauriAvailable()) {
+        const response = await invoke<AIResponse>('generate_ai_suggestion', {
+          request: aiRequest,
+          apiKey: config.apiKey,
+          apiBaseUrl: config.apiBaseUrl,
+        });
+        summaryText = response.content;
+      } else {
+        // Mock response for web development
+        summaryText = JSON.stringify({
+          summary: '本章主要讲述了主角在关键时刻做出的重要决定，影响了后续剧情发展。',
+          keywords: ['决定', '转折', '成长']
+        });
+      }
+
+      // 解析AI返回的JSON
+      let summaryData: { summary: string; keywords: string[] };
+      try {
+        // 尝试提取JSON（AI可能会返回额外的文字）
+        const jsonMatch = summaryText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          summaryData = JSON.parse(jsonMatch[0]);
+        } else {
+          throw new Error('No JSON found in response');
+        }
+      } catch (error) {
+        console.error('❌ Failed to parse summary JSON:', error);
+        // 使用默认值
+        summaryData = {
+          summary: '本章内容摘要',
+          keywords: ['情节', '发展']
+        };
+      }
+
+      // 提取章节文件名
+      const chapterFilename = state.currentChapterPath.split(/[\\/]/).pop() || '';
+      const workspaceState = useWorkspaceStore.getState();
+      const novelPath = workspaceState.rootPath;
+
+      if (novelPath && isTauriAvailable()) {
+        // 保存摘要到 .inkflow/summaries/
+        const chapterSummary = {
+          chapter_path: state.currentChapterPath,
+          summary: summaryData.summary,
+          keywords: summaryData.keywords,
+          generated_at: new Date().toISOString(),
+        };
+
+        await invoke('save_chapter_summary', {
+          novelPath,
+          chapterFilename,
+          summary: chapterSummary,
+        });
+
+        console.log('✅ Chapter summary saved:', chapterSummary);
+        // 更新上次生成摘要的字数
+        set({ lastSummaryWordCount: state.content.length });
+      }
+    } catch (error) {
+      console.error('❌ Failed to generate chapter summary:', error);
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  checkAndTriggerAutoSummary: async () => {
+    const state = get();
+    const currentWordCount = state.content.length;
+    const wordCountIncrease = currentWordCount - state.lastSummaryWordCount;
+
+    // 如果字数增加超过阈值，触发自动摘要
+    if (wordCountIncrease >= state.summaryThreshold && state.currentChapterOrder > 0) {
+      console.log(`📊 Word count increased by ${wordCountIncrease}, triggering auto-summary...`);
+      await get().generateAndSaveChapterSummary();
     }
   },
 
@@ -435,8 +612,10 @@ ${cursorMarker}
 
   shouldTriggerAI: () => {
     const state = get();
+    const config = useConfigStore.getState();
     const now = Date.now();
     return (
+      config.isAIEnabled && // 检查 AI 是否启用
       now - state.lastTypingTime >= state.aiTriggerDelay &&
       !state.isAISuggesting &&
       !state.isLoading &&
@@ -460,5 +639,6 @@ export const useFeedbackPanelVisible = () => useEditorStore((state) => state.fee
 export const useEditorLoading = () => useEditorStore((state) => ({
   isLoading: state.isLoading,
   isAISuggesting: state.isAISuggesting,
+  currentChapterPath: state.currentChapterPath,
 }));
 export const useEditorDirty = () => useEditorStore((state) => state.isDirty);

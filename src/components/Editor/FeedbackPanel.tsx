@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTranslation } from '../../i18n';
 
 interface FeedbackPanelProps {
   isVisible: boolean;
@@ -22,6 +23,7 @@ export const FeedbackPanel: React.FC<FeedbackPanelProps> = ({
   onCollapse,
   onExpandRequest,
 }) => {
+  const { t } = useTranslation();
   const [feedback, setFeedback] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -144,7 +146,7 @@ export const FeedbackPanel: React.FC<FeedbackPanelProps> = ({
             left: `${position.left}px`,
           }}
           onClick={handleCapsuleClick}
-          title="Press Ctrl+K to customize"
+          title={t.feedback.pressToCustomize}
         >
           <div className="flex items-center space-x-2 text-xs text-gray-300">
             <button
@@ -153,9 +155,9 @@ export const FeedbackPanel: React.FC<FeedbackPanelProps> = ({
                 onAccept?.();
               }}
               className="feedback-button hover:text-white transition-colors px-1 py-0.5"
-              title="Accept suggestion (Tab)"
+              title={`Tab ${t.feedback.acceptSuggestion}`}
             >
-              Tab 采纳
+              Tab {t.feedback.acceptSuggestion}
             </button>
             <span className="text-gray-500">·</span>
             <button
@@ -164,9 +166,9 @@ export const FeedbackPanel: React.FC<FeedbackPanelProps> = ({
                 onDismiss?.();
               }}
               className="feedback-button hover:text-white transition-colors px-1 py-0.5"
-              title="Dismiss (Escape)"
+              title={`Esc ${t.feedback.dismissSuggestion}`}
             >
-              Esc 取消
+              Esc {t.feedback.dismissSuggestion}
             </button>
             <span className="text-gray-500">·</span>
             <button
@@ -175,9 +177,9 @@ export const FeedbackPanel: React.FC<FeedbackPanelProps> = ({
                 handleExpandRequest();
               }}
               className="feedback-button feedback-k-button transition-colors px-1 py-0.5"
-              title="Customize (Ctrl+K)"
+              title={`Ctrl+K ${t.feedback.customize}`}
             >
-              Ctrl+K 调教
+              Ctrl+K {t.feedback.customize}
             </button>
           </div>
         </motion.div>
@@ -203,11 +205,11 @@ export const FeedbackPanel: React.FC<FeedbackPanelProps> = ({
           <div className="p-4 space-y-3">
             {/* Header */}
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-medium text-white">自定义 AI 建议</h3>
+              <h3 className="text-sm font-medium text-white">{t.feedback.title}</h3>
               <button
                 onClick={(e) => handleCollapse(e)}
                 className="feedback-button text-gray-400 hover:text-white transition-colors p-1"
-                title="Collapse (Esc)"
+                title={t.feedback.collapseEsc}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -217,7 +219,7 @@ export const FeedbackPanel: React.FC<FeedbackPanelProps> = ({
 
             {/* Quick Feedback Options */}
             <div>
-              <label className="text-xs font-medium text-gray-300 block mb-2">快速反馈：</label>
+              <label className="text-xs font-medium text-gray-300 block mb-2">{t.feedback.quickFeedback}</label>
               <div className="grid grid-cols-2 gap-2">
                 {quickFeedbackOptions.map((option) => (
                   <button
@@ -236,7 +238,7 @@ export const FeedbackPanel: React.FC<FeedbackPanelProps> = ({
             {/* Custom Feedback Input */}
             <form onSubmit={handleSubmit} className="space-y-2">
               <label className="text-xs font-medium text-gray-300 block">
-                或自定义反馈：
+                {t.feedback.orCustomFeedback}
               </label>
               <input
                 ref={inputRef}
@@ -244,7 +246,7 @@ export const FeedbackPanel: React.FC<FeedbackPanelProps> = ({
                 value={feedback}
                 onChange={(e) => setFeedback(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="例如：让这段更感性一些..."
+                placeholder={t.feedback.placeholder}
                 className="feedback-input w-full px-3 py-2 text-sm bg-gray-800/50 rounded-lg text-white placeholder-gray-500 outline-none"
               />
               <button
@@ -252,14 +254,14 @@ export const FeedbackPanel: React.FC<FeedbackPanelProps> = ({
                 disabled={!feedback.trim()}
                 className="w-full bg-blue-500 hover:bg-blue-600 disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200"
               >
-                生成新建议
+                {t.feedback.regenerate}
               </button>
             </form>
 
             {/* Keyboard shortcuts reminder */}
             <div className="text-xs text-gray-500 space-y-1 pt-2 border-t border-gray-700/30">
-              <div>按 <kbd className="kbd-indicator">Esc</kbd> 收起</div>
-              <div>按 <kbd className="kbd-indicator">Enter</kbd> 提交反馈</div>
+              <div><kbd className="kbd-indicator">Esc</kbd> {t.feedback.collapse}</div>
+              <div><kbd className="kbd-indicator">Enter</kbd> {t.feedback.enterToSubmit}</div>
             </div>
           </div>
         </motion.div>

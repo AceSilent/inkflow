@@ -2,10 +2,12 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useWorkspaceStore } from '../../store/workspaceStore';
 import { useEditorStore } from '../../store/editorStore';
+import { useTranslation } from '../../i18n';
 
 export const ChapterList: React.FC = () => {
   const { chapters, currentChapter, selectChapter, createNewChapter } = useWorkspaceStore();
   const { updateContent, clearGhostText } = useEditorStore();
+  const { t } = useTranslation();
   const [isCreating, setIsCreating] = useState(false);
   const [newChapterTitle, setNewChapterTitle] = useState('');
 
@@ -56,7 +58,7 @@ export const ChapterList: React.FC = () => {
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
         </svg>
-        <span className="text-sm font-medium">新建章节</span>
+        <span className="text-sm font-medium">{t.sidebar.newChapter}</span>
       </motion.button>
 
       {/* 新建章节输入框 */}

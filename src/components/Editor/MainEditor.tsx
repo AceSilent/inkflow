@@ -4,6 +4,7 @@ import * as monaco from 'monaco-editor';
 import { GhostTextManager } from './GhostTextManager';
 import { useEditorStore, useEditorContent, useGhostText, useEditorLoading, useFeedbackPanelVisible } from '../../store/editorStore';
 import { useConfigStore } from '../../store/configStore';
+import { useTranslation } from '../../i18n';
 import { FeedbackPanel } from './FeedbackPanel';
 
 interface MainEditorProps {
@@ -28,8 +29,9 @@ export const MainEditor: React.FC<MainEditorProps> = ({
   const content = useEditorContent();
   const ghostText = useGhostText();
   const feedbackPanelVisible = useFeedbackPanelVisible();
-  const { isLoading, isAISuggesting } = useEditorLoading();
+  const { isLoading, isAISuggesting, currentChapterPath } = useEditorLoading();
   const aiDelay = useConfigStore((state) => state.aiDelay);
+  const { t } = useTranslation();
 
   const {
     updateContent,
@@ -384,35 +386,97 @@ export const MainEditor: React.FC<MainEditorProps> = ({
     <div className="relative w-full h-full">
       {renderLoadingOverlay()}
 
-      <div className="w-full h-full">
-        <Editor
-          height="100%"
-          defaultLanguage="markdown" // Use markdown for better text editing experience
-          value={content}
-          theme={theme}
-          onChange={(value) => {
-            if (value !== undefined) {
-              updateContent(value);
-            }
-          }}
-          onMount={handleEditorMount}
-          loading={
-            <div className="flex items-center justify-center h-full w-full bg-editor-bg">
-              <div className="flex flex-col items-center space-y-3">
-                <div className="w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
-                <div className="text-gray-400 text-sm">
-                  Loading editor...
+      {/* Empty state - no chapter loaded */}
+      {!currentChapterPath && (
+        <div className="w-full h-full flex items-center justify-center bg-white dark:bg-gray-900">
+          <div className="text-center space-y-6 max-w-lg">
+            {/* Icon */}
+            <div className="flex justify-center">
+              <div className="w-20 h-20 dark:bg-gray-800 bg-gray-100 rounded-full flex items-center justify-center">
+                <svg className="w-10 h-10 dark:text-gray-600 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+                </svg>
+              </div>
+            </div>
+
+            {/* Title and Description */}
+            <div>
+              <h2 className="text-2xl font-semibold dark:text-white text-gray-900 mb-2">
+                {t.editor.emptyStateTitle}
+              </h2>
+              <p className="text-sm dark:text-gray-400 text-gray-600">
+                {t.editor.emptyStateDesc}
+              </p>
+            </div>
+
+            {/* Action Hints */}
+            <div className="space-y-3 text-left max-w-sm mx-auto">
+              <div className="flex items-start space-x-3 dark:text-gray-400 text-gray-600">
+                <svg className="w-5 h-5 flex-shrink-0 mt-0.5 dark:text-blue-400 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                </svg>
+                <div className="text-sm">
+                  <p className="font-medium dark:text-gray-300 text-gray-700">{t.editor.hintOpenWorkspace}</p>
+                  <p className="text-xs dark:text-gray-500 text-gray-500">{t.editor.hintOpenWorkspaceDesc}</p>
+                </div>
+              </div>
+
+              <div className="flex items-start space-x-3 dark:text-gray-400 text-gray-600">
+                <svg className="w-5 h-5 flex-shrink-0 mt-0.5 dark:text-blue-400 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                <div className="text-sm">
+                  <p className="font-medium dark:text-gray-300 text-gray-700">{t.editor.hintCreateNovel}</p>
+                  <p className="text-xs dark:text-gray-500 text-gray-500">{t.editor.hintCreateNovelDesc}</p>
+                </div>
+              </div>
+
+              <div className="flex items-start space-x-3 dark:text-gray-400 text-gray-600">
+                <svg className="w-5 h-5 flex-shrink-0 mt-0.5 dark:text-blue-400 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                </svg>
+                <div className="text-sm">
+                  <p className="font-medium dark:text-gray-300 text-gray-700">{t.editor.hintStartWriting}</p>
+                  <p className="text-xs dark:text-gray-500 text-gray-500">{t.editor.hintStartWritingDesc}</p>
                 </div>
               </div>
             </div>
-          }
-          options={{
-            // Immersive editor options are set in onMount
-            readOnly: false,
-            automaticLayout: true,
-          }}
-        />
-      </div>
+          </div>
+        </div>
+      )}
+
+      {/* Editor - only shown when chapter is loaded */}
+      {currentChapterPath && (
+        <div className="w-full h-full">
+          <Editor
+            height="100%"
+            defaultLanguage="markdown" // Use markdown for better text editing experience
+            value={content}
+            theme={theme}
+            onChange={(value) => {
+              if (value !== undefined) {
+                updateContent(value);
+              }
+            }}
+            onMount={handleEditorMount}
+            loading={
+              <div className="flex items-center justify-center h-full w-full bg-editor-bg">
+                <div className="flex flex-col items-center space-y-3">
+                  <div className="w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
+                  <div className="text-gray-400 text-sm">
+                    {t.editor.loadingEditor}
+                  </div>
+                </div>
+              </div>
+            }
+            options={{
+              // Immersive editor options are set in onMount
+              readOnly: false,
+              automaticLayout: true,
+            }}
+          />
+        </div>
+      )}
 
       {/* Feedback Panel */}
       <FeedbackPanel

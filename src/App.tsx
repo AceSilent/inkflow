@@ -9,12 +9,12 @@ import { useEditorStore } from './store/editorStore';
 import { useConfigStore } from './store/configStore';
 import { useWorkspaceStore } from './store/workspaceStore';
 import { useToastStore } from './store/toastStore';
+import { useTranslation } from './i18n';
 import './index.css'; // Use the new index.css instead of editor.css
 import type { editor } from 'monaco-editor';
 
 function App() {
   const {
-    loadChapterContent,
     autoSave,
     setLoading,
     content,
@@ -23,6 +23,7 @@ function App() {
 
   const { theme, language } = useConfigStore();
   const toasts = useToastStore((state) => state.toasts);
+  const { t } = useTranslation();
 
   // 应用主题
   useEffect(() => {
@@ -87,58 +88,29 @@ function App() {
     };
   }, []);
 
-  // Initialize editor with a sample chapter
+  // Initialize application
   useEffect(() => {
     const initializeApp = async () => {
       // 1. 首先加载配置
-      const { loadConfig, workspaceRoot } = useConfigStore.getState();
+      const { loadConfig } = useConfigStore.getState();
       await loadConfig();
 
-      // 2. 如果配置中有工作区根目录，自动加载工作空间
+      // 2. 加载配置后，再获取工作区根目录
+      const { workspaceRoot } = useConfigStore.getState();
+
+      // 3. 如果配置中有工作区根目录，自动加载工作空间
       if (workspaceRoot) {
         const { setWorkspaceRoot, scanWorkspace } = useWorkspaceStore.getState();
         setWorkspaceRoot(workspaceRoot);
         await scanWorkspace();
       }
 
-      // 3. 然后初始化编辑器
-      try {
-        // For demo purposes, create a sample chapter
-        // In a real app, this would be loaded from the file system
-        const sampleContent = `# 晨曦
-
-雨后的清晨，空气中弥漫着泥土的清香。
-
-李晓雨站在窗前，凝视着远处的山峦被薄雾笼罩。咖啡杯里升起的热气在眼前袅袅散开，就像她此刻纷乱的心绪。
-
-"已经过去三年了。"她轻声对自己说。
-
-三年前那个改变一切的夜晚，仍然历历在目。那时的她还是个刚刚走出校园的年轻人，对未来充满了无限的憧憬和期待。而现在...
-
-`;
-
-        // Simulate loading a chapter
-        setTimeout(() => {
-          // In a real app, you'd call:
-          // await loadChapterContent('/path/to/chapter.md');
-
-          // For demo, we'll set the content directly
-          useEditorStore.setState({
-            content: sampleContent,
-            lastSavedContent: sampleContent,
-            currentChapterPath: '/demo/chapter1.md',
-            isDirty: false,
-          });
-          setLoading(false);
-        }, 1000);
-      } catch (error) {
-        console.error('Failed to initialize editor:', error);
-        setLoading(false);
-      }
+      // 编辑器初始化完成，不需要加载示例内容
+      setLoading(false);
     };
 
     initializeApp();
-  }, [loadChapterContent, setLoading]);
+  }, [setLoading]);
 
   // Setup auto-save interval
   useEffect(() => {
@@ -162,7 +134,9 @@ function App() {
   };
 
   const wordCount = content.split(/\s+/).filter(word => word.length > 0).length;
-  const chapterName = currentChapterPath ? currentChapterPath.split('/').pop() || 'Untitled Chapter' : 'No chapter loaded';
+  const chapterName = currentChapterPath
+    ? currentChapterPath.split('/').pop() || t.editor.untitledChapter
+    : t.editor.noChapterLoaded;
 
   return (
     <div className="flex flex-col w-full h-screen dark:bg-gray-900 bg-white dark:text-gray-100 text-gray-900">
@@ -170,10 +144,10 @@ function App() {
       <header className="flex items-center justify-between px-6 py-3 dark:bg-gray-800 bg-gray-100 dark:border-b border-b dark:border-gray-700 border-gray-200">
         <div className="flex items-center space-x-3">
           <h1 className="text-xl font-bold dark:text-white text-gray-900">
-            InkFlow
+            {t.app.title}
           </h1>
           <span className="text-xs dark:text-gray-400 text-gray-600 font-medium">
-            AI-Powered Novel Editor
+            {t.app.subtitle}
           </span>
         </div>
 
@@ -194,7 +168,7 @@ function App() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
             </svg>
             <span className="text-sm dark:text-gray-300 text-gray-700">
-              {wordCount.toLocaleString()} words
+              {wordCount.toLocaleString()} {language === 'zh-CN' ? '字' : 'words'}
             </span>
           </div>
 
@@ -202,7 +176,7 @@ function App() {
           <div className="flex items-center space-x-2">
             <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
             <span className="text-xs dark:text-gray-400 text-gray-600">
-              Ready
+              {t.editor.ready}
             </span>
           </div>
 
@@ -235,10 +209,10 @@ function App() {
       {/* Footer with additional info */}
       <footer className="flex items-center justify-between px-6 py-2 dark:bg-gray-800 bg-gray-100 dark:border-t border-t dark:border-gray-700 border-gray-200">
         <div className="text-xs dark:text-gray-500 text-gray-600">
-          Press <kbd className="px-1 py-0.5 dark:bg-gray-700 bg-gray-300 dark:text-gray-300 text-gray-700 rounded text-xs">Tab</kbd> to accept AI suggestions
+          <kbd className="px-1 py-0.5 dark:bg-gray-700 bg-gray-300 dark:text-gray-300 text-gray-700 rounded text-xs">Tab</kbd> {t.editor.tabToAccept}
         </div>
         <div className="text-xs dark:text-gray-500 text-gray-600">
-          Auto-save enabled
+          {t.editor.autoSaveEnabled}
         </div>
       </footer>
 

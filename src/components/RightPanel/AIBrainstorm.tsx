@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useWorkspaceStore } from '../../store/workspaceStore';
 import { useConfigStore } from '../../store/configStore';
 import { invoke } from '@tauri-apps/api/tauri';
+import { useTranslation } from '../../i18n';
 
 interface Message {
   role: 'user' | 'assistant' | 'system';
@@ -11,6 +12,7 @@ interface Message {
 }
 
 export const AIBrainstorm: React.FC = () => {
+  const { t } = useTranslation();
   const { globalOutline } = useWorkspaceStore();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -18,7 +20,7 @@ export const AIBrainstorm: React.FC = () => {
   const [contextLocked, setContextLocked] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // 自动滚动到底部
+  // Auto scroll to bottom
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -44,19 +46,19 @@ export const AIBrainstorm: React.FC = () => {
       // Check API configuration
       const config = useConfigStore.getState();
       if (!config.apiKey) {
-        throw new Error('请先在设置中配置 API Key');
+        throw new Error(t.rightPanel.configureApiKeyFirstError);
       }
 
-      // 构建带上下文的prompt
+      // Build prompt with context
       let contextPrompt = '你是一位专业的小说创作顾问，正在与作者讨论情节和人物设定。';
 
       if (contextLocked && globalOutline) {
         contextPrompt += `\n\n【当前小说背景】\n标题：${globalOutline.title}\n简介：${globalOutline.summary}\n\n人物：${globalOutline.characters.map(c => `${c.name} - ${c.description}`).join('；')}\n\n情节要点：${globalOutline.plot_points.join('、')}`;
       }
 
-      // 添加历史对话作为上下文
+      // Add conversation history as context
       const conversationHistory = messages
-        .slice(-6) // 只保留最近3轮对话
+        .slice(-6) // Keep only last 3 rounds of conversation
         .map(m => `${m.role === 'user' ? '作者' : '顾问'}：${m.content}`)
         .join('\n');
 
@@ -84,10 +86,10 @@ export const AIBrainstorm: React.FC = () => {
 
       setMessages(prev => [...prev, assistantMessage]);
     } catch (error) {
-      console.error('❌ AI讨论失败:', error);
+      console.error('AI discussion failed:', error);
       const errorMessage: Message = {
         role: 'system',
-        content: '抱歉，AI服务暂时不可用。请检查API配置。',
+        content: t.rightPanel.aiUnavailable,
         timestamp: new Date().toISOString(),
       };
       setMessages(prev => [...prev, errorMessage]);
@@ -98,23 +100,23 @@ export const AIBrainstorm: React.FC = () => {
 
   const handleSyncToOutline = async () => {
     if (!globalOutline) {
-      alert('请先创建大纲');
+      alert(t.rightPanel.createOutlineFirst);
       return;
     }
 
-    // 提取讨论中有价值的要点
+    // Extract valuable points from discussion
     const userMessages = messages.filter(m => m.role === 'user').map(m => m.content);
 
     if (userMessages.length === 0) {
-      alert('暂无讨论内容可同步');
+      alert(t.rightPanel.noContentToSync);
       return;
     }
 
-    // 简单策略：将用户的问题作为新的情节点添加到大纲
+    // Simple strategy: add user questions as new plot points
     const newPlotPoints = userMessages
-      .slice(-3) // 只取最近3个问题
+      .slice(-3) // Only take last 3 questions
       .map(msg => {
-        // 简化处理：直接使用用户输入
+        // Simplified: use user input directly
         return msg.slice(0, 50) + (msg.length > 50 ? '...' : '');
       });
 
@@ -126,10 +128,10 @@ export const AIBrainstorm: React.FC = () => {
     try {
       const { updateGlobalOutline } = useWorkspaceStore.getState();
       await updateGlobalOutline(updatedOutline);
-      alert(`✅ 已将 ${newPlotPoints.length} 个讨论要点同步到大纲！`);
+      alert(`${t.rightPanel.syncedPoints} ${newPlotPoints.length} 个讨论要点同步到大纲！`);
     } catch (error) {
-      console.error('❌ 同步失败:', error);
-      alert('同步失败，请重试');
+      console.error('Sync failed:', error);
+      alert(t.rightPanel.syncFailed);
     }
   };
 
@@ -142,19 +144,19 @@ export const AIBrainstorm: React.FC = () => {
 
   const handleClear = () => {
     if (messages.length === 0) return;
-    if (confirm('确定清空讨论记录吗？')) {
+    if (confirm(t.rightPanel.confirmClear)) {
       setMessages([]);
     }
   };
 
   return (
     <div className="flex flex-col h-full">
-      {/* 顶部工具栏 */}
+      {/* Top Toolbar */}
       <div className="p-4 dark:border-b border-b dark:border-gray-700 border-gray-200 space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-medium dark:text-gray-400 text-gray-600">AI 创作讨论</h3>
+          <h3 className="text-sm font-medium dark:text-gray-400 text-gray-600">{t.rightPanel.aiDiscussion}</h3>
           <div className="flex items-center space-x-2">
-            {/* 上下文锁定开关 */}
+            {/* Context Lock Toggle */}
             <button
               onClick={() => setContextLocked(!contextLocked)}
               className={`flex items-center space-x-1 px-2 py-1 rounded text-xs transition-colors ${
@@ -162,33 +164,33 @@ export const AIBrainstorm: React.FC = () => {
                   ? 'bg-green-600/20 text-green-400 border border-green-600/30'
                   : 'dark:bg-gray-700 bg-gray-200 dark:text-gray-400 text-gray-600 dark:border border-gray-600 border-gray-300'
               }`}
-              title={contextLocked ? '上下文已锁定：讨论将基于当前大纲' : '上下文未锁定：自由讨论模式'}
+              title={contextLocked ? t.rightPanel.contextLockedTitle : t.rightPanel.contextUnlockedTitle}
             >
               <svg className={`w-3 h-3 ${contextLocked ? 'text-green-400' : 'dark:text-gray-500 text-gray-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={contextLocked ? "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" : "M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"} />
               </svg>
-              <span>{contextLocked ? '已锁定' : '未锁定'}</span>
+              <span>{contextLocked ? t.rightPanel.locked : t.rightPanel.unlocked}</span>
             </button>
 
-            {/* 一键同步按钮 */}
+            {/* Sync Button */}
             <button
               onClick={handleSyncToOutline}
               disabled={messages.length === 0}
               className="flex items-center space-x-1 px-2 py-1 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-600/30 rounded text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              title="将讨论要点同步到大纲"
+              title={t.rightPanel.syncButtonTitle}
             >
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
               </svg>
-              <span>同步</span>
+              <span>{t.rightPanel.sync}</span>
             </button>
 
-            {/* 清空按钮 */}
+            {/* Clear Button */}
             <button
               onClick={handleClear}
               disabled={messages.length === 0}
               className="p-1 dark:hover:bg-gray-700 hover:bg-gray-200 rounded dark:text-gray-400 text-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              title="清空讨论"
+              title={t.rightPanel.clearButtonTitle}
             >
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -197,7 +199,7 @@ export const AIBrainstorm: React.FC = () => {
           </div>
         </div>
 
-        {/* 上下文提示 */}
+        {/* Context Hint */}
         <AnimatePresence>
           {contextLocked && globalOutline && (
             <motion.div
@@ -206,13 +208,13 @@ export const AIBrainstorm: React.FC = () => {
               exit={{ opacity: 0, height: 0 }}
               className="text-xs dark:text-gray-500 text-gray-600 dark:bg-gray-800/50 bg-gray-200/50 rounded px-2 py-1"
             >
-              基于《{globalOutline.title}》进行讨论
+              {t.rightPanel.basedOn}{globalOutline.title}》进行讨论
             </motion.div>
           )}
         </AnimatePresence>
       </div>
 
-      {/* 消息列表 */}
+      {/* Message List */}
       <div className="flex-1 overflow-y-auto px-4 py-2 space-y-3">
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center space-y-3">
@@ -220,8 +222,8 @@ export const AIBrainstorm: React.FC = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
             </svg>
             <div className="space-y-1">
-              <p className="text-sm text-gray-500">开始与AI讨论情节和人物</p>
-              <p className="text-xs text-gray-600">Ask me anything about your story...</p>
+              <p className="text-sm text-gray-500">{t.rightPanel.startDiscussion}</p>
+              <p className="text-xs text-gray-600">{t.rightPanel.askingMe}</p>
             </div>
           </div>
         ) : (
@@ -258,7 +260,7 @@ export const AIBrainstorm: React.FC = () => {
               >
                 <div className="dark:bg-gray-700 bg-gray-200 dark:text-gray-200 text-gray-800 border dark:border-gray-600 border-gray-300 rounded-lg px-3 py-2 flex items-center space-x-2">
                   <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
-                  <span className="text-sm text-gray-400">AI思考中...</span>
+                  <span className="text-sm text-gray-400">{t.rightPanel.thinking}</span>
                 </div>
               </motion.div>
             )}
@@ -267,14 +269,14 @@ export const AIBrainstorm: React.FC = () => {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* 输入区域 */}
+      {/* Input Area */}
       <div className="p-4 dark:border-t border-t dark:border-gray-700 border-gray-200">
         <div className="flex items-end space-x-2">
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="输入你的想法... (Enter发送，Shift+Enter换行)"
+            placeholder={t.rightPanel.inputPlaceholder}
             className="flex-1 px-3 py-2 dark:bg-gray-800 bg-white dark:border border-gray-700 border-gray-300 rounded-lg dark:text-white text-gray-900 text-sm dark:placeholder-gray-500 placeholder-gray-400 focus:outline-none focus:border-blue-500 resize-none"
             rows={2}
             disabled={isLoading}
@@ -290,7 +292,7 @@ export const AIBrainstorm: React.FC = () => {
           </button>
         </div>
         <div className="mt-2 dark:text-xs text-xs dark:text-gray-500 text-gray-600">
-          提示：讨论情节发展、人物设定、冲突设计等，AI会基于当前大纲给出建议
+          {t.rightPanel.discussionHint}
         </div>
       </div>
     </div>

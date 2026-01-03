@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { invoke } from '@tauri-apps/api/tauri';
+import { useTranslation } from '../../i18n';
 
 interface CreateNewNovelProps {
   isOpen: boolean;
@@ -15,6 +16,7 @@ export const CreateNewNovel: React.FC<CreateNewNovelProps> = ({
   workspaceRoot,
   onSuccess,
 }) => {
+  const { t } = useTranslation();
   const [novelName, setNovelName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState('');
@@ -23,7 +25,7 @@ export const CreateNewNovel: React.FC<CreateNewNovelProps> = ({
     e.preventDefault();
 
     if (!novelName.trim()) {
-      setError('请输入小说名称');
+      setError(t.createNovel.novelNameRequired);
       return;
     }
 
@@ -77,19 +79,19 @@ export const CreateNewNovel: React.FC<CreateNewNovelProps> = ({
           >
             <div className="dark:bg-gray-800 bg-white dark:border-gray-700 border-gray-200 rounded-lg shadow-xl p-6">
               <h2 className="text-xl font-semibold dark:text-white text-gray-900 mb-4">
-                创建新小说
+                {t.createNovel.title}
               </h2>
 
               <form onSubmit={handleSubmit}>
                 <div className="mb-4">
                   <label className="block text-sm font-medium dark:text-gray-300 text-gray-700 mb-2">
-                    小说名称
+                    {t.createNovel.novelName}
                   </label>
                   <input
                     type="text"
                     value={novelName}
                     onChange={(e) => setNovelName(e.target.value)}
-                    placeholder="输入小说名称"
+                    placeholder={t.createNovel.novelNamePlaceholder}
                     className="w-full px-3 py-2 dark:bg-gray-700 bg-white dark:border border-gray-600 border-gray-300 rounded-lg dark:text-white text-gray-900 text-sm dark:placeholder-gray-500 placeholder-gray-400 focus:outline-none focus:border-blue-500"
                     autoFocus
                     disabled={isCreating}
@@ -97,8 +99,8 @@ export const CreateNewNovel: React.FC<CreateNewNovelProps> = ({
                 </div>
 
                 <div className="mb-4 text-xs dark:text-gray-500 text-gray-600">
-                  <p>工作目录: {workspaceRoot}</p>
-                  <p className="mt-1">将在工作目录下创建同名文件夹，并初始化大纲和第一章。</p>
+                  <p>{t.createNovel.workspaceDir}: {workspaceRoot}</p>
+                  <p className="mt-1">{t.createNovel.workspaceDesc}</p>
                 </div>
 
                 {error && (
@@ -114,14 +116,14 @@ export const CreateNewNovel: React.FC<CreateNewNovelProps> = ({
                     disabled={isCreating}
                     className="px-4 py-2 dark:bg-gray-700 bg-gray-200 dark:text-gray-300 text-gray-700 rounded-lg dark:hover:bg-gray-600 hover:bg-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
                   >
-                    取消
+                    {t.createNovel.cancel}
                   </button>
                   <button
                     type="submit"
                     disabled={isCreating || !novelName.trim()}
                     className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg transition-colors disabled:cursor-not-allowed text-sm"
                   >
-                    {isCreating ? '创建中...' : '创建'}
+                    {isCreating ? t.createNovel.creating : t.createNovel.create}
                   </button>
                 </div>
               </form>

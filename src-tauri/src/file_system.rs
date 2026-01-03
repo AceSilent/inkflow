@@ -423,11 +423,11 @@ pub async fn save_chapter_summary(
     chapter_filename: String,
     summary: ChapterSummary,
 ) -> Result<(), String> {
-    // 创建 .inkflow 文件夹
-    let inkflow_folder = Path::new(&novel_path).join(".inkflow");
-    if !inkflow_folder.exists() {
-        fs::create_dir_all(&inkflow_folder)
-            .map_err(|e| format!("无法创建 .inkflow 文件夹: {}", e))?;
+    // 创建 .inkflow/summaries 文件夹
+    let summaries_folder = Path::new(&novel_path).join(".inkflow").join("summaries");
+    if !summaries_folder.exists() {
+        fs::create_dir_all(&summaries_folder)
+            .map_err(|e| format!("无法创建 .inkflow/summaries 文件夹: {}", e))?;
     }
 
     // 生成 JSON 文件名
@@ -436,7 +436,7 @@ pub async fn save_chapter_summary(
         .and_then(|s| s.to_str())
         .unwrap_or("unknown");
 
-    let json_path = inkflow_folder.join(format!("{}.json", file_stem));
+    let json_path = summaries_folder.join(format!("{}.json", file_stem));
 
     // 序列化并保存
     let json_content = serde_json::to_string_pretty(&summary)
@@ -448,6 +448,82 @@ pub async fn save_chapter_summary(
     println!("✅ 章节总结已保存: {:?}", json_path);
 
     Ok(())
+}
+
+/// 获取前N章的总结文本
+#[tauri::command]
+pub async fn get_previous_summaries(
+    novel_path: String,
+    current_chapter_order: u32,
+    count: u32,
+) -> Result<String, String> {
+    let summaries_folder = Path::new(&novel_path).join(".inkflow").join("summaries");
+
+    // 如果summaries目录不存在，返回空字符串
+    if !summaries_folder.exists() {
+        return Ok(String::new());
+    }
+
+    let mut summary_texts = Vec::new();
+
+    // 从当前章节往前查找，最多找count个章节
+    for i in (1..current_chapter_order).rev().take(count as usize) {
+        // 查找对应章节号的文件
+        let chapter_num = current_chapter_order - i;
+
+        // 尝试找到该章节的总结文件
+        let entries = fs::read_dir(&summaries_folder)
+            .map_err(|e| format!("无法读取summaries目录: {}", e))?;
+
+        let mut found = false;
+        for entry in entries.flatten() {
+            let file_path = entry.path();
+
+            // 只处理.json文件
+            if file_path.extension().and_then(|e| e.to_str()) != Some("json") {
+                continue;
+            }
+
+            // 从文件名提取章节号
+            let file_stem = file_path.file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("");
+
+            // 尝试从文件名开头提取数字
+            if let Some(num_pos) = file_stem.find('_') {
+                let num_str = &file_stem[..num_pos];
+                if let Ok(num) = num_str.parse::<u32>() {
+                    if num == chapter_num {
+                        // 找到了对应章节的总结文件
+                        match fs::read_to_string(&file_path) {
+                            Ok(content) => {
+                                if let Ok(summary_data) = serde_json::from_str::<ChapterSummary>(&content) {
+                                    let summary_text = format!(
+                                        "【第{}章 {}】\n摘要：{}\n关键词：{}",
+                                        chapter_num,
+                                        summary_data.chapter_path.split('/').last().unwrap_or("未知章节"),
+                                        summary_data.summary,
+                                        summary_data.keywords.join("、")
+                                    );
+                                    summary_texts.push(summary_text);
+                                    found = true;
+                                }
+                            }
+                            Err(e) => {
+                                eprintln!("⚠️ 无法读取总结文件 {:?}: {}", file_path, e);
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    // 反转顺序，使最早的章节在最前面
+    summary_texts.reverse();
+
+    Ok(summary_texts.join("\n\n"))
 }
 
 /// 创建新小说工程
@@ -471,10 +547,14 @@ pub async fn create_new_novel(
     fs::create_dir_all(&novel_path)
         .map_err(|e| format!("创建目录失败: {}", e))?;
 
-    // 创建 .inkflow 文件夹
+    // 创建 .inkflow 文件夹和 summaries 子文件夹
     let inkflow_path = novel_path.join(".inkflow");
     fs::create_dir_all(&inkflow_path)
         .map_err(|e| format!("创建 .inkflow 文件夹: {}", e))?;
+
+    let summaries_path = inkflow_path.join("summaries");
+    fs::create_dir_all(&summaries_path)
+        .map_err(|e| format!("创建 .inkflow/summaries 文件夹: {}", e))?;
 
     // 创建默认大纲文件
     let outline_path = novel_path.join("outline.md");

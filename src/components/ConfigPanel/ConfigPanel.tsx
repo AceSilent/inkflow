@@ -4,8 +4,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useConfigStore } from '../../store/configStore';
 import { useEditorStore } from '../../store/editorStore';
 import { useWorkspaceStore } from '../../store/workspaceStore';
+import { useTranslation } from '../../i18n';
 
 export const ConfigPanel: React.FC = () => {
+  const { t } = useTranslation();
   const {
     // AI 配置
     aiDelay,
@@ -51,7 +53,7 @@ export const ConfigPanel: React.FC = () => {
   };
 
   const handleReset = async () => {
-    if (confirm('确定要重置所有配置到默认值吗？')) {
+    if (confirm(t.config.resetConfirm)) {
       await resetConfig();
     }
   };
@@ -65,7 +67,7 @@ export const ConfigPanel: React.FC = () => {
           setIsOpen(true);
         }}
         className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
-        title="设置"
+        title={t.common.settings}
       >
         <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -85,7 +87,7 @@ export const ConfigPanel: React.FC = () => {
               exit={{ opacity: 0 }}
               onClick={() => {
                 if (isDirty) {
-                  if (confirm('有未保存的更改，确定要关闭吗？')) {
+                  if (confirm(t.config.unsavedChangesWarning)) {
                     setIsOpen(false);
                   }
                 } else {
@@ -104,11 +106,11 @@ export const ConfigPanel: React.FC = () => {
               >
                 {/* 标题栏 */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-gray-700">
-                  <h2 className="text-lg font-semibold text-white">设置</h2>
+                  <h2 className="text-lg font-semibold text-white">{t.config.title}</h2>
                   <button
                     onClick={() => {
                       if (isDirty) {
-                        if (confirm('有未保存的更改，确定要关闭吗？')) {
+                        if (confirm(t.config.unsavedChangesWarning)) {
                           setIsOpen(false);
                         }
                       } else {
@@ -150,7 +152,7 @@ export const ConfigPanel: React.FC = () => {
                         : 'text-gray-400 hover:text-gray-300'
                     }`}
                   >
-                    AI 设置
+                    {t.config.aiSettings}
                   </button>
                   <button
                     onClick={() => setActiveTab('editor')}
@@ -160,7 +162,7 @@ export const ConfigPanel: React.FC = () => {
                         : 'text-gray-400 hover:text-gray-300'
                     }`}
                   >
-                    编辑器
+                    {t.config.editor}
                   </button>
                   <button
                     onClick={() => setActiveTab('workspace')}
@@ -170,7 +172,7 @@ export const ConfigPanel: React.FC = () => {
                         : 'text-gray-400 hover:text-gray-300'
                     }`}
                   >
-                    工作区
+                    {t.config.workspace}
                   </button>
                 </div>
 
@@ -352,16 +354,16 @@ export const ConfigPanel: React.FC = () => {
                   {activeTab === 'workspace' && (
                     <div className="space-y-6">
                       <div>
-                        <h3 className="text-lg font-medium text-white mb-4">工作区设置</h3>
+                        <h3 className="text-lg font-medium text-white mb-4">{t.config.workspaceSettings}</h3>
 
                         {/* 当前工作区 */}
                         <div className="mb-4">
                           <label className="block text-sm font-medium text-gray-300 mb-2">
-                            当前工作区根目录
+                            {t.config.currentWorkspaceRoot}
                           </label>
                           <div className="flex items-center space-x-2">
                             <div className="flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-300 text-sm truncate">
-                              {workspaceRoot || '未设置工作区'}
+                              {workspaceRoot || t.config.workspaceNotSet}
                             </div>
                             <button
                               onClick={async () => {
@@ -369,7 +371,7 @@ export const ConfigPanel: React.FC = () => {
                                 const selected = await open({
                                   directory: true,
                                   multiple: false,
-                                  title: '选择工作区根目录',
+                                  title: t.config.selectWorkspaceRoot,
                                 });
                                 if (selected) {
                                   const path = typeof selected === 'string' ? selected : selected[0];
@@ -386,11 +388,11 @@ export const ConfigPanel: React.FC = () => {
                               }}
                               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
                             >
-                              {workspaceRoot ? '更换' : '选择'}
+                              {workspaceRoot ? t.config.changeWorkspace : t.config.selectWorkspace}
                             </button>
                           </div>
                           <p className="text-xs text-gray-500 mt-2">
-                            工作区根目录是包含所有小说项目的父文件夹
+                            {t.config.workspaceRootInfo}
                           </p>
                         </div>
 
@@ -403,10 +405,10 @@ export const ConfigPanel: React.FC = () => {
                               </svg>
                               <div className="flex-1">
                                 <p className="text-sm text-gray-300">
-                                  工作区已设置
+                                  {t.config.workspaceSet}
                                 </p>
                                 <p className="text-xs text-gray-500 mt-1">
-                                  点击"选择"按钮可更换其他工作区
+                                  {t.config.workspaceSetDesc}
                                 </p>
                               </div>
                             </div>
@@ -415,11 +417,11 @@ export const ConfigPanel: React.FC = () => {
 
                         {/* 使用说明 */}
                         <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700/50">
-                          <h4 className="text-sm font-medium text-gray-300 mb-2">工作区说明</h4>
+                          <h4 className="text-sm font-medium text-gray-300 mb-2">{t.config.workspaceInstructions}</h4>
                           <ul className="text-xs text-gray-500 space-y-1">
-                            <li>• 工作区是一个包含多个小说项目的根文件夹</li>
-                            <li>• 每个子文件夹代表一个独立的小说项目</li>
-                            <li>• 示例：D:\MyNovels\小说1、D:\MyNovels\小说2</li>
+                            <li>{t.config.workspaceInstruction1}</li>
+                            <li>{t.config.workspaceInstruction2}</li>
+                            <li>{t.config.workspaceInstruction3}</li>
                           </ul>
                         </div>
                       </div>
@@ -435,7 +437,7 @@ export const ConfigPanel: React.FC = () => {
                         <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                         </svg>
-                        有未保存的更改
+                        {t.config.unsavedChanges}
                       </span>
                     )}
                   </div>
@@ -444,7 +446,7 @@ export const ConfigPanel: React.FC = () => {
                       onClick={handleReset}
                       className="px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
                     >
-                      重置
+                      {t.config.reset}
                     </button>
                     <button
                       onClick={handleSave}
@@ -454,14 +456,14 @@ export const ConfigPanel: React.FC = () => {
                       {isLoading ? (
                         <>
                           <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          <span>保存中...</span>
+                          <span>{t.config.saving}</span>
                         </>
                       ) : (
                         <>
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                           </svg>
-                          <span>保存</span>
+                          <span>{t.config.save}</span>
                         </>
                       )}
                     </button>

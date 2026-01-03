@@ -2,10 +2,12 @@ import React, { useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { EnhancedOutlinePanel } from './EnhancedOutlinePanel';
 import { AIBrainstorm } from './AIBrainstorm';
+import { useTranslation } from '../../i18n';
 
 type RightTab = 'outline' | 'brainstorm';
 
 export const RightPanel: React.FC = () => {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<RightTab>('outline');
 
   return (
@@ -20,7 +22,7 @@ export const RightPanel: React.FC = () => {
               : 'dark:text-gray-400 text-gray-600 dark:hover:text-gray-300 hover:text-gray-900'
           }`}
         >
-          大纲管理
+          {t.rightPanel.enhancedOutline}
         </button>
         <button
           onClick={() => setActiveTab('brainstorm')}
@@ -30,7 +32,7 @@ export const RightPanel: React.FC = () => {
               : 'dark:text-gray-400 text-gray-600 dark:hover:text-gray-300 hover:text-gray-900'
           }`}
         >
-          AI 讨论
+          {t.rightPanel.aiBrainstorm}
         </button>
       </div>
 

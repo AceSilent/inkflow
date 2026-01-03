@@ -13,7 +13,7 @@ use crate::ai::generate_ai_suggestion;
 use crate::file_system::{
     read_file, write_file, create_directory, directory_exists, file_exists,
     // Sprint 3: 小说工程管理
-    list_chapters, get_novel_outline, save_chapter_summary, create_new_novel, create_new_chapter,
+    list_chapters, get_novel_outline, save_chapter_summary, get_previous_summaries, create_new_novel, create_new_chapter,
     open_folder_dialog,
     // Sprint 3.1: 配置管理与小说列表
     load_config, save_config, list_novels,
@@ -66,6 +66,7 @@ fn main() {
             list_chapters,
             get_novel_outline,
             save_chapter_summary,
+            get_previous_summaries,
             create_new_novel,
             create_new_chapter,
             open_folder_dialog,

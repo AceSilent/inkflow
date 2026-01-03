@@ -4,8 +4,10 @@ import { useWorkspaceStore } from '../../store/workspaceStore';
 import { useEditorStore } from '../../store/editorStore';
 import { useConfigStore } from '../../store/configStore';
 import { invoke } from '@tauri-apps/api/tauri';
+import { useTranslation } from '../../i18n';
 
 export const EnhancedOutlinePanel: React.FC = () => {
+  const { t } = useTranslation();
   const { globalOutline, loadGlobalOutline, rootPath, updateGlobalOutline, currentChapter } = useWorkspaceStore();
   const { content } = useEditorStore();
   const [isEditing, setIsEditing] = useState(false);
@@ -28,7 +30,7 @@ export const EnhancedOutlinePanel: React.FC = () => {
       await updateGlobalOutline(outline);
       setIsEditing(false);
     } catch (error) {
-      console.error('❌ 保存大纲失败:', error);
+      console.error('Failed to save outline:', error);
     } finally {
       setIsSaving(false);
     }
@@ -36,14 +38,14 @@ export const EnhancedOutlinePanel: React.FC = () => {
 
   const handleGenerateSummary = async () => {
     if (!currentChapter || !content.trim()) {
-      alert('请先选择章节并确保有内容');
+      alert(t.rightPanel.selectChapterFirst);
       return;
     }
 
     // Check API configuration
     const config = useConfigStore.getState();
     if (!config.apiKey) {
-      alert('请先在设置中配置 API Key');
+      alert(t.rightPanel.configureApiKeyFirst);
       return;
     }
 
@@ -104,14 +106,14 @@ export const EnhancedOutlinePanel: React.FC = () => {
         content: JSON.stringify(summaryData, null, 2),
       });
 
-      alert(`✅ 总结已生成并保存！\n\n${summaryText}\n\n关键词：${keywords.join('、')}`);
+      alert(`${t.rightPanel.summaryGenerated}\n\n${summaryText}\n\n${t.rightPanel.keywords}${keywords.join(', ')}`);
 
       // 刷新章节列表以显示"已总结"标记
       const { refreshChapterList } = useWorkspaceStore.getState();
       await refreshChapterList();
     } catch (error) {
-      console.error('❌ 生成总结失败:', error);
-      alert('生成总结失败，请检查API配置');
+      console.error('Failed to generate summary:', error);
+      alert(t.rightPanel.generateFailed);
     } finally {
       setIsGeneratingSummary(false);
     }
@@ -127,25 +129,35 @@ export const EnhancedOutlinePanel: React.FC = () => {
       world_setting: '',
     };
 
+    // Get translated section names
+    const sectionNames = {
+      title: t.sidebar.title,
+      summary: t.sidebar.summary,
+      characters: t.sidebar.characters,
+      plot: t.sidebar.plot,
+      worldSetting: t.sidebar.worldSetting,
+    };
+
     let currentSection = '';
     let currentContent: string[] = [];
 
     lines.forEach(line => {
       if (line.startsWith('# ')) {
-        if (currentSection === '标题') outline.title = currentContent.join('\n');
-        if (currentSection === '简介') outline.summary = currentContent.join('\n');
-        if (currentSection === '人物') {
+        // Save previous section
+        if (currentSection === sectionNames.title) outline.title = currentContent.join('\n');
+        if (currentSection === sectionNames.summary) outline.summary = currentContent.join('\n');
+        if (currentSection === sectionNames.characters) {
           outline.characters = currentContent.map(line => {
             const [name, ...descParts] = line.split('-');
             return {
               name: name.trim(),
               description: descParts.join('-').trim(),
-              role: '未定义',
+              role: t.sidebar.undefinedRole,
             };
           });
         }
-        if (currentSection === '情节') outline.plot_points = currentContent;
-        if (currentSection === '世界观') outline.world_setting = currentContent.join('\n');
+        if (currentSection === sectionNames.plot) outline.plot_points = currentContent;
+        if (currentSection === sectionNames.worldSetting) outline.world_setting = currentContent.join('\n');
 
         currentSection = line.slice(2);
         currentContent = [];
@@ -154,47 +166,47 @@ export const EnhancedOutlinePanel: React.FC = () => {
       }
     });
 
-    // 处理最后一个section
-    if (currentSection === '标题') outline.title = currentContent.join('\n');
-    if (currentSection === '简介') outline.summary = currentContent.join('\n');
-    if (currentSection === '人物') {
+    // Process last section
+    if (currentSection === sectionNames.title) outline.title = currentContent.join('\n');
+    if (currentSection === sectionNames.summary) outline.summary = currentContent.join('\n');
+    if (currentSection === sectionNames.characters) {
       outline.characters = currentContent.map(line => {
         const [name, ...descParts] = line.split('-');
         return {
           name: name.trim(),
           description: descParts.join('-').trim(),
-          role: '未定义',
+          role: t.sidebar.undefinedRole,
         };
       });
     }
-    if (currentSection === '情节') outline.plot_points = currentContent;
-    if (currentSection === '世界观') outline.world_setting = currentContent.join('\n');
+    if (currentSection === sectionNames.plot) outline.plot_points = currentContent;
+    if (currentSection === sectionNames.worldSetting) outline.world_setting = currentContent.join('\n');
 
     return outline;
   };
 
   const outlineText = globalOutline
-    ? `# 标题
+    ? `# ${t.sidebar.title}
 ${globalOutline.title}
 
-# 简介
+# ${t.sidebar.summary}
 ${globalOutline.summary}
 
-# 人物
+# ${t.sidebar.characters}
 ${globalOutline.characters.map(c => `${c.name} - ${c.description}`).join('\n')}
 
-# 情节
+# ${t.sidebar.plot}
 ${globalOutline.plot_points.join('\n')}
 
-${globalOutline.world_setting ? `# 世界观\n${globalOutline.world_setting}` : ''}
+${globalOutline.world_setting ? `# ${t.sidebar.worldSetting}\n${globalOutline.world_setting}` : ''}
 `
-    : '# 尚未创建大纲\n\n点击下方按钮创建大纲...';
+    : t.sidebar.outlineTemplateTitle;
 
   return (
     <div className="p-4 space-y-4">
-      {/* 顶部操作区 */}
+      {/* Top Action Area */}
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-gray-400">全局大纲</h3>
+        <h3 className="text-sm font-medium text-gray-400">{t.sidebar.globalOutline}</h3>
         {!isEditing && globalOutline && (
           <button
             onClick={() => {
@@ -203,38 +215,37 @@ ${globalOutline.world_setting ? `# 世界观\n${globalOutline.world_setting}` : 
             }}
             className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
           >
-            编辑
+            {t.sidebar.edit}
           </button>
         )}
       </div>
 
-      {/* 大纲内容或创建按钮 */}
+      {/* Outline Content or Create Button */}
       {!globalOutline ? (
         <div className="text-center py-8">
-          <p className="text-gray-500 text-sm mb-4">尚未创建大纲</p>
+          <p className="text-gray-500 text-sm mb-4">{t.sidebar.noOutline}</p>
           <button
             onClick={() => {
-              setEditedOutline(`# 标题
-新小说标题
+              setEditedOutline(`# ${t.sidebar.title}
+${t.sidebar.outlineTitlePlaceholder}
 
-# 简介
-小说简介...
+# ${t.sidebar.summary}
+${t.sidebar.outlineSummaryPlaceholder}
 
-# 人物
-主角 - 人物描述...
+# ${t.sidebar.characters}
+${t.sidebar.outlineCharacterPlaceholder}
 
-# 情节
-- 情节1
-- 情节2
+# ${t.sidebar.plot}
+${t.sidebar.outlinePlotPlaceholder}
 
-# 世界观
-世界观描述...
+# ${t.sidebar.worldSetting}
+${t.sidebar.outlineWorldPlaceholder}
 `);
               setIsEditing(true);
             }}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition-colors"
           >
-            创建大纲
+            {t.sidebar.createOutline}
           </button>
         </div>
       ) : isEditing ? (
@@ -247,10 +258,10 @@ ${globalOutline.world_setting ? `# 世界观\n${globalOutline.world_setting}` : 
             value={editedOutline}
             onChange={(e) => setEditedOutline(e.target.value)}
             className="w-full h-80 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:border-blue-500 resize-none font-mono"
-            placeholder="输入大纲内容（Markdown格式）"
+            placeholder={t.sidebar.outlinePlaceholder}
           />
           <div className="mt-2 text-xs text-gray-500">
-            使用 Markdown 格式，以 # 开头表示章节标题
+            {t.sidebar.outlineHelp}
           </div>
           <div className="flex space-x-2 mt-3">
             <button
@@ -258,7 +269,7 @@ ${globalOutline.world_setting ? `# 世界观\n${globalOutline.world_setting}` : 
               disabled={isSaving}
               className="flex-1 px-3 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-700 disabled:text-gray-500 text-white text-sm rounded-lg transition-colors"
             >
-              {isSaving ? '保存中...' : '保存'}
+              {isSaving ? t.sidebar.saving : t.sidebar.save}
             </button>
             <button
               onClick={() => {
@@ -267,7 +278,7 @@ ${globalOutline.world_setting ? `# 世界观\n${globalOutline.world_setting}` : 
               }}
               className="flex-1 px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors"
             >
-              取消
+              {t.sidebar.cancel}
             </button>
           </div>
         </motion.div>
@@ -278,24 +289,24 @@ ${globalOutline.world_setting ? `# 世界观\n${globalOutline.world_setting}` : 
           exit={{ opacity: 0 }}
           className="space-y-4"
         >
-          {/* 标题 */}
+          {/* Title */}
           <div>
-            <h4 className="text-xs font-medium text-gray-500 mb-1">标题</h4>
+            <h4 className="text-xs font-medium text-gray-500 mb-1">{t.sidebar.title}</h4>
             <p className="text-sm text-white">{globalOutline.title}</p>
           </div>
 
-          {/* 简介 */}
+          {/* Summary */}
           {globalOutline.summary && (
             <div>
-              <h4 className="text-xs font-medium text-gray-500 mb-1">简介</h4>
+              <h4 className="text-xs font-medium text-gray-500 mb-1">{t.sidebar.summary}</h4>
               <p className="text-sm text-gray-300">{globalOutline.summary}</p>
             </div>
           )}
 
-          {/* 人物 */}
+          {/* Characters */}
           {globalOutline.characters.length > 0 && (
             <div>
-              <h4 className="text-xs font-medium text-gray-500 mb-2">人物</h4>
+              <h4 className="text-xs font-medium text-gray-500 mb-2">{t.sidebar.characters}</h4>
               <div className="space-y-1">
                 {globalOutline.characters.map((char, idx) => (
                   <div key={idx} className="text-sm">
@@ -308,10 +319,10 @@ ${globalOutline.world_setting ? `# 世界观\n${globalOutline.world_setting}` : 
             </div>
           )}
 
-          {/* 情节 */}
+          {/* Plot */}
           {globalOutline.plot_points.length > 0 && (
             <div>
-              <h4 className="text-xs font-medium text-gray-500 mb-2">情节</h4>
+              <h4 className="text-xs font-medium text-gray-500 mb-2">{t.sidebar.plot}</h4>
               <ul className="space-y-1">
                 {globalOutline.plot_points.map((point, idx) => (
                   <li key={idx} className="text-sm text-gray-300 list-disc list-inside">
@@ -322,24 +333,24 @@ ${globalOutline.world_setting ? `# 世界观\n${globalOutline.world_setting}` : 
             </div>
           )}
 
-          {/* 世界观 */}
+          {/* World Setting */}
           {globalOutline.world_setting && (
             <div>
-              <h4 className="text-xs font-medium text-gray-500 mb-1">世界观</h4>
+              <h4 className="text-xs font-medium text-gray-500 mb-1">{t.sidebar.worldSetting}</h4>
               <p className="text-sm text-gray-300 whitespace-pre-wrap">{globalOutline.world_setting}</p>
             </div>
           )}
         </motion.div>
       )}
 
-      {/* 分隔线 */}
+      {/* Separator */}
       <hr className="border-gray-700" />
 
-      {/* AI总结生成区 */}
+      {/* AI Summary Generation Area */}
       <div className="space-y-3">
-        <h3 className="text-sm font-medium text-gray-400">章节总结</h3>
+        <h3 className="text-sm font-medium text-gray-400">{t.rightPanel.chapterSummary}</h3>
         <div className="text-xs text-gray-500">
-          {currentChapter ? `当前章节：${currentChapter.title}` : '未选择章节'}
+          {currentChapter ? `${t.rightPanel.currentChapter}：${currentChapter.title}` : t.rightPanel.noChapterSelected}
         </div>
         <button
           onClick={handleGenerateSummary}
@@ -349,14 +360,14 @@ ${globalOutline.world_setting ? `# 世界观\n${globalOutline.world_setting}` : 
           {isGeneratingSummary ? (
             <>
               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              <span>AI生成中...</span>
+              <span>{t.rightPanel.generating}</span>
             </>
           ) : (
             <>
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
-              <span>自动生成总结</span>
+              <span>{t.rightPanel.autoGenerateSummary}</span>
             </>
           )}
         </button>
