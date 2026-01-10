@@ -233,13 +233,12 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>((set,
       const { loadChapterContent } = useEditorStore.getState();
       await loadChapterContent(chapter.path);
 
-      // 重新读取字数（因为 loadChapterContent 会更新字数）
-      const content = await invoke<string>('read_file', {
-        path: chapter.path,
-      });
+      // 从 editorStore 获取内容并计算字数
+      const content = useEditorStore.getState().content;
+      const wordCount = content.replace(/\s/g, '').length;
 
       set({
-        currentChapter: { ...chapter, word_count: content.length },
+        currentChapter: { ...chapter, word_count: wordCount },
         isLoading: false,
       });
 

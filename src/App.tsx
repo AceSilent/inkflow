@@ -133,7 +133,8 @@ function App() {
     // For example, register custom themes or commands
   };
 
-  const wordCount = content.split(/\s+/).filter(word => word.length > 0).length;
+  // 统计中文字符数（排除空白字符）
+  const wordCount = content.replace(/\s/g, '').length;
   const chapterName = currentChapterPath
     ? currentChapterPath.split('/').pop() || t.editor.untitledChapter
     : t.editor.noChapterLoaded;

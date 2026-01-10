@@ -143,7 +143,7 @@ export const Sidebar: React.FC = () => {
                         {novel.name}
                       </div>
                       <div className="text-xs dark:text-gray-500 text-gray-600">
-                        {novel.chapter_count} 章 · {novel.total_word_count} 字
+                        {novel.chapter_count} 章
                       </div>
                     </div>
                     {novel.has_outline && (

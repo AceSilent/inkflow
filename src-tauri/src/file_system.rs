@@ -289,10 +289,10 @@ async fn parse_chapter_info(
         (num, title)
     };
 
-    // 读取文件内容计算字数
+    // 读取文件内容计算字数（排除空白字符，适配中文写作）
     let content = fs::read_to_string(file_path)
         .unwrap_or_default();
-    let word_count = content.chars().count();
+    let word_count = content.chars().filter(|c| !c.is_whitespace()).count();
 
     // 获取文件修改时间
     let metadata = fs::metadata(file_path)

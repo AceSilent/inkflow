@@ -120,18 +120,17 @@ export const ChapterList: React.FC = () => {
               onClick={() => handleChapterClick(chapter)}
             >
               <div className="flex-1 min-w-0">
-                <div className="flex items-center space-x-2">
-                  <span className="text-xs font-mono text-gray-500">
-                    {String(chapter.chapter_number).padStart(3, '0')}
-                  </span>
-                  <span className="text-sm font-medium truncate">
-                    {chapter.title}
-                  </span>
-                </div>
-                <div className="mt-1 flex items-center space-x-2 text-xs text-gray-500">
-                  <span>{chapter.word_count} 字</span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2 flex-1 min-w-0">
+                    <span className="text-xs font-mono text-gray-500">
+                      {String(chapter.chapter_number).padStart(3, '0')}
+                    </span>
+                    <span className="text-sm font-medium truncate">
+                      {chapter.title}
+                    </span>
+                  </div>
                   {chapter.has_summary && (
-                    <span className="text-green-500">已总结</span>
+                    <span className="text-xs text-green-500 ml-2">已总结</span>
                   )}
                 </div>
               </div>
