@@ -1,22 +1,25 @@
-name: Release Build
+name: "Release InkFlow"
 
 on:
   push:
     tags:
-      - 'v*.*.*'
-  workflow_dispatch:
+      - 'v*' # 当推送以 v 开头的标签时触发（如 v1.0.0）
+  workflow_dispatch: # 允许手动触发
 
 jobs:
-  build:
+  publish:
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
+        # 支持 macOS Intel + Apple Silicon、Windows、Linux
         include:
           - platform: 'macos-latest'
-            args: '--target aarch64-apple-darwin'
+            args: '--target aarch64-apple-darwin' # Apple Silicon (M1/M2/M3)
           - platform: 'macos-latest'
-            args: '--target x86_64-apple-darwin'
-          - platform: 'ubuntu-latest'
+            args: '--target x86_64-apple-darwin'    # Intel
+          - platform: 'ubuntu-22.04'
             args: ''
           - platform: 'windows-latest'
             args: ''
@@ -27,22 +30,22 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: 20
           cache: 'npm'
 
-      - name: Install Rust
+      - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
 
       - name: Install dependencies (Ubuntu only)
-        if: matrix.platform == 'ubuntu-latest'
+        if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libayatana-appindicator3-dev librsvg2-dev patchelf
 
       - name: Install frontend dependencies
         run: npm ci
@@ -60,7 +63,7 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: inkflow-${{ matrix.platform }}
+          name: inkflow-${{ matrix.platform }}${{ matrix.args }}
           path: |
             src-tauri/target/release/bundle/dmg/*.dmg
             src-tauri/target/release/bundle/deb/*.deb
@@ -70,9 +73,11 @@ jobs:
           if-no-files-found: warn
 
   release:
-    needs: build
+    needs: publish
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
+    if: startsWith(github.ref, 'refs/tags/v')
 
     steps:
       - name: Checkout repository
@@ -83,12 +88,16 @@ jobs:
         with:
           path: artifacts
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
+      - name: Display structure of downloaded files
+        run: ls -R artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
           files: artifacts/**/*
-          draft: false
+          draft: true # 创建草稿，方便检查后发布
           prerelease: false
-          generate_release_notes: true
+          generate_release_notes: true # 自动生成更新日志
+          fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
