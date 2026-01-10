@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { invoke } from '@tauri-apps/api/tauri';
 import { open } from '@tauri-apps/api/dialog';
 import { useConfigStore } from './configStore';
+import { useEditorStore } from './editorStore';
 
 // Check if running in Tauri environment
 const isTauriAvailable = () => {
@@ -228,13 +229,15 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>((set,
     set({ currentChapter: chapter, isLoading: true });
 
     try {
-      // 读取章节内容
+      // 调用 editorStore 加载章节内容
+      const { loadChapterContent } = useEditorStore.getState();
+      await loadChapterContent(chapter.path);
+
+      // 重新读取字数（因为 loadChapterContent 会更新字数）
       const content = await invoke<string>('read_file', {
         path: chapter.path,
       });
 
-      // 这里需要通知 editorStore 更新内容
-      // 暂时先设置当前章节，后续会整合
       set({
         currentChapter: { ...chapter, word_count: content.length },
         isLoading: false,
