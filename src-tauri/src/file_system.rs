@@ -123,6 +123,110 @@ pub struct Character {
     pub role: String, // 主角、配角、反派等
 }
 
+// ============== 状态持久化结构 ==============
+
+/// 最后的工作状态
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct LastState {
+    /// 最后打开的小说路径
+    #[serde(rename = "lastNovelPath")]
+    pub last_novel_path: Option<String>,
+
+    /// 最后打开的章节文件名
+    #[serde(rename = "lastChapterFile")]
+    pub last_chapter_file: Option<String>,
+
+    /// 编辑器滚动位置（行号）
+    #[serde(rename = "scrollPosition")]
+    pub scroll_position: Option<usize>,
+
+    /// 编辑器光标位置（行号，列号从1开始）
+    #[serde(rename = "cursorPosition")]
+    pub cursor_position: Option<(usize, usize)>,
+
+    /// 最后保存时间
+    #[serde(rename = "lastSavedAt")]
+    pub last_saved_at: String, // ISO 8601 格式
+}
+
+impl Default for LastState {
+    fn default() -> Self {
+        Self {
+            last_novel_path: None,
+            last_chapter_file: None,
+            scroll_position: None,
+            cursor_position: None,
+            last_saved_at: chrono::Utc::now().to_rfc3339(),
+        }
+    }
+}
+
+/// 获取配置目录路径
+fn get_config_dir() -> Result<PathBuf, String> {
+    let config_dir = dirs::config_dir()
+        .ok_or("无法获取配置目录")?
+        .join("InkFlow");
+
+    // 确保配置目录存在
+    if !config_dir.exists() {
+        fs::create_dir_all(&config_dir)
+            .map_err(|e| format!("无法创建配置目录: {}", e))?;
+    }
+
+    Ok(config_dir)
+}
+
+/// 保存最后的工作状态
+#[tauri::command]
+pub async fn save_last_state(state: LastState) -> Result<(), String> {
+    #[cfg(not(debug_assertions))]
+    {
+        // Release 模式下不记录状态日志
+    }
+
+    #[cfg(debug_assertions)]
+    println!("💾 保存最后状态: {:?}", state);
+
+    let config_dir = get_config_dir()?;
+    let state_file = config_dir.join("last_state.json");
+
+    let json = serde_json::to_string_pretty(&state)
+        .map_err(|e| format!("序列化状态失败: {}", e))?;
+
+    fs::write(&state_file, json)
+        .map_err(|e| format!("写入状态文件失败: {}", e))?;
+
+    #[cfg(debug_assertions)]
+    println!("✅ 状态已保存到: {:?}", state_file);
+
+    Ok(())
+}
+
+/// 加载最后的工作状态
+#[tauri::command]
+pub async fn load_last_state() -> Result<LastState, String> {
+    let config_dir = get_config_dir()?;
+    let state_file = config_dir.join("last_state.json");
+
+    if !state_file.exists() {
+        #[cfg(debug_assertions)]
+        println!("📝 状态文件不存在，返回默认状态");
+
+        return Ok(LastState::default());
+    }
+
+    let content = fs::read_to_string(&state_file)
+        .map_err(|e| format!("读取状态文件失败: {}", e))?;
+
+    let state: LastState = serde_json::from_str(&content)
+        .map_err(|e| format!("解析状态文件失败: {}", e))?;
+
+    #[cfg(debug_assertions)]
+    println!("📖 加载状态: {:?}", state);
+
+    Ok(state)
+}
+
 #[tauri::command]
 pub async fn read_file(path: String) -> Result<String, String> {
     match fs::read_to_string(&path) {

@@ -90,6 +90,7 @@ pub async fn generate_ai_suggestion(
         Some(key) if !key.is_empty() => key,
         _ => {
             let error_msg = "未配置 API Key，请在设置中配置";
+            #[cfg(debug_assertions)]
             println!("⚠️  {}", error_msg);
             return Err(error_msg.to_string());
         }
@@ -99,8 +100,11 @@ pub async fn generate_ai_suggestion(
         "https://open.bigmodel.cn/api/paas/v4/chat/completions".to_string()
     );
 
-    println!("🚀 Calling AI API: {}", api_base);
-    println!("📝 Model: {}", request.model);
+    #[cfg(debug_assertions)]
+    {
+        println!("🚀 Calling AI API: {}", api_base);
+        println!("📝 Model: {}", request.model);
+    }
 
     let client = Client::new();
 
@@ -134,6 +138,7 @@ pub async fn generate_ai_suggestion(
     let response_text = response.text().await.unwrap_or_default();
 
     if !status.is_success() {
+        #[cfg(debug_assertions)]
         println!("❌ API返回错误: {} - {}", status, response_text);
         return Err(format!("API返回错误 ({}): {}", status, response_text));
     }
@@ -141,8 +146,11 @@ pub async fn generate_ai_suggestion(
     // 解析响应
     let chat_response: ChatGLMResponse = serde_json::from_str(&response_text)
         .map_err(|e| {
-            println!("❌ 解析响应失败: {}", e);
-            println!("📄 响应内容: {}", response_text);
+            #[cfg(debug_assertions)]
+            {
+                println!("❌ 解析响应失败: {}", e);
+                println!("📄 响应内容: {}", response_text);
+            }
             format!("解析响应失败: {}", e)
         })?;
 
@@ -173,6 +181,7 @@ pub async fn generate_ai_suggestion(
         total_tokens: 0,
     });
 
+    #[cfg(debug_assertions)]
     println!("✅ API调用成功，生成内容长度: {} 字符", content.len());
 
     Ok(AIResponse {
@@ -201,6 +210,7 @@ async fn generate_mock_response(request: &AIRequest) -> Result<AIResponse, Strin
     let mut rng = rand::thread_rng();
     let selected_suggestion = mock_suggestions[rng.gen_range(0..mock_suggestions.len())];
 
+    #[cfg(debug_assertions)]
     println!("🎭 Using mock suggestion: {}", selected_suggestion);
 
     Ok(AIResponse {

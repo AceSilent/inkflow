@@ -10,6 +10,7 @@ import { useConfigStore } from './store/configStore';
 import { useWorkspaceStore } from './store/workspaceStore';
 import { useToastStore } from './store/toastStore';
 import { useTranslation } from './i18n';
+import { useAppInitialization } from './hooks/useAppInitialization';
 import './index.css'; // Use the new index.css instead of editor.css
 import type { editor } from 'monaco-editor';
 
@@ -24,6 +25,9 @@ function App() {
   const { theme, language } = useConfigStore();
   const toasts = useToastStore((state) => state.toasts);
   const { t } = useTranslation();
+
+  // 应用初始化（首次运行检测）
+  useAppInitialization();
 
   // 应用主题
   useEffect(() => {

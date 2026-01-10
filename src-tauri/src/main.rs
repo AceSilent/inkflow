@@ -17,8 +17,10 @@ use crate::file_system::{
     open_folder_dialog,
     // Sprint 3.1: 配置管理与小说列表
     load_config, save_config, list_novels,
+    // 状态持久化
+    save_last_state, load_last_state,
     // 导出类型
-    AppConfig, NovelInfo,
+    AppConfig, NovelInfo, LastState,
 };
 use crate::token_counter::{TokenCounter, count_tokens_exact, smart_truncate_text, estimate_api_cost, count_tokens_batch};
 
@@ -28,23 +30,26 @@ type SharedTokenCounter = Arc<Mutex<TokenCounter>>;
 fn main() {
     // Load environment variables from .env file
     // Try to load .env file, but don't panic if it doesn't exist
-    if let Ok(_) = dotenv::dotenv() {
-        println!("✅ Loaded .env file");
-    } else {
-        println!("⚠️  No .env file found, using system environment variables");
-    }
+    #[cfg(debug_assertions)]
+    {
+        if let Ok(_) = dotenv::dotenv() {
+            println!("✅ Loaded .env file");
+        } else {
+            println!("⚠️  No .env file found, using system environment variables");
+        }
 
-    // Log API configuration status (without exposing the key)
-    if std::env::var("CHATGLM_API_KEY").is_ok() {
-        println!("✅ CHATGLM_API_KEY is configured");
-    } else {
-        println!("⚠️  CHATGLM_API_KEY not configured - will use mock suggestions");
-    }
+        // Log API configuration status (without exposing the key)
+        if std::env::var("CHATGLM_API_KEY").is_ok() {
+            println!("✅ CHATGLM_API_KEY is configured");
+        } else {
+            println!("⚠️  CHATGLM_API_KEY not configured - will use mock suggestions");
+        }
 
-    if let Ok(base) = std::env::var("CHATGLM_API_BASE") {
-        println!("✅ CHATGLM_API_BASE: {}", base);
-    } else {
-        println!("ℹ️  CHATGLM_API_BASE not configured, using default");
+        if let Ok(base) = std::env::var("CHATGLM_API_BASE") {
+            println!("✅ CHATGLM_API_BASE: {}", base);
+        } else {
+            println!("ℹ️  CHATGLM_API_BASE not configured, using default");
+        }
     }
 
     let token_counter = Arc::new(Mutex::new(TokenCounter::new()));
@@ -73,7 +78,10 @@ fn main() {
             // Sprint 3.1: 配置管理与小说列表
             load_config,
             save_config,
-            list_novels
+            list_novels,
+            // 状态持久化
+            save_last_state,
+            load_last_state
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
