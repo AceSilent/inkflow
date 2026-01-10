@@ -1,31 +1,36 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useConfigStore } from '../store/configStore';
 import { useWorkspaceStore } from '../store/workspaceStore';
 import { useEditorStore } from '../store/editorStore';
 import { invoke } from '@tauri-apps/api/tauri';
+import { normalizePath } from '../utils/path';
 
 interface LastState {
   lastNovelPath?: string | null;
   lastChapterFile?: string | null;
-  scrollPosition?: number | null;
-  cursorPosition?: [number, number] | null; // [line, column]
+  viewState?: string | null;
   lastSavedAt?: string;
 }
 
 /**
- * 应用初始化 Hook
- * - 加载配置
- * - 如果是首次运行（没有工作区），自动弹出目录选择对话框
- * - 如果有保存的工作区，自动恢复
- * - 恢复上次打开的章节和编辑器状态
+ * 应用初始化 Hook - Simplified Restoration Architecture
+ *
+ * 职责：
+ * 1. 加载配置和 last_state
+ * 2. 主动打开小说项目（如果需要）
+ * 3. 设置 currentChapterPath 和 viewState 到 editorStore（不加载内容）
+ *
+ * 实际的内容加载和 ViewState 恢复由 MainEditor 在编辑器挂载后执行
  */
 export const useAppInitialization = () => {
   const hasInitialized = useRef(false);
   const dialogTimeoutRef = useRef<number | null>(null);
-  const restoreTimeoutRef = useRef<number | null>(null);
+  const [shouldOpenNovel, setShouldOpenNovel] = useState<string | null>(null);
 
+  // ============================================================
+  // STEP 1: Load config and last_state, setup restoration targets
+  // ============================================================
   useEffect(() => {
-    // 防止重复执行（包括 React Strict Mode 的双重挂载）
     if (hasInitialized.current) {
       return;
     }
@@ -34,75 +39,78 @@ export const useAppInitialization = () => {
 
     const initializeApp = async () => {
       const workspaceStore = useWorkspaceStore.getState();
+      const editorStore = useEditorStore.getState();
 
-      // 1. 先加载配置（可能包含保存的 workspaceRoot）
+      // 1. Load config
       await useConfigStore.getState().loadConfig();
 
-      // 2. 重新获取加载后的配置（必须重新调用 getState）
+      // 2. Get loaded config
       const configWorkspaceRoot = useConfigStore.getState().workspaceRoot;
 
-      // 3. 检查是否有保存的工作区
       if (configWorkspaceRoot) {
-        // 有保存的工作区，自动恢复
         console.log('📂 恢复工作区:', configWorkspaceRoot);
 
-        // 设置 workspaceRoot 到 store
+        // Set workspaceRoot to store
         workspaceStore.setWorkspaceRoot(configWorkspaceRoot);
 
-        // 扫描工作区中的小说项目
+        // Scan workspace for novel projects
         await workspaceStore.scanWorkspace();
 
-        // 4. 尝试恢复上次的编辑状态
+        // 3. Load last_state and setup restoration targets
         try {
           const lastState = await invoke<LastState>('load_last_state');
 
           if (lastState.lastNovelPath && lastState.lastChapterFile) {
-            console.log('📖 恢复上次编辑状态:', lastState);
+            console.log('📖 找到上次编辑状态');
 
-            const workspaceStore = useWorkspaceStore.getState();
-            const editorStore = useEditorStore.getState();
-            const chapterPath = `${lastState.lastNovelPath}/${lastState.lastChapterFile}`;
+            const normalizedNovelPath = normalizePath(lastState.lastNovelPath);
+            const normalizedChapterFile = normalizePath(lastState.lastChapterFile);
 
-            // 延迟恢复，确保 Monaco editor 已经挂载
-            restoreTimeoutRef.current = setTimeout(async () => {
-              // 先打开小说项目（如果还没打开）
-              const novelPath = lastState.lastNovelPath || '';
-              if (workspaceStore.rootPath !== novelPath) {
-                await workspaceStore.openNovelProject(novelPath);
+            // CRITICAL: Build full path by joining novel path and chapter file
+            // lastChapterFile might be just "outline.md" or a full path
+            const targetPath = normalizedChapterFile.startsWith(normalizedNovelPath)
+              ? normalizedChapterFile
+              : `${normalizedNovelPath}/${normalizedChapterFile.replace(/^\/+/, '')}`;
+
+            // CRITICAL: Load content immediately, don't wait for editor mount
+            // MainEditor will sync this content to Monaco when it mounts
+            console.log('📥 加载目标文件内容:', targetPath);
+            await editorStore.loadChapterContent(targetPath);
+
+            // Set viewState for restoration after editor mounts
+            if (lastState.viewState) {
+              try {
+                const viewStateObj = JSON.parse(lastState.viewState);
+                editorStore.setViewState(viewStateObj);
+                console.log('📍 ViewState 已存储，等待编辑器挂载');
+              } catch (error) {
+                console.warn('⚠️ 解析 ViewState 失败:', error);
               }
+            }
 
-              // 在章节列表中查找对应的章节
-              const chapter = workspaceStore.chapters.find(
-                ch => ch.path === chapterPath
-              );
+            console.log('🎯 恢复目标已设定:', {
+              novelPath: normalizedNovelPath,
+              chapterFile: normalizedChapterFile,
+              fullPath: targetPath,
+            });
 
-              if (chapter) {
-                // 使用 selectChapter 来加载章节并更新侧边栏
-                await workspaceStore.selectChapter(chapter);
-                console.log('✅ 章节已恢复:', chapter.title);
-              } else {
-                // 如果找不到，尝试直接加载路径
-                console.warn('⚠️ 在章节列表中未找到，尝试直接加载');
-                await editorStore.loadChapterContent(chapterPath);
-              }
+            // CRITICAL: ACTIVELY open novel if not already open
+            const currentRootPath = workspaceStore.rootPath
+              ? normalizePath(workspaceStore.rootPath)
+              : null;
 
-              // 设置待恢复的光标和滚动位置
-              if (lastState.cursorPosition && lastState.scrollPosition) {
-                const [lineNumber, column] = lastState.cursorPosition;
-                editorStore.setPendingRestorePosition({
-                  lineNumber,
-                  column,
-                  scrollLineNumber: lastState.scrollPosition,
-                });
-                console.log('📍 设置待恢复位置:', { lineNumber, column, scrollLineNumber: lastState.scrollPosition });
-              }
-            }, 1000); // 延迟 1 秒确保编辑器已挂载
+            if (currentRootPath !== normalizedNovelPath) {
+              console.log('🚀 主动打开目标小说项目:', normalizedNovelPath);
+              setShouldOpenNovel(normalizedNovelPath);
+            } else {
+              console.log('✅ 目标小说项目已打开');
+            }
           }
         } catch (error) {
           console.warn('⚠️ 无法加载上次状态:', error);
         }
       } else {
-        // 首次运行，延迟一小段时间后自动弹出目录选择
+        // First run - show directory selection dialog
         dialogTimeoutRef.current = setTimeout(() => {
           console.log('🔍 首次运行，引导用户选择工作区');
           workspaceStore.openWorkspaceRoot();
@@ -112,14 +120,32 @@ export const useAppInitialization = () => {
 
     initializeApp();
 
-    // 清理函数：清除定时器
     return () => {
       if (dialogTimeoutRef.current) {
         clearTimeout(dialogTimeoutRef.current);
       }
-      if (restoreTimeoutRef.current) {
-        clearTimeout(restoreTimeoutRef.current);
-      }
     };
-  }, []); // 空依赖数组，确保只在挂载时执行一次
+  }, []);
+
+  // ============================================================
+  // STEP 2: ACTIVELY open novel project
+  // ============================================================
+  useEffect(() => {
+    if (!shouldOpenNovel) {
+      return;
+    }
+
+    const workspaceStore = useWorkspaceStore.getState();
+
+    console.log('🔧 执行主动打开小说项目...');
+    workspaceStore.openNovelProject(shouldOpenNovel, true)
+      .then(() => {
+        console.log('✅ 小说项目已打开');
+        setShouldOpenNovel(null);
+      })
+      .catch((error) => {
+        console.error('❌ 打开小说项目失败:', error);
+        setShouldOpenNovel(null);
+      });
+  }, [shouldOpenNovel]);
 };

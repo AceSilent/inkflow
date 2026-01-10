@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/tauri';
 import { open } from '@tauri-apps/api/dialog';
 import { useConfigStore } from './configStore';
 import { useEditorStore } from './editorStore';
+import { normalizePath } from '../utils/path';
 
 // Check if running in Tauri environment
 const isTauriAvailable = () => {
@@ -69,6 +70,7 @@ export interface WorkspaceState {
   currentChapter: ChapterInfo | null;
   isLoading: boolean;
   error: string | null;
+  isRestoring: boolean; // 是否正在恢复上次的状态（用于抑制UI动画）
 
   // 工作空间管理
   workspaceRoot: string | null; // 工作空间根目录（包含多个小说的父目录）
@@ -88,7 +90,7 @@ export interface WorkspaceActions {
   // 工作空间管理
   openWorkspaceRoot: () => Promise<void>; // 打开工作空间根目录
   scanWorkspace: () => Promise<void>; // 扫描工作空间中的所有小说
-  openNovelProject: (novelPath: string) => Promise<void>; // 打开指定的小说项目
+  openNovelProject: (novelPath: string, silent?: boolean) => Promise<void>; // 打开指定的小说项目（silent模式用于恢复时抑制副作用）
 
   // 章节操作
   selectChapter: (chapter: ChapterInfo) => Promise<void>;
@@ -105,6 +107,8 @@ export interface WorkspaceActions {
   setOutlinePanelExpanded: (expanded: boolean) => void;
   clearError: () => void;
   setWorkspaceRoot: (root: string | null) => void;
+  setIsRestoring: (restoring: boolean) => void;
+  clearEditor: () => void; // 清空编辑器状态
 
   // 辅助方法
   getLastTwoChapterSummaries: () => string[];
@@ -121,6 +125,7 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>((set,
   currentChapter: null,
   isLoading: false,
   error: null,
+  isRestoring: false,
   workspaceRoot: null,
   novels: [],
   activeTab: 'chapters',
@@ -406,8 +411,19 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>((set,
     set({ outlinePanelExpanded: expanded });
   },
 
+  setIsRestoring: (restoring: boolean) => {
+    set({ isRestoring: restoring });
+  },
+
   clearError: () => {
     set({ error: null });
+  },
+
+  clearEditor: () => {
+    // Clear editorStore state to prevent conflicts when switching novel projects
+    const editorStore = useEditorStore.getState();
+    editorStore.clearEditor();
+    console.log('🧹 编辑器状态已清空');
   },
 
   setWorkspaceRoot: (root: string | null) => {
@@ -524,7 +540,7 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>((set,
   },
 
   // 打开指定的小说项目
-  openNovelProject: async (novelPath: string) => {
+  openNovelProject: async (novelPath: string, silent = false) => {
     set({ isLoading: true, error: null });
 
     try {
@@ -533,23 +549,33 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>((set,
         path: novelPath,
       });
 
+      // 归一化所有章节路径
+      const normalizedChapters = projectInfo.chapters.map(chapter => ({
+        ...chapter,
+        path: normalizePath(chapter.path),
+      }));
+
       set({
-        rootPath: novelPath,
+        rootPath: normalizePath(novelPath),
         projectName: projectInfo.name,
-        chapters: projectInfo.chapters,
+        chapters: normalizedChapters,
         isLoading: false,
         error: null,
       });
 
-      console.log('✅ 小说项目已打开:', projectInfo.name);
+      if (!silent) {
+        console.log('✅ 小说项目已打开:', projectInfo.name);
 
-      // 自动加载大纲
-      if (projectInfo.has_outline) {
-        get().loadGlobalOutline();
+        // 自动加载大纲
+        if (projectInfo.has_outline) {
+          get().loadGlobalOutline();
+        }
+
+        // 加载章节总结
+        get().loadChapterSummaries();
+      } else {
+        console.log('🤫 小说项目已打开（静默模式，跳过自动加载）');
       }
-
-      // 加载章节总结
-      get().loadChapterSummaries();
     } catch (error) {
       console.error('❌ 打开小说项目失败:', error);
       set({

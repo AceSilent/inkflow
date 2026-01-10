@@ -20,6 +20,7 @@ export const MainEditor: React.FC<MainEditorProps> = ({
   const ghostTextManagerRef = useRef<GhostTextManager | null>(null);
   const debounceTimerRef = useRef<number | null>(null);
   const saveStateTimerRef = useRef<number | null>(null);
+  const hasRestoredRef = useRef(false); // 防止重复执行恢复
 
   // State for feedback panel positioning and expansion
   const [feedbackPanelPosition, setFeedbackPanelPosition] = useState<{ top: number; left: number } | null>(null);
@@ -31,6 +32,7 @@ export const MainEditor: React.FC<MainEditorProps> = ({
   const ghostText = useGhostText();
   const feedbackPanelVisible = useFeedbackPanelVisible();
   const { isLoading, isAISuggesting, currentChapterPath } = useEditorLoading();
+  const isEditorReady = useEditorStore((state) => state.isEditorReady);
   const aiDelay = useConfigStore((state) => state.aiDelay);
   const { t } = useTranslation();
 
@@ -44,9 +46,11 @@ export const MainEditor: React.FC<MainEditorProps> = ({
     shouldTriggerAI,
     autoSave,
     setFeedbackVisible,
-    saveLastState,
-    pendingRestorePosition,
-    setPendingRestorePosition,
+    saveEditorState,
+    viewState,
+    hasPendingViewState,
+    clearViewState,
+    setEditorReady,
   } = useEditorStore();
 
   // Handle editor mount
@@ -86,6 +90,7 @@ export const MainEditor: React.FC<MainEditorProps> = ({
           bracketPairs: false,
           highlightActiveIndentation: false,
         },
+        automaticLayout: true, // CRITICAL for proper scroll restoration with ViewState
       });
 
       // Set up keyboard shortcuts
@@ -215,18 +220,29 @@ export const MainEditor: React.FC<MainEditorProps> = ({
         }, aiDelay);
       });
 
+      // Add scroll change listener with debouncing
+      editor.onDidScrollChange(() => {
+        // Save viewState with 300ms debounce
+        if (saveStateTimerRef.current) {
+          clearTimeout(saveStateTimerRef.current);
+        }
+        saveStateTimerRef.current = setTimeout(() => {
+          saveEditorState(editorRef);
+        }, 300);
+      });
+
       // Add cursor position change listener
       editor.onDidChangeCursorPosition((e) => {
         const position = GhostTextManager.calculateCursorPosition(editor, e.position);
         updateCursorPosition(position);
 
-        // Debounce save last state (save cursor position and scroll position)
+        // Debounce save viewState (300ms)
         if (saveStateTimerRef.current) {
           clearTimeout(saveStateTimerRef.current);
         }
         saveStateTimerRef.current = setTimeout(() => {
-          saveLastState(editorRef);
-        }, 2000); // 延迟 2 秒保存，避免频繁写入
+          saveEditorState(editorRef);
+        }, 300); // 300ms 防抖保存
 
         // Calculate feedback panel position when ghost text is visible
         if (ghostText?.isShowing && ghostText.position) {
@@ -286,8 +302,8 @@ export const MainEditor: React.FC<MainEditorProps> = ({
       // Auto-save on focus out
       editor.onDidBlurEditorText(() => {
         autoSave();
-        // Also save last state when losing focus
-        saveLastState(editorRef);
+        // Also save viewState when losing focus
+        saveEditorState(editorRef);
       });
 
       // Call external onMount callback if provided
@@ -295,10 +311,31 @@ export const MainEditor: React.FC<MainEditorProps> = ({
         onMount(editor);
       }
 
+      // CRITICAL: Initialize content from store if needed
+      // This handles the case where useAppInitialization sets content before Monaco mounts
+      const store = useEditorStore.getState();
+      const needsInit = currentChapterPath && editor.getValue() !== store.content;
+
+      if (needsInit) {
+        console.log('🔄 Monaco 挂载后恢复内容:');
+        console.log('  - currentChapterPath:', currentChapterPath);
+        console.log('  - store.content length:', store.content.length);
+        console.log('  - editor content length:', editor.getValue().length);
+
+        // Use setValue to directly set content from store
+        editor.setValue(store.content);
+        console.log('✅ 内容已从 store 恢复到 Monaco');
+      }
+
       // Setup auto-save interval
       const autoSaveInterval = setInterval(() => {
         autoSave();
       }, 30000); // Auto-save every 30 seconds
+
+      // CRITICAL: Mark editor as ready for restoration
+      // This triggers the restoration effect in MainEditor
+      setEditorReady(true);
+      console.log('✅ Monaco Editor 已就绪');
 
       // Cleanup function
       return () => {
@@ -313,7 +350,7 @@ export const MainEditor: React.FC<MainEditorProps> = ({
         clearInterval(autoSaveInterval);
       };
     },
-    [updateContent, updateCursorPosition, updateSelectionRange, acceptSuggestion, clearGhostText, generateAISuggestion, shouldTriggerAI, autoSave, saveLastState, onMount, ghostText]
+    [updateContent, updateCursorPosition, updateSelectionRange, acceptSuggestion, clearGhostText, generateAISuggestion, shouldTriggerAI, autoSave, saveEditorState, onMount, ghostText, currentChapterPath, setEditorReady]
   );
 
   // Sync ghost text with store
@@ -368,31 +405,79 @@ export const MainEditor: React.FC<MainEditorProps> = ({
     }
   }, [ghostText?.isShowing, setFeedbackVisible]);
 
-  // Restore cursor and scroll position when pendingRestorePosition changes
+  // ============================================================
+  // ViewState Restoration - Pixel-Perfect Recovery
+  // ============================================================
+  // Core restoration logic: only fires when ALL conditions are met
   useEffect(() => {
-    if (!pendingRestorePosition || !editorRef.current) {
+    const editor = editorRef.current;
+
+    // Must have all four conditions:
+    // 1. Editor is fully mounted and ready
+    // 2. Content is loaded
+    // 3. Pending ViewState exists
+    // 4. Editor instance exists
+    // 5. Haven't restored yet (prevent duplicate restoration)
+    if (!isEditorReady || !content || !hasPendingViewState || !editor || !viewState || hasRestoredRef.current) {
       return;
     }
 
-    console.log('📍 恢复光标和滚动位置:', pendingRestorePosition);
+    console.log('🚀 编辑器已就绪，内容已加载，开始执行像素级恢复...');
+    console.log('  - isEditorReady:', isEditorReady);
+    console.log('  - content length:', content.length);
+    console.log('  - hasPendingViewState:', hasPendingViewState);
 
-    const editor = editorRef.current;
+    // Mark as restored to prevent duplicate execution
+    hasRestoredRef.current = true;
 
-    // 恢复光标位置
-    editor.setPosition({
-      lineNumber: pendingRestorePosition.lineNumber,
-      column: pendingRestorePosition.column,
-    });
+    // CRITICAL: Give Monaco a little time to parse Markdown structure
+    const timer = setTimeout(() => {
+      try {
+        // Ensure content is set
+        const model = editor.getModel();
+        if (!model) {
+          console.warn('⚠️ 没有可用的 Model');
+          clearViewState();
+          hasRestoredRef.current = false; // Allow retry
+          return;
+        }
 
-    // 恢复滚动位置
-    editor.revealLineInCenter(
-      pendingRestorePosition.scrollLineNumber,
-      monaco.editor.ScrollType.Smooth
-    );
+        const currentValue = model.getValue();
+        if (currentValue !== content) {
+          console.log('📝 内容不匹配，先设置内容');
+          editor.setValue(content);
+        }
 
-    // 清空待恢复位置，避免重复恢复
-    setPendingRestorePosition(null);
-  }, [pendingRestorePosition, setPendingRestorePosition]);
+        // Parse and restore ViewState
+        const viewStateObj = typeof viewState === 'string' ? JSON.parse(viewState) : viewState;
+        editor.restoreViewState(viewStateObj);
+        clearViewState();
+
+        console.log('✅ InkFlow 状态完美恢复');
+        console.log('  - scroll position restored');
+        console.log('  - cursor position restored');
+
+        // Trigger water ink fade-in animation
+        requestAnimationFrame(() => {
+          if (editorRef.current) {
+            editorRef.current.focus();
+            console.log('✨ 水墨淡入完成 - Editor revealed');
+          }
+        });
+      } catch (e) {
+        console.error('❌ 恢复失败:', e);
+        clearViewState();
+        hasRestoredRef.current = false; // Allow retry on error
+      }
+    }, 100); // 100ms is enough for initial layout calculation
+
+    return () => clearTimeout(timer);
+  }, [isEditorReady, content, hasPendingViewState, viewState, clearViewState]);
+
+  // Reset restoration flag when chapter changes
+  useEffect(() => {
+    hasRestoredRef.current = false;
+  }, [currentChapterPath]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -403,6 +488,27 @@ export const MainEditor: React.FC<MainEditorProps> = ({
       if (saveStateTimerRef.current) {
         clearTimeout(saveStateTimerRef.current);
       }
+    };
+  }, []);
+
+  // Save position when window loses focus or closes
+  useEffect(() => {
+    const handleBlur = () => {
+      console.log('🪟 Window lost focus, saving editor state');
+      saveEditorState(editorRef);
+    };
+
+    const handleBeforeUnload = () => {
+      console.log('🚪 Window closing, saving editor state');
+      saveEditorState(editorRef);
+    };
+
+    window.addEventListener('blur', handleBlur);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('blur', handleBlur);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, []);
 
@@ -493,7 +599,16 @@ export const MainEditor: React.FC<MainEditorProps> = ({
 
       {/* Editor - only shown when chapter is loaded */}
       {currentChapterPath && (
-        <div className="w-full h-full">
+        <div
+          className={`w-full h-full transition-all duration-700 ${
+            isEditorReady
+              ? 'opacity-100 scale-100'
+              : 'opacity-0 scale-[0.99]'
+          }`}
+          style={{
+            transitionTimingFunction: 'cubic-bezier(0.4, 0, 0.2, 1)',
+          }}
+        >
           <Editor
             height="100%"
             defaultLanguage="markdown" // Use markdown for better text editing experience

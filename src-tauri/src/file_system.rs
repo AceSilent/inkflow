@@ -136,13 +136,10 @@ pub struct LastState {
     #[serde(rename = "lastChapterFile")]
     pub last_chapter_file: Option<String>,
 
-    /// 编辑器滚动位置（行号）
-    #[serde(rename = "scrollPosition")]
-    pub scroll_position: Option<usize>,
-
-    /// 编辑器光标位置（行号，列号从1开始）
-    #[serde(rename = "cursorPosition")]
-    pub cursor_position: Option<(usize, usize)>,
+    /// 编辑器 ViewState (JSON 序列化的 Monaco ICodeEditorViewState)
+    /// 包含光标位置、滚动位置、选区等完整状态
+    #[serde(rename = "viewState")]
+    pub view_state: Option<String>,
 
     /// 最后保存时间
     #[serde(rename = "lastSavedAt")]
@@ -154,8 +151,7 @@ impl Default for LastState {
         Self {
             last_novel_path: None,
             last_chapter_file: None,
-            scroll_position: None,
-            cursor_position: None,
+            view_state: None,
             last_saved_at: chrono::Utc::now().to_rfc3339(),
         }
     }

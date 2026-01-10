@@ -35,6 +35,9 @@ export interface EditorState {
   isAISuggesting: boolean;
   isLoading: boolean;
 
+  // Editor readiness state
+  isEditorReady: boolean; // Flag to indicate Monaco editor is fully mounted and ready
+
   // Ghost text state
   ghostText: GhostTextState | null;
   ghostTextSnapshot?: GhostTextSnapshot;
@@ -45,6 +48,10 @@ export interface EditorState {
   // Cursor and selection
   cursorPosition: CursorContext;
   selectionRange?: { start: number; end: number };
+
+  // ViewState (Monaco native state)
+  viewState: any; // Monaco's ICodeEditorViewState, contains cursor, scroll, selections, etc.
+  hasPendingViewState: boolean; // Flag to indicate if there's a pending viewState to restore
 
   // Chapter management
   currentChapterPath: string;
@@ -58,13 +65,6 @@ export interface EditorState {
   // Debounce timing
   aiTriggerDelay: number;
   lastTypingTime: number;
-
-  // Position restore state
-  pendingRestorePosition: {
-    lineNumber: number;
-    column: number;
-    scrollLineNumber: number;
-  } | null;
 }
 
 export interface EditorActions {
@@ -97,13 +97,15 @@ export interface EditorActions {
   generateAndSaveChapterSummary: () => Promise<void>;
   checkAndTriggerAutoSummary: () => Promise<void>;
 
-  // State persistence
-  saveLastState: (editorRef?: RefObject<monaco.editor.IStandaloneCodeEditor>) => Promise<void>;
-  setPendingRestorePosition: (position: { lineNumber: number; column: number; scrollLineNumber: number } | null) => void;
+  // State persistence with ViewState
+  saveEditorState: (editorRef?: RefObject<monaco.editor.IStandaloneCodeEditor>) => Promise<void>;
+  setViewState: (viewState: any) => void;
+  clearViewState: () => void;
 
   // Loading states
   setLoading: (loading: boolean) => void;
   setAISuggesting: (suggesting: boolean) => void;
+  setEditorReady: (ready: boolean) => void;
 
   // Utilities
   updateLastTypingTime: () => void;
@@ -111,6 +113,9 @@ export interface EditorActions {
 
   // Auto-save functionality
   autoSave: () => Promise<void>;
+
+  // Clear editor state (used when switching novel projects)
+  clearEditor: () => void;
 }
 
 export const useEditorStore = create<EditorState & EditorActions>((set, get) => ({
@@ -119,9 +124,13 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
   isDirty: false,
   isAISuggesting: false,
   isLoading: false,
+  isEditorReady: false,
   ghostText: null,
   feedbackPanelVisible: false,
   cursorPosition: { line: 1, column: 1, offset: 0 },
+  // ViewState (Monaco native state)
+  viewState: null, // Monaco's ICodeEditorViewState
+  hasPendingViewState: false, // Flag to indicate if there's a pending viewState to restore
   currentChapterPath: '',
   lastSavedContent: '',
   currentChapterOrder: 0,
@@ -129,7 +138,6 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
   summaryThreshold: 500, // 自动生成摘要的阈值：500字
   aiTriggerDelay: 2000, // 2 seconds
   lastTypingTime: 0,
-  pendingRestorePosition: null,
 
   // Content management
   updateContent: (newContent: string) => {
@@ -621,6 +629,7 @@ ${state.content}
   // Loading states
   setLoading: (loading: boolean) => set({ isLoading: loading }),
   setAISuggesting: (suggesting: boolean) => set({ isAISuggesting: suggesting }),
+  setEditorReady: (ready: boolean) => set({ isEditorReady: ready }),
 
   // Utilities
   updateLastTypingTime: () => set({ lastTypingTime: Date.now() }),
@@ -646,9 +655,9 @@ ${state.content}
     }
   },
 
-  // State persistence
-  saveLastState: async (editorRef?: RefObject<monaco.editor.IStandaloneCodeEditor>) => {
-    if (!isTauriAvailable()) {
+  // State persistence with ViewState
+  saveEditorState: async (editorRef?: RefObject<monaco.editor.IStandaloneCodeEditor>) => {
+    if (!editorRef?.current) {
       return;
     }
 
@@ -659,47 +668,70 @@ ${state.content}
       return;
     }
 
+    if (!isTauriAvailable()) {
+      return;
+    }
+
     try {
-      // 从章节路径提取小说路径和章节文件名
-      // 例如: D:\文件\小说\我的小说\text\第1章.md
-      // => novelPath: D:\文件\小说\我的小说
-      // => chapterFile: text\第1章.md
-      const pathParts = state.currentChapterPath.split(/[\/\\]/);
-      const chapterFile = pathParts.slice(-2).join('/'); // text/第1章.md
-      const novelPath = pathParts.slice(0, -2).join('\\'); // D:\文件\小说\我的小说
+      // 使用 workspaceStore 中的 rootPath 作为小说目录
+      const workspaceState = useWorkspaceStore.getState();
+      const novelPath = workspaceState.rootPath;
 
-      // 获取光标位置和滚动位置
-      let scrollPosition: number | null = null;
-      let cursorPosition: [number, number] | null = null;
+      if (!novelPath) {
+        console.warn('⚠️ 未找到小说目录，无法保存状态');
+        return;
+      }
 
-      if (editorRef?.current) {
-        const editor = editorRef.current;
-        const pos = editor.getPosition();
-        if (pos) {
-          cursorPosition = [pos.lineNumber, pos.column];
+      // 保存 Monaco 的原生 ViewState
+      const editor = editorRef.current;
+      const viewState = editor.saveViewState();
+      const viewStateJSON = JSON.stringify(viewState);
+
+      // 计算章节文件相对于小说目录的路径
+      let chapterFile = state.currentChapterPath;
+      if (chapterFile.startsWith(novelPath)) {
+        chapterFile = chapterFile.substring(novelPath.length);
+        // 移除开头的 \ 或 /
+        if (chapterFile.startsWith('\\') || chapterFile.startsWith('/')) {
+          chapterFile = chapterFile.substring(1);
         }
-
-        // 获取滚动位置（第一个可见行号）
-        scrollPosition = editor.getVisibleRanges()[0]?.startLineNumber || null;
+        // 统一使用 / 作为分隔符
+        chapterFile = chapterFile.replace(/\\/g, '/');
       }
 
       const lastState = {
         lastNovelPath: novelPath,
         lastChapterFile: chapterFile,
-        scrollPosition,
-        cursorPosition,
+        viewState: viewStateJSON,
         lastSavedAt: new Date().toISOString(),
       };
 
       await invoke('save_last_state', { state: lastState });
-      console.log('💾 状态已保存:', lastState);
+      console.log('💾 编辑器 ViewState 已保存');
     } catch (error) {
-      console.warn('⚠️ 保存状态失败:', error);
+      console.warn('⚠️ 保存编辑器状态失败:', error);
     }
   },
 
-  setPendingRestorePosition: (position) => {
-    set({ pendingRestorePosition: position });
+  setViewState: (viewState: any) => {
+    set({ viewState, hasPendingViewState: true });
+  },
+
+  clearViewState: () => {
+    set({ viewState: null, hasPendingViewState: false });
+  },
+
+  // Clear editor state (used when switching novel projects)
+  clearEditor: () => {
+    set({
+      content: '',
+      currentChapterPath: '',
+      isLoading: false,
+      isDirty: false,
+      ghostText: null,
+      viewState: null,
+      hasPendingViewState: false,
+    });
   },
 }));
 
