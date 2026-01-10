@@ -6,6 +6,7 @@ import { useWorkspaceStore } from '../store/workspaceStore';
  * 应用初始化 Hook
  * - 加载配置
  * - 如果是首次运行（没有工作区），自动弹出目录选择对话框
+ * - 如果有保存的工作区，自动恢复
  */
 export const useAppInitialization = () => {
   const hasInitialized = useRef(false);
@@ -20,28 +21,31 @@ export const useAppInitialization = () => {
     hasInitialized.current = true;
 
     const initializeApp = async () => {
-      // 获取当前状态（使用 snapshot 避免 hook 依赖）
       const configStore = useConfigStore.getState();
       const workspaceStore = useWorkspaceStore.getState();
 
-      // 加载配置
+      // 1. 先加载配置（可能包含保存的 workspaceRoot）
       await configStore.loadConfig();
 
-      // 再次检查配置是否已加载工作区
+      // 2. 重新获取加载后的配置
       const configWorkspaceRoot = configStore.workspaceRoot;
-      const storeWorkspaceRoot = workspaceStore.workspaceRoot;
 
-      const hasWorkspaceRoot = storeWorkspaceRoot || configWorkspaceRoot;
+      // 3. 检查是否有保存的工作区
+      if (configWorkspaceRoot) {
+        // 有保存的工作区，自动恢复
+        console.log('📂 恢复工作区:', configWorkspaceRoot);
 
-      if (!hasWorkspaceRoot) {
+        // 设置 workspaceRoot 到 store
+        workspaceStore.setWorkspaceRoot(configWorkspaceRoot);
+
+        // 扫描工作区中的小说项目
+        await workspaceStore.scanWorkspace();
+      } else {
         // 首次运行，延迟一小段时间后自动弹出目录选择
-        // 给用户一些时间看到应用界面
         dialogTimeoutRef.current = setTimeout(() => {
+          console.log('🔍 首次运行，引导用户选择工作区');
           workspaceStore.openWorkspaceRoot();
         }, 500);
-      } else if (storeWorkspaceRoot && !configWorkspaceRoot) {
-        // 如果 store 有但 config 没有（状态不同步），同步配置并扫描
-        await workspaceStore.scanWorkspace();
       }
     };
 
