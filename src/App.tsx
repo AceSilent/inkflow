@@ -7,7 +7,6 @@ import { ToastContainer } from './components/Toast/Toast';
 import { ResizableSidebar } from './components/ResizableSidebar/ResizableSidebar';
 import { useEditorStore } from './store/editorStore';
 import { useConfigStore } from './store/configStore';
-import { useWorkspaceStore } from './store/workspaceStore';
 import { useToastStore } from './store/toastStore';
 import { useTranslation } from './i18n';
 import { useAppInitialization } from './hooks/useAppInitialization';
@@ -28,6 +27,15 @@ function App() {
 
   // 应用初始化（首次运行检测）
   useAppInitialization();
+
+  // 编辑器初始化完成后设置 loading 为 false
+  useEffect(() => {
+    // 延迟一点以确保初始化完成
+    const timer = setTimeout(() => {
+      setLoading(false);
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [setLoading]);
 
   // 应用主题
   useEffect(() => {
@@ -91,30 +99,6 @@ function App() {
       }
     };
   }, []);
-
-  // Initialize application
-  useEffect(() => {
-    const initializeApp = async () => {
-      // 1. 首先加载配置
-      const { loadConfig } = useConfigStore.getState();
-      await loadConfig();
-
-      // 2. 加载配置后，再获取工作区根目录
-      const { workspaceRoot } = useConfigStore.getState();
-
-      // 3. 如果配置中有工作区根目录，自动加载工作空间
-      if (workspaceRoot) {
-        const { setWorkspaceRoot, scanWorkspace } = useWorkspaceStore.getState();
-        setWorkspaceRoot(workspaceRoot);
-        await scanWorkspace();
-      }
-
-      // 编辑器初始化完成，不需要加载示例内容
-      setLoading(false);
-    };
-
-    initializeApp();
-  }, [setLoading]);
 
   // Setup auto-save interval
   useEffect(() => {
