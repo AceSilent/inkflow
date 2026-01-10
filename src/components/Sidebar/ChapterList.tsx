@@ -6,7 +6,7 @@ import { useTranslation } from '../../i18n';
 
 export const ChapterList: React.FC = () => {
   const { chapters, currentChapter, selectChapter, createNewChapter } = useWorkspaceStore();
-  const { updateContent, clearGhostText } = useEditorStore();
+  const { clearGhostText } = useEditorStore();
   const { t } = useTranslation();
   const [isCreating, setIsCreating] = useState(false);
   const [newChapterTitle, setNewChapterTitle] = useState('');
@@ -14,15 +14,7 @@ export const ChapterList: React.FC = () => {
   const handleChapterClick = async (chapter: { filename: string; title: string; chapter_number: number; word_count: number; path: string }) => {
     clearGhostText(); // Clear AI suggestions
     try {
-      // 读取章节内容
-      const content = await (window as any).__TAURI__.invoke('read_file', {
-        path: chapter.path,
-      });
-
-      // 更新编辑器内容
-      updateContent(content as string);
-
-      // 更新当前章节
+      // selectChapter 会处理所有事情：读取文件、更新编辑器、更新当前章节
       await selectChapter(chapter as any);
     } catch (error) {
       console.error('❌ 加载章节失败:', error);
