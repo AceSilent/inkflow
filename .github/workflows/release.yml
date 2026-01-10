@@ -13,16 +13,20 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 支持 macOS Intel + Apple Silicon、Windows、Linux
+        # 原生编译每个平台：macos-13 (Intel) + macos-latest (ARM64) + Ubuntu + Windows
         include:
-          - platform: 'macos-latest'
-            args: '--target aarch64-apple-darwin' # Apple Silicon (M1/M2/M3)
-          - platform: 'macos-latest'
-            args: '--target x86_64-apple-darwin'    # Intel
+          - platform: 'macos-13'              # Intel Mac
+            args: ''
+            name: 'macos-intel'
+          - platform: 'macos-latest'          # Apple Silicon (M1/M2/M3)
+            args: ''
+            name: 'macos-arm64'
           - platform: 'ubuntu-22.04'
             args: ''
+            name: 'linux'
           - platform: 'windows-latest'
             args: ''
+            name: 'windows'
 
     runs-on: ${{ matrix.platform }}
 
@@ -53,17 +57,10 @@ jobs:
       - name: Build application
         run: npm run tauri build ${{ matrix.args }}
 
-      - name: Rename macOS universal binary
-        if: matrix.platform == 'macos-latest'
-        run: |
-          if [ -f "src-tauri/target/release/bundle/dmg/InkFlow_${{ matrix.args }}_universal-apple-darwin.dmg" ]; then
-            mv "src-tauri/target/release/bundle/dmg/InkFlow_${{ matrix.args }}_universal-apple-darwin.dmg" "src-tauri/target/release/bundle/dmg/InkFlow_${{ matrix.args }}.dmg"
-          fi
-
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: inkflow-${{ matrix.platform }}${{ matrix.args }}
+          name: inkflow-${{ matrix.name }}
           path: |
             src-tauri/target/release/bundle/dmg/*.dmg
             src-tauri/target/release/bundle/deb/*.deb
