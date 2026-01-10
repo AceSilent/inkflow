@@ -32,6 +32,8 @@ export const AIBrainstorm: React.FC = () => {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
+  const [isTyping, setIsTyping] = useState(false); // 正在打字机输出
+  const [typingContent, setTypingContent] = useState<string>(''); // 当前打字内容
   const [contextLocked, setContextLocked] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -163,8 +165,31 @@ ${conversationText}
     }
   };
 
+  // 打字机效果函数
+  const typewriterEffect = async (fullContent: string): Promise<void> => {
+    return new Promise((resolve) => {
+      let index = 0;
+      const speed = 15; // 打字速度（毫秒/字符）
+
+      setIsTyping(true);
+      setTypingContent('');
+
+      const timer = setInterval(() => {
+        if (index < fullContent.length) {
+          setTypingContent(fullContent.slice(0, index + 1));
+          index++;
+        } else {
+          clearInterval(timer);
+          setIsTyping(false);
+          setTypingContent('');
+          resolve();
+        }
+      }, speed);
+    });
+  };
+
   const handleSend = async () => {
-    if (!input.trim() || isLoading || isCompressing) return;
+    if (!input.trim() || isLoading || isCompressing || isTyping) return;
 
     const userMessage: Message = {
       id: generateId(),
@@ -246,18 +271,35 @@ ${conversationText}
         apiBaseUrl: config.apiBaseUrl,
       }) as { content: string };
 
+      const assistantContent = response.content.trim();
+      const assistantMessageId = generateId();
+
+      // 创建一个初始内容为空的消息
       const assistantMessage: Message = {
-        id: generateId(),
+        id: assistantMessageId,
         role: 'assistant',
-        content: response.content.trim(),
+        content: '',
         timestamp: new Date().toISOString(),
       };
 
       const finalMessages = [...currentMessages, assistantMessage];
       setMessages(finalMessages);
 
+      // 打字机效果显示回复
+      await typewriterEffect(assistantContent);
+
+      // 打字完成后，更新消息内容并保存
+      const completedMessage: Message = {
+        id: assistantMessageId,
+        role: 'assistant',
+        content: assistantContent,
+        timestamp: new Date().toISOString(),
+      };
+
+      setMessages([...currentMessages, completedMessage]);
+
       // 保存到本地
-      await saveChatHistory(finalMessages);
+      await saveChatHistory([...currentMessages, completedMessage]);
     } catch (error) {
       console.error('AI discussion failed:', error);
       const errorMessage: Message = {
@@ -394,40 +436,53 @@ ${conversationText}
           </div>
         ) : (
           <AnimatePresence>
-            {messages.map((msg) => (
-              <motion.div
-                key={msg.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className={`flex group ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
-                <div
-                  className={`relative max-w-[85%] rounded-lg px-3 py-2 ${
-                    msg.role === 'user'
-                      ? 'bg-blue-600 text-white'
-                      : msg.role === 'system'
-                      ? 'bg-red-900/20 text-red-400 border border-red-700/30'
-                      : 'dark:bg-gray-700 bg-gray-200 dark:text-gray-200 text-gray-800 border dark:border-gray-600 border-gray-300'
-                  }`}
+            {messages.map((msg, index) => {
+              // 检查是否是正在打字的消息
+              const isTypingMessage = isTyping && msg.role === 'assistant' && index === messages.length - 1;
+              const displayContent = isTypingMessage ? typingContent : msg.content;
+
+              return (
+                <motion.div
+                  key={msg.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className={`flex group ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
-                  <button
-                    onClick={() => handleDeleteMessage(msg.id)}
-                    className="absolute -top-2 -right-2 p-1 bg-red-600 hover:bg-red-700 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                    title="删除消息"
+                  <div
+                    className={`relative max-w-[85%] rounded-lg px-3 py-2 ${
+                      msg.role === 'user'
+                        ? 'bg-blue-600 text-white'
+                        : msg.role === 'system'
+                        ? 'bg-red-900/20 text-red-400 border border-red-700/30'
+                        : 'dark:bg-gray-700 bg-gray-200 dark:text-gray-200 text-gray-800 border dark:border-gray-600 border-gray-300'
+                    }`}
                   >
-                    <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                  <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
-                  <p className="text-xs opacity-50 mt-1">
-                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </p>
-                </div>
-              </motion.div>
-            ))}
-            {isLoading && (
+                    {msg.role === 'assistant' && (
+                      <button
+                        onClick={() => handleDeleteMessage(msg.id)}
+                        className="absolute -top-2 -right-2 p-1 bg-red-600 hover:bg-red-700 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="删除消息"
+                      >
+                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    )}
+                    <p className="text-sm whitespace-pre-wrap break-words">
+                      {displayContent}
+                      {isTypingMessage && (
+                        <span className="inline-block w-1.5 h-4 bg-blue-400 ml-1 animate-pulse" />
+                      )}
+                    </p>
+                    <p className="text-xs opacity-50 mt-1">
+                      {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                </motion.div>
+              );
+            })}
+            {isLoading && !isTyping && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -454,11 +509,11 @@ ${conversationText}
             placeholder={t.rightPanel.inputPlaceholder}
             className="flex-1 px-3 py-2 dark:bg-gray-800 bg-white dark:border border-gray-700 border-gray-300 rounded-lg dark:text-white text-gray-900 text-sm dark:placeholder-gray-500 placeholder-gray-400 focus:outline-none focus:border-blue-500 resize-none"
             rows={2}
-            disabled={isLoading}
+            disabled={isLoading || isTyping}
           />
           <button
             onClick={handleSend}
-            disabled={!input.trim() || isLoading}
+            disabled={!input.trim() || isLoading || isTyping}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 dark:disabled:bg-gray-700 disabled:bg-gray-300 dark:disabled:text-gray-500 disabled:text-gray-500 disabled:cursor-not-allowed text-white rounded-lg transition-colors flex items-center justify-center"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
