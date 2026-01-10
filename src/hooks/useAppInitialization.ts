@@ -10,7 +10,7 @@ import { useWorkspaceStore } from '../store/workspaceStore';
  */
 export const useAppInitialization = () => {
   const hasInitialized = useRef(false);
-  const dialogTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const dialogTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     // 防止重复执行（包括 React Strict Mode 的双重挂载）
