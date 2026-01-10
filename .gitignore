@@ -23,3 +23,6 @@ code_review/
 # App Data (stored in system config directory, not project)
 last_state.json
 inkflow_settings.json
+
+# Private documentation
+墨流设计方案.md
