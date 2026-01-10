@@ -19,6 +19,7 @@ export const MainEditor: React.FC<MainEditorProps> = ({
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const ghostTextManagerRef = useRef<GhostTextManager | null>(null);
   const debounceTimerRef = useRef<number | null>(null);
+  const saveStateTimerRef = useRef<number | null>(null);
 
   // State for feedback panel positioning and expansion
   const [feedbackPanelPosition, setFeedbackPanelPosition] = useState<{ top: number; left: number } | null>(null);
@@ -43,6 +44,7 @@ export const MainEditor: React.FC<MainEditorProps> = ({
     shouldTriggerAI,
     autoSave,
     setFeedbackVisible,
+    saveLastState,
   } = useEditorStore();
 
   // Handle editor mount
@@ -216,6 +218,14 @@ export const MainEditor: React.FC<MainEditorProps> = ({
         const position = GhostTextManager.calculateCursorPosition(editor, e.position);
         updateCursorPosition(position);
 
+        // Debounce save last state (save cursor position and scroll position)
+        if (saveStateTimerRef.current) {
+          clearTimeout(saveStateTimerRef.current);
+        }
+        saveStateTimerRef.current = setTimeout(() => {
+          saveLastState(editorRef);
+        }, 2000); // 延迟 2 秒保存，避免频繁写入
+
         // Calculate feedback panel position when ghost text is visible
         if (ghostText?.isShowing && ghostText.position) {
           try {
@@ -274,6 +284,8 @@ export const MainEditor: React.FC<MainEditorProps> = ({
       // Auto-save on focus out
       editor.onDidBlurEditorText(() => {
         autoSave();
+        // Also save last state when losing focus
+        saveLastState(editorRef);
       });
 
       // Call external onMount callback if provided
@@ -293,10 +305,13 @@ export const MainEditor: React.FC<MainEditorProps> = ({
         if (debounceTimerRef.current) {
           clearTimeout(debounceTimerRef.current);
         }
+        if (saveStateTimerRef.current) {
+          clearTimeout(saveStateTimerRef.current);
+        }
         clearInterval(autoSaveInterval);
       };
     },
-    [updateContent, updateCursorPosition, updateSelectionRange, acceptSuggestion, clearGhostText, generateAISuggestion, shouldTriggerAI, autoSave, onMount, ghostText]
+    [updateContent, updateCursorPosition, updateSelectionRange, acceptSuggestion, clearGhostText, generateAISuggestion, shouldTriggerAI, autoSave, saveLastState, onMount, ghostText]
   );
 
   // Sync ghost text with store
@@ -356,6 +371,9 @@ export const MainEditor: React.FC<MainEditorProps> = ({
     return () => {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
+      }
+      if (saveStateTimerRef.current) {
+        clearTimeout(saveStateTimerRef.current);
       }
     };
   }, []);

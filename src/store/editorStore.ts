@@ -90,6 +90,9 @@ export interface EditorActions {
   generateAndSaveChapterSummary: () => Promise<void>;
   checkAndTriggerAutoSummary: () => Promise<void>;
 
+  // State persistence
+  saveLastState: (editorRef?: RefObject<monaco.editor.IStandaloneCodeEditor>) => Promise<void>;
+
   // Loading states
   setLoading: (loading: boolean) => void;
   setAISuggesting: (suggesting: boolean) => void;
@@ -419,6 +422,9 @@ ${cursorMarker}
         ghostText: null,
         lastSummaryWordCount: content.length, // 初始化为当前字数
       });
+
+      // 保存最后打开的章节状态（注意：此时 editorRef 可能还没有传入，所以无法获取光标位置）
+      // 光标和滚动位置会在 MainEditor 中通过 onDidChangeCursorPosition 事件保存
     } catch (error) {
       console.error('Failed to load chapter content:', error);
     } finally {
@@ -628,6 +634,58 @@ ${state.content}
     const state = get();
     if (state.isDirty && state.currentChapterPath) {
       await state.saveChapterContent();
+    }
+  },
+
+  // State persistence
+  saveLastState: async (editorRef?: RefObject<monaco.editor.IStandaloneCodeEditor>) => {
+    if (!isTauriAvailable()) {
+      return;
+    }
+
+    const state = get();
+
+    // 只有在有打开章节时才保存
+    if (!state.currentChapterPath) {
+      return;
+    }
+
+    try {
+      // 从章节路径提取小说路径和章节文件名
+      // 例如: D:\文件\小说\我的小说\text\第1章.md
+      // => novelPath: D:\文件\小说\我的小说
+      // => chapterFile: text\第1章.md
+      const pathParts = state.currentChapterPath.split(/[\/\\]/);
+      const chapterFile = pathParts.slice(-2).join('/'); // text/第1章.md
+      const novelPath = pathParts.slice(0, -2).join('\\'); // D:\文件\小说\我的小说
+
+      // 获取光标位置和滚动位置
+      let scrollPosition: number | null = null;
+      let cursorPosition: [number, number] | null = null;
+
+      if (editorRef?.current) {
+        const editor = editorRef.current;
+        const pos = editor.getPosition();
+        if (pos) {
+          cursorPosition = [pos.lineNumber, pos.column];
+        }
+
+        // 获取滚动位置（第一个可见行号）
+        scrollPosition = editor.getVisibleRanges()[0]?.startLineNumber || null;
+      }
+
+      const lastState = {
+        lastNovelPath: novelPath,
+        lastChapterFile: chapterFile,
+        scrollPosition,
+        cursorPosition,
+        lastSavedAt: new Date().toISOString(),
+      };
+
+      await invoke('save_last_state', { state: lastState });
+      console.log('💾 状态已保存:', lastState);
+    } catch (error) {
+      console.warn('⚠️ 保存状态失败:', error);
     }
   },
 }));
