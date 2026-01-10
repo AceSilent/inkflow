@@ -98,6 +98,7 @@ export interface WorkspaceActions {
   loadGlobalOutline: () => Promise<void>;
   updateGlobalOutline: (outline: NovelOutline) => Promise<void>;
   loadChapterSummaries: () => Promise<void>;
+  openOutlineInEditor: () => Promise<void>; // 打开大纲文件到主编辑器
 
   // UI 操作
   setActiveTab: (tab: 'chapters' | 'outline') => void;
@@ -411,6 +412,41 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>((set,
 
   setWorkspaceRoot: (root: string | null) => {
     set({ workspaceRoot: root });
+  },
+
+  // 打开大纲文件到主编辑器
+  openOutlineInEditor: async () => {
+    const { rootPath } = get();
+    if (!rootPath) {
+      set({ error: '请先打开一个小说项目' });
+      return;
+    }
+
+    try {
+      // 调用 editorStore 加载大纲文件
+      const { loadChapterContent } = useEditorStore.getState();
+      const outlinePath = `${rootPath}/outline.md`;
+
+      await loadChapterContent(outlinePath);
+
+      // 设置当前打开的文件为大纲（用于特殊处理）
+      set({
+        currentChapter: {
+          filename: 'outline.md',
+          title: '全局大纲',
+          chapter_number: 0,
+          word_count: 0,
+          path: outlinePath,
+          has_summary: false,
+        },
+        isLoading: false,
+      });
+
+      console.log('✅ 大纲已在编辑器中打开');
+    } catch (error) {
+      console.error('❌ 打开大纲失败:', error);
+      set({ error: `打开大纲失败: ${error}` });
+    }
   },
 
   // 打开工作空间根目录

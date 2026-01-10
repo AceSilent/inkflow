@@ -1,11 +1,9 @@
 import React, { useState } from 'react';
-import { AnimatePresence } from 'framer-motion';
 import { useWorkspaceStore } from '../../store/workspaceStore';
 import { useEditorStore } from '../../store/editorStore';
 import { useConfigStore } from '../../store/configStore';
 import { useTranslation } from '../../i18n';
 import { ChapterList } from './ChapterList';
-import { OutlinePanel } from './OutlinePanel';
 import { CreateNewNovel } from '../CreateNewNovel';
 
 export const Sidebar: React.FC = () => {
@@ -21,6 +19,7 @@ export const Sidebar: React.FC = () => {
     openNovelProject,
     setActiveTab,
     clearError,
+    openOutlineInEditor,
   } = useWorkspaceStore();
 
   const { clearGhostText } = useEditorStore();
@@ -49,6 +48,12 @@ export const Sidebar: React.FC = () => {
     setIsAIEnabled(enabled);
     // 自动保存配置
     await useConfigStore.getState().saveConfig();
+  };
+
+  const handleOpenOutline = async () => {
+    clearGhostText();
+    clearError();
+    await openOutlineInEditor();
   };
 
   const handleBackToWorkspace = () => {
@@ -210,12 +215,9 @@ export const Sidebar: React.FC = () => {
             {t.sidebar.chapterList}
           </button>
           <button
-            onClick={() => setActiveTab('outline')}
-            className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-              activeTab === 'outline'
-                ? 'text-blue-400 border-b-2 border-blue-400'
-                : 'dark:text-gray-400 text-gray-600 dark:hover:text-gray-300 hover:text-gray-900'
-            }`}
+            onClick={handleOpenOutline}
+            className="flex-1 px-4 py-3 text-sm font-medium transition-colors dark:text-gray-400 text-gray-600 dark:hover:text-gray-300 hover:text-gray-900"
+            title="在主编辑器中打开大纲"
           >
             {t.sidebar.outline}
           </button>
@@ -235,15 +237,7 @@ export const Sidebar: React.FC = () => {
             </div>
           </div>
         )}
-        {rootPath && (
-          <AnimatePresence mode="wait">
-            {activeTab === 'chapters' ? (
-              <ChapterList key="chapters" />
-            ) : (
-              <OutlinePanel key="outline" />
-            )}
-          </AnimatePresence>
-        )}
+        {rootPath && <ChapterList />}
       </div>
 
       {/* 创建新小说对话框 */}

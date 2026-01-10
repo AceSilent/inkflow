@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useWorkspaceStore } from '../../store/workspaceStore';
 import { useConfigStore } from '../../store/configStore';
+import { useEditorStore } from '../../store/editorStore';
 import { invoke } from '@tauri-apps/api/tauri';
 import { useTranslation } from '../../i18n';
 
@@ -13,12 +14,16 @@ interface Message {
 
 export const AIBrainstorm: React.FC = () => {
   const { t } = useTranslation();
-  const { globalOutline } = useWorkspaceStore();
+  const { globalOutline, currentChapter } = useWorkspaceStore();
+  const { currentChapterPath } = useEditorStore();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [contextLocked, setContextLocked] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // 检查是否正在编辑大纲文件
+  const isEditingOutline = currentChapterPath?.endsWith('outline.md');
 
   // Auto scroll to bottom
   const scrollToBottom = () => {
@@ -50,10 +55,32 @@ export const AIBrainstorm: React.FC = () => {
       }
 
       // Build prompt with context
-      let contextPrompt = '你是一位专业的小说创作顾问，正在与作者讨论情节和人物设定。';
+      let contextPrompt = '';
 
-      if (contextLocked && globalOutline) {
-        contextPrompt += `\n\n【当前小说背景】\n标题：${globalOutline.title}\n简介：${globalOutline.summary}\n\n人物：${globalOutline.characters.map(c => `${c.name} - ${c.description}`).join('；')}\n\n情节要点：${globalOutline.plot_points.join('、')}`;
+      if (isEditingOutline) {
+        // 编辑大纲时，直接读取大纲文件的原始内容
+        contextPrompt = '你是一位专业的小说创作顾问，正在协助作者完善小说大纲。';
+
+        // 获取大纲文件的原始内容
+        if (currentChapterPath) {
+          try {
+            const outlineContent = await invoke<string>('read_file', { path: currentChapterPath });
+            contextPrompt += `\n\n【当前大纲内容】\n${outlineContent}`;
+          } catch (error) {
+            console.error('Failed to read outline file:', error);
+          }
+        }
+
+        contextPrompt += '\n\n【任务】请协助作者完善大纲结构，包括：\n1. 丰富人物设定和角色关系\n2. 优化情节发展和矛盾冲突\n3. 完善世界观设定\n4. 保持整体风格的统一性';
+      } else {
+        // 编辑章节时的常规 prompt
+        contextPrompt = '你是一位专业的小说创作顾问，正在与作者讨论情节和人物设定。';
+        if (contextLocked && globalOutline) {
+          contextPrompt += `\n\n【当前小说背景】\n标题：${globalOutline.title}\n简介：${globalOutline.summary}\n\n人物：${globalOutline.characters.map(c => `${c.name} - ${c.description}`).join('；')}\n\n情节要点：${globalOutline.plot_points.join('、')}`;
+        }
+        if (currentChapter) {
+          contextPrompt += `\n\n【当前章节】${currentChapter.title}`;
+        }
       }
 
       // Add conversation history as context
@@ -201,14 +228,18 @@ export const AIBrainstorm: React.FC = () => {
 
         {/* Context Hint */}
         <AnimatePresence>
-          {contextLocked && globalOutline && (
+          {contextLocked && (globalOutline || isEditingOutline) && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
               className="text-xs dark:text-gray-500 text-gray-600 dark:bg-gray-800/50 bg-gray-200/50 rounded px-2 py-1"
             >
-              {t.rightPanel.basedOn}{globalOutline.title}》进行讨论
+              {isEditingOutline ? (
+                <span>正在编辑大纲 - AI 将协助完善大纲结构</span>
+              ) : (
+                <span>{t.rightPanel.basedOn}{globalOutline?.title}》进行讨论</span>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
