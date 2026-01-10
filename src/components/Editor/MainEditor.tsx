@@ -45,6 +45,8 @@ export const MainEditor: React.FC<MainEditorProps> = ({
     autoSave,
     setFeedbackVisible,
     saveLastState,
+    pendingRestorePosition,
+    setPendingRestorePosition,
   } = useEditorStore();
 
   // Handle editor mount
@@ -365,6 +367,32 @@ export const MainEditor: React.FC<MainEditorProps> = ({
       setShouldAutoExpand(false);
     }
   }, [ghostText?.isShowing, setFeedbackVisible]);
+
+  // Restore cursor and scroll position when pendingRestorePosition changes
+  useEffect(() => {
+    if (!pendingRestorePosition || !editorRef.current) {
+      return;
+    }
+
+    console.log('📍 恢复光标和滚动位置:', pendingRestorePosition);
+
+    const editor = editorRef.current;
+
+    // 恢复光标位置
+    editor.setPosition({
+      lineNumber: pendingRestorePosition.lineNumber,
+      column: pendingRestorePosition.column,
+    });
+
+    // 恢复滚动位置
+    editor.revealLineInCenter(
+      pendingRestorePosition.scrollLineNumber,
+      monaco.editor.ScrollType.Smooth
+    );
+
+    // 清空待恢复位置，避免重复恢复
+    setPendingRestorePosition(null);
+  }, [pendingRestorePosition, setPendingRestorePosition]);
 
   // Cleanup on unmount
   useEffect(() => {

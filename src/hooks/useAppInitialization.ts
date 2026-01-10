@@ -59,23 +59,42 @@ export const useAppInitialization = () => {
           if (lastState.lastNovelPath && lastState.lastChapterFile) {
             console.log('📖 恢复上次编辑状态:', lastState);
 
+            const workspaceStore = useWorkspaceStore.getState();
             const editorStore = useEditorStore.getState();
             const chapterPath = `${lastState.lastNovelPath}/${lastState.lastChapterFile}`;
 
             // 延迟恢复，确保 Monaco editor 已经挂载
             restoreTimeoutRef.current = setTimeout(async () => {
-              // 加载章节内容
-              await editorStore.loadChapterContent(chapterPath);
-
-              // TODO: 恢复滚动位置和光标位置（需要在 MainEditor 中实现）
-              if (lastState.cursorPosition) {
-                console.log('📍 恢复光标位置:', lastState.cursorPosition);
-                // 需要在 MainEditor 中添加设置光标位置的方法
+              // 先打开小说项目（如果还没打开）
+              const novelPath = lastState.lastNovelPath || '';
+              if (workspaceStore.rootPath !== novelPath) {
+                await workspaceStore.openNovelProject(novelPath);
               }
 
-              if (lastState.scrollPosition) {
-                console.log('📜 恢复滚动位置:', lastState.scrollPosition);
-                // 需要在 MainEditor 中添加设置滚动位置的方法
+              // 在章节列表中查找对应的章节
+              const chapter = workspaceStore.chapters.find(
+                ch => ch.path === chapterPath
+              );
+
+              if (chapter) {
+                // 使用 selectChapter 来加载章节并更新侧边栏
+                await workspaceStore.selectChapter(chapter);
+                console.log('✅ 章节已恢复:', chapter.title);
+              } else {
+                // 如果找不到，尝试直接加载路径
+                console.warn('⚠️ 在章节列表中未找到，尝试直接加载');
+                await editorStore.loadChapterContent(chapterPath);
+              }
+
+              // 设置待恢复的光标和滚动位置
+              if (lastState.cursorPosition && lastState.scrollPosition) {
+                const [lineNumber, column] = lastState.cursorPosition;
+                editorStore.setPendingRestorePosition({
+                  lineNumber,
+                  column,
+                  scrollLineNumber: lastState.scrollPosition,
+                });
+                console.log('📍 设置待恢复位置:', { lineNumber, column, scrollLineNumber: lastState.scrollPosition });
               }
             }, 1000); // 延迟 1 秒确保编辑器已挂载
           }

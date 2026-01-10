@@ -58,6 +58,13 @@ export interface EditorState {
   // Debounce timing
   aiTriggerDelay: number;
   lastTypingTime: number;
+
+  // Position restore state
+  pendingRestorePosition: {
+    lineNumber: number;
+    column: number;
+    scrollLineNumber: number;
+  } | null;
 }
 
 export interface EditorActions {
@@ -92,6 +99,7 @@ export interface EditorActions {
 
   // State persistence
   saveLastState: (editorRef?: RefObject<monaco.editor.IStandaloneCodeEditor>) => Promise<void>;
+  setPendingRestorePosition: (position: { lineNumber: number; column: number; scrollLineNumber: number } | null) => void;
 
   // Loading states
   setLoading: (loading: boolean) => void;
@@ -121,6 +129,7 @@ export const useEditorStore = create<EditorState & EditorActions>((set, get) => 
   summaryThreshold: 500, // 自动生成摘要的阈值：500字
   aiTriggerDelay: 2000, // 2 seconds
   lastTypingTime: 0,
+  pendingRestorePosition: null,
 
   // Content management
   updateContent: (newContent: string) => {
@@ -687,6 +696,10 @@ ${state.content}
     } catch (error) {
       console.warn('⚠️ 保存状态失败:', error);
     }
+  },
+
+  setPendingRestorePosition: (position) => {
+    set({ pendingRestorePosition: position });
   },
 }));
 
