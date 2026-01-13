@@ -61,7 +61,11 @@
       "windows": {
         "certificateThumbprint": null,
         "digestAlgorithm": "sha256",
-        "timestampUrl": ""
+        "timestampUrl": "",
+        "nsis": {
+          "languages": ["English", "SimpChinese"],
+          "displayLanguageSelector": true
+        }
       }
     },
     "security": {
