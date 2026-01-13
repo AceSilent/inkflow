@@ -13,11 +13,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 原生编译每个平台：macos-13 (Intel) + macos-latest (ARM64) + Ubuntu + Windows
+        # 原生编译每个平台：macOS ARM64 + Ubuntu + Windows（移除 macOS Intel，构建失败）
         include:
-          - platform: 'macos-13'              # Intel Mac
-            args: ''
-            name: 'macos-intel'
           - platform: 'macos-latest'          # Apple Silicon (M1/M2/M3)
             args: ''
             name: 'macos-arm64'
