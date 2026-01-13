@@ -62,7 +62,7 @@ export const MainEditor: React.FC<MainEditorProps> = ({
       // Configure editor for immersive experience
       editor.updateOptions({
         fontSize: 16,
-        fontFamily: '"SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif',
+        fontFamily: '"SF Pro Text", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif',
         lineHeight: 1.8,
         wordWrap: 'on',
         wordWrapColumn: 80,
@@ -72,7 +72,7 @@ export const MainEditor: React.FC<MainEditorProps> = ({
         rulers: [],
         renderLineHighlight: 'none',
         occurrencesHighlight: false,
-        renderWhitespace: 'none',
+        renderWhitespace: 'none', // 不显示空格符号，保持视觉纯净
         renderControlCharacters: false,
         folding: false,
         foldingHighlight: false,
@@ -85,6 +85,12 @@ export const MainEditor: React.FC<MainEditorProps> = ({
         cursorStyle: 'line',
         cursorWidth: 2,
         bracketPairColorization: { enabled: false },
+        stopRenderingLineAfter: -1, // 允许渲染包含全角字符的行
+        unicodeHighlight: {
+          invisibleCharacters: false, // 禁用不可见字符的高亮（彻底解决 U+3000 的黄框）
+          ambiguousCharacters: false, // 禁用歧义字符高亮（防止干扰写作）
+          includeComments: false,     // 不检查注释
+        },
         guides: {
           indentation: false,
           bracketPairs: false,
@@ -95,43 +101,57 @@ export const MainEditor: React.FC<MainEditorProps> = ({
 
       // Set up keyboard shortcuts
       editor.addAction({
-        id: 'accept-ghost-text',
-        label: 'Accept Ghost Text',
+        id: 'smart-tab-action',
+        label: 'Smart Tab: Accept AI or Insert Indent',
         keybindings: [monaco.KeyCode.Tab],
         run: async () => {
           const editor = editorRef.current;
           const { ghostText, acceptSuggestion } = useEditorStore.getState();
 
-          if (!editor || !ghostText?.isShowing) {
+          // 优先级 1: 如果有 AI 建议，接受建议
+          if (ghostText?.isShowing) {
+            console.log('🎯 Accepting AI suggestion');
+
+            const text = ghostText.suggestion;
+            const position = ghostText.position;
+            const cleanedText = text.trimEnd();
+
+            editor.executeEdits('ai-suggestion', [{
+              range: new monaco.Range(
+                position.line,
+                position.column,
+                position.line,
+                position.column
+              ),
+              text: cleanedText,
+              forceMoveMarkers: true
+            }]);
+
+            await acceptSuggestion(editorRef);
+            setTimeout(() => editor.focus(), 10);
             return;
           }
 
-          console.log('🎯 Accepting suggestion with Monaco native operations');
+          // 优先级 2: 没有 AI 建议，插入中文段落缩进（2个全角空格）
+          const selection = editor.getSelection();
+          if (selection && selection.isEmpty()) {
+            const position = selection.getPosition();
+            if (position) {
+              console.log('📝 Inserting Chinese indent (2 full-width spaces)');
 
-          // Use Monaco's native text insertion with proper cursor management
-          const text = ghostText.suggestion;
-          const position = ghostText.position;
-
-          // Ensure the suggestion doesn't have trailing newlines that would cause cursor jumping
-          const cleanedText = text.trimEnd();
-
-          // Execute edit operation using Monaco's native API
-          editor.executeEdits('ai-suggestion', [{
-            range: new monaco.Range(
-              position.line,
-              position.column,
-              position.line,
-              position.column
-            ),
-            text: cleanedText,
-            forceMoveMarkers: true // Ensures cursor moves to the end of inserted text
-          }]);
-
-          // Sync state to Store (only state update, no text manipulation)
-          await acceptSuggestion(editorRef);
-
-          // Force focus back to editor after operation
-          setTimeout(() => editor.focus(), 10);
+              // 使用 executeEdits 方法插入全角空格（避免 Unicode 高亮警告）
+              editor.executeEdits('chinese-indent', [{
+                range: new monaco.Range(
+                  position.lineNumber,
+                  position.column,
+                  position.lineNumber,
+                  position.column
+                ),
+                text: '\u3000\u3000', // 2 个全角空格
+                forceMoveMarkers: true
+              }]);
+            }
+          }
         },
       });
 
@@ -611,7 +631,7 @@ export const MainEditor: React.FC<MainEditorProps> = ({
         >
           <Editor
             height="100%"
-            defaultLanguage="markdown" // Use markdown for better text editing experience
+            defaultLanguage="plaintext" // 纯文本模式，无语法高亮干扰，适合中文小说写作
             value={content}
             theme={theme}
             onChange={(value) => {
