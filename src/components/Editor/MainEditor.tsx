@@ -108,6 +108,10 @@ export const MainEditor: React.FC<MainEditorProps> = ({
           const editor = editorRef.current;
           const { ghostText, acceptSuggestion } = useEditorStore.getState();
 
+          if (!editor) {
+            return;
+          }
+
           // 优先级 1: 如果有 AI 建议，接受建议
           if (ghostText?.isShowing) {
             console.log('🎯 Accepting AI suggestion');
