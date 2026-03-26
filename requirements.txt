@@ -1,0 +1,25 @@
+# Core dependencies
+pydantic>=2.0.0
+transitions>=0.9.0
+jinja2>=3.1.0
+tenacity>=8.2.0
+python-dotenv>=1.0.0
+
+# Async support
+aiohttp>=3.9.0
+asyncio>=3.4.3
+
+# LLM SDKs
+openai>=1.12.0
+instructor>=1.0.0
+
+# Logging and utilities
+loguru>=0.7.0
+pyyaml>=6.0
+
+# Type checking
+typing-extensions>=4.9.0
+
+# Web framework (v4.0 UI)
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0

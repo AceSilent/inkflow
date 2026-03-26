@@ -1,0 +1,62 @@
+{
+  "cultivation_ranks": {
+    "key": "cultivation_ranks",
+    "value": "修为等级从低到高：练气期、筑基期、金丹期、元婴期、化神期、炼虚期、合体期、大乘期、渡劫期",
+    "category": "magic_system",
+    "importance": 5
+  },
+  "spirit_stones": {
+    "key": "spirit_stones",
+    "value": "灵石是修真界的通用货币，分为下品、中品、上品、极品四等。修炼需要消耗大量灵石。",
+    "category": "economy",
+    "importance": 4
+  },
+  "sect_hierachy": {
+    "key": "sect_hierarchy",
+    "value": "宗门等级：三流宗门、二流宗门、一流宗门、顶级宗门、圣地级宗门",
+    "category": "culture",
+    "importance": 3
+  },
+  "mortal_realm": {
+    "key": "mortal_realm",
+    "value": "凡人界与修真界隔离，凡人无法进入修真界，除非突破练气期",
+    "category": "geography",
+    "importance": 4
+  },
+  "heavenly_tribulation": {
+    "key": "heavenly_tribulation",
+    "value": "每次突破大境界都会遭遇雷劫，实力越强，雷劫越强。渡劫失败则身死道消。注：小境界突破（如元婴初期→中期）无雷劫；禁地密室用于小境界突破或压制心魔，非渡劫场所。林辰前世死于元婴期突破化神期时被背叛（非渡劫失败），他在密室尝试突破时被叶流云偷袭，未能渡劫。",
+    "category": "magic_system",
+    "importance": 5
+  },
+  "cultivation_breakthrough_pills": {
+    "key": "cultivation_breakthrough_pills",
+    "value": "凝结元婴使用'凝婴丹'，突破化神期使用'化神丹'。林辰前世是元婴圆满修士冲击化神期，需要的是'化神丹'或其他辅助化神突破的天材地宝，而非凝婴丹。",
+    "category": "magic_system",
+    "importance": 4
+  },
+  "qingyun_sect_forbidden_ground": {
+    "key": "qingyun_sect_forbidden_ground",
+    "value": "青云宗禁地密室，用于长老/宗主闭关突破小境界（非渡渡劫场所）。密室有阵法压制真元，防止走火入魔。穹顶刻有星图（周天三百六十五颗主星），林辰前世亲手绘制（后被叶流云篡改或林辰故意留破绽）。",
+    "category": "geography",
+    "importance": 4
+  },
+  "plum_tree_timeline": {
+    "key": "plum_tree_timeline",
+    "value": "外门弟子院中老梅树。林辰重生时间点（五十年前）：梅树正在开花，此时林辰是外门练气二层弟子（入门第三年）。未来：将在林辰进入内门那年枯死，林辰亲手砍掉。时间逻辑：重生时（外门第3年）→梅树开花→进入内门→梅树枯死→砍掉。",
+    "category": "geography",
+    "importance": 3
+  },
+  "wenzhen_sword": {
+    "key": "wenzhen_sword",
+    "value": "林辰前世佩剑'问心'，银白色剑身刻有流云纹。流云纹是剑身本身特征（非林辰亲手所刻），叶流云的'流云剑'名称即来源于模仿此剑。林辰前世用此剑传授叶流云剑法，前世背叛时叶流云用此剑刺穿林辰胸膛。今生重生时林辰尚未锻造'问心'剑，只有生锈的铁剑。",
+    "category": "magic_system",
+    "importance": 4
+  },
+  "liu_yun_cloud_backstory": {
+    "key": "liu_yun_cloud_backstory",
+    "value": "叶流云前世被林辰捡回时是12岁孤儿（非'全家被杀'的复仇设定）。林辰从山下捡回他后收为弟子，师徒相处四十年。叶流云性格伪善阴险，野心勃勃，背叛林辰是为了夺取青云宗千年气运（非'五十年前杀全家'的复仇动机）。",
+    "category": "culture",
+    "importance": 5
+  }
+}

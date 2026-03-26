@@ -1,0 +1,71 @@
+{
+  "world_name": "格雷赫文",
+  "era": "维多利亚时代晚期",
+  "atmosphere": "蒸汽朋克与克苏鲁式恐怖的融合，表面是理性与秩序的帝国都市，地下是寄生体蔓延的暗流",
+  "organizations": {
+    "prism_medical_society": {
+      "name": "棱镜医学会",
+      "nature": "秘密组织，表面是医学研究机构，实际是寄生体收容与净化机构",
+      "methods": "外科手术式收容、精神稳定场（科技侧装备）、活体取虫、抑制剂注射",
+      "internal_factions": {
+        "conservative": "坚持传统收容净化路线",
+        "radical": "试图复制'空壳'状态，制造可控寄生士兵"
+      }
+    },
+    "official_police": {
+      "role": "表面执法机构，将寄生体案件定性为精神病或宗教极端事件",
+      "relationship_with_prism": "棱镜以'精神鉴定顾问'身份介入案件"
+    }
+  },
+  "demon_system": {
+    "origin": "七宗罪本体散逸的力量碎片",
+    "infection_method": "接触禁书、仪式召唤、孢子注射、寄生体分泌物",
+    "levels": {
+      "1": {
+        "name": "幼虫",
+        "examples": ["灰烬幼虫"],
+        "traits": "无智慧，本能驱使，可被常规武器伤害",
+        "threat_level": "个体级"
+      },
+      "2": {
+        "name": "成长期",
+        "examples": ["齿轮奴仆", "蚀心菌"],
+        "traits": "有简单智慧，能伪装人类，需特殊装备收容",
+        "threat_level": "场所级"
+      },
+      "3": {
+        "name": "原罪碎片",
+        "examples": ["暴怒碎片"],
+        "traits": "七宗罪本体碎片，对低阶恶魔有绝对威压，区域级污染",
+        "threat_level": "街区级"
+      },
+      "4": {
+        "name": "完全体原罪",
+        "traits": "后期出现",
+        "threat_level": "城市级"
+      },
+      "5": {
+        "name": "七宗罪本体",
+        "traits": "终局存在",
+        "threat_level": "文明级"
+      }
+    }
+  },
+  "technology": {
+    "spirit_stabilization_field": "精神稳定场，科技侧装备，可压制2级恶魔",
+    "inhibitor_serum": "抑制剂，用于活体取虫前控制寄生体",
+    "parasite_detection": "基于医学解剖的寄生反应识别，非魔法感知"
+  },
+  "key_locations": {
+    "hospital": "艾伦最初工作的精神病院，第一卷案件三回归地",
+    "textile_factory": "格雷赫文纺织厂，案件一发生地",
+    "printing_house": "地下印刷所，《烬中之言》传播点",
+    "steam_mechanical_plant": "城西蒸汽机械厂，案件二发生地",
+    "containment_facility": "棱镜收容所，第二卷实验失控地点"
+  },
+  "foreshadowing_elements": {
+    "black_card": "神秘黑色卡片，第一卷三案关联线索，七宗罪'暴怒'伏笔",
+    "whisper_words": ["饥饿"],
+    "public_revelation": "第二卷末首次'寄生公开化'，报纸开始报道'恶魔'"
+  }
+}

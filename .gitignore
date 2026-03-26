@@ -1,0 +1,79 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv
+
+# Environment variables
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+logs/
+*.log
+
+# Generated content (optional - uncomment if you don't want to track)
+# 04_Drafts/
+# 05_Reviews/
+
+# Backups
+.backup/
+.checkpoint/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+tests/.pytest_cache/
+test_books_output*/
+
+# Test generated files
+04_Drafts/test_*.txt
+05_Reviews/test_*.json
+
+# Debug / trace dumps
+p0_*.txt
+pytest_*.txt
+trace.txt
+nul
+
+# Frontend build output
+frontend/dist/
+frontend/node_modules/
+
+# Temporary files
+*.tmp
+*.bak
+temp/
