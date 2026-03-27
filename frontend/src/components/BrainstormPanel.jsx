@@ -331,52 +331,6 @@ export function BrainstormPanel({ addToast, onNext, currentBook }) {
     }
   }
 
-  // ── Finalize: save lore + generate outline ──
-  const handleFinalize = async () => {
-    setSaving(true)
-    // 1. Save lore to book metadata
-    try {
-      await fetch(`/api/v1/books/${currentBook.book_id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: lore.title, genre: lore.genre, tone: lore.tone,
-          protagonist: lore.protagonist, world_setting: lore.worldSetting,
-          synopsis: lore.synopsis, target_words: lore.targetWords,
-        })
-      })
-    } catch (e) {
-      console.warn('Lore save failed:', e)
-    }
-    // 2. Generate outline from brainstorm context
-    try {
-      addToast?.('正在生成大纲...', 'info')
-      const res = await fetch(`/api/v1/brainstorm/${currentBook.book_id}/generate-outline`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      })
-      if (res.ok) {
-        const outline = await res.json()
-        const volCount = outline.children?.length || 0
-        const chCount = outline.children?.reduce((s, v) => s + (v.children?.length || 0), 0) || 0
-        addToast?.(`大纲已生成：${volCount} 卷，${chCount} 章`, 'success')
-        // Reload chat to show the tool message
-        const histRes = await fetch(`/api/v1/brainstorm/${currentBook.book_id}/history`)
-        if (histRes.ok) {
-          const hist = await histRes.json()
-          setMessages(hist.messages || [])
-        }
-      } else {
-        addToast?.('大纲生成失败', 'error')
-      }
-    } catch (e) {
-      console.warn('Outline generation failed:', e)
-      addToast?.('大纲生成失败', 'error')
-    }
-    setSaving(false)
-    onNext?.()
-  }
-
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(400px, 1fr) 400px', gap: 24, height: '100%', flex: 1, minHeight: 0 }}>
       
@@ -494,69 +448,6 @@ export function BrainstormPanel({ addToast, onNext, currentBook }) {
             )}
           </div>
         </div>
-
-        {/* Finalize Button */}
-        <button 
-          className="btn btn-primary btn-lg" 
-          style={{ width: '100%', height: 48, fontSize: 14 }}
-          onClick={handleFinalize}
-          disabled={saving}
-        >
-          {saving ? <Sparkles size={16}/> : <Check size={16}/> }
-          {saving ? t('brainstorm.saving') : t('brainstorm.finalize')}
-        </button>
-
-        {/* Batch Generation Button */}
-        <button
-          className="btn btn-lg"
-          style={{ width: '100%', height: 48, fontSize: 14, marginTop: 8,
-            background: 'linear-gradient(135deg, var(--accent), var(--success))',
-            color: '#fff', border: 'none', fontWeight: 600 }}
-          onClick={async () => {
-            if (!currentBook) return
-            addToast?.('🚀 开始批量生成正文...', 'info')
-            try {
-              const resp = await fetch(`/api/v1/writing/${currentBook.book_id}/generate-batch`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ regenerate: false })
-              })
-              const reader = resp.body.getReader()
-              const decoder = new TextDecoder()
-              let buf = ''
-              while (true) {
-                const { done, value } = await reader.read()
-                if (done) break
-                buf += decoder.decode(value, { stream: true })
-                const lines = buf.split('\n\n')
-                buf = lines.pop()
-                for (const line of lines) {
-                  if (!line.startsWith('data: ')) continue
-                  try {
-                    const evt = JSON.parse(line.slice(6))
-                    if (evt.type === 'chapter_done') {
-                      addToast?.(`✍️ ${evt.label} — ${evt.word_count}字 (${evt.current}/${evt.total})`, 'success')
-                    } else if (evt.type === 'complete') {
-                      addToast?.(`🎉 全部完成！共 ${evt.total_words} 字`, 'success')
-                      // Reload chat history to show tool messages
-                      const histRes = await fetch(`/api/v1/brainstorm/${currentBook.book_id}/history`)
-                      if (histRes.ok) {
-                        const hist = await histRes.json()
-                        setMessages(hist.messages || [])
-                      }
-                    } else if (evt.type === 'error') {
-                      addToast?.(`❌ ${evt.chapter_id} 生成失败`, 'error')
-                    }
-                  } catch {}
-                }
-              }
-            } catch (e) {
-              addToast?.('批量生成失败: ' + e.message, 'error')
-            }
-          }}
-        >
-          <Sparkles size={16}/> 开始生成正文
-        </button>
       </div>
 
     </div>
