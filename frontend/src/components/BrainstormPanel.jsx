@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Send, Upload, Sparkles, BookOpen, User, Globe, FileText, Check, Settings, MessageSquare, Trash2, RotateCcw, Wrench, ChevronRight, ChevronDown } from 'lucide-react'
 import { useI18n } from '../i18n/index.jsx'
 import { TaskBoardPanel } from './TaskBoardPanel.jsx'
-import { GroupChatPanel } from './GroupChatPanel.jsx'
+import { AuthorChatPanel } from './AuthorChatPanel.jsx'
 
 // Recursive JSON viewer for lore files
 function LoreJsonViewer({ data, depth = 0 }) {
@@ -408,7 +408,7 @@ export function BrainstormPanel({ addToast, onNext, currentBook }) {
         {/* Tab Content */}
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
           {leftTab === 'chat'
-            ? <GroupChatPanel currentBook={currentBook} addToast={addToast} />
+            ? <AuthorChatPanel currentBook={currentBook} addToast={addToast} />
             : <TaskBoardPanel bookId={currentBook?.book_id} />
           }
         </div>

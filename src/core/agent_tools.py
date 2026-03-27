@@ -131,6 +131,59 @@ def submit_for_review(book_id: str, task_id: str, draft_text: str) -> str:
     except Exception as e:
         return f"Error submitting for review: {e}"
 
+def save_outline(book_id: str, outline_json: str) -> str:
+    """Save/update the book's outline."""
+    book_dir = _get_book_dir(book_id)
+    outline_dir = book_dir / "02_Outlines"
+    outline_dir.mkdir(parents=True, exist_ok=True)
+    outline_file = outline_dir / "outline.json"
+
+    try:
+        data = json.loads(outline_json)
+    except json.JSONDecodeError as e:
+        return f"Error: Invalid JSON — {e}"
+
+    try:
+        with open(outline_file, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        return f"Outline saved ({len(outline_json)} chars)"
+    except Exception as e:
+        return f"Error saving outline: {e}"
+
+def save_lore(book_id: str, category: str, content_json: str) -> str:
+    """Save/update lore data by category (characters or world_setting)."""
+    book_dir = _get_book_dir(book_id)
+    lore_dir = book_dir / "lore"
+    lore_dir.mkdir(parents=True, exist_ok=True)
+
+    # Also update the legacy path used by search_lore
+    legacy_dir = book_dir / "01_Global_Settings"
+    legacy_dir.mkdir(parents=True, exist_ok=True)
+
+    file_map = {
+        "characters": ("characters.json", "characters.json"),
+        "world_setting": ("world_setting.json", "world_lore.json"),
+    }
+
+    if category not in file_map:
+        return f"Error: Unknown category '{category}'. Use 'characters' or 'world_setting'."
+
+    try:
+        data = json.loads(content_json)
+    except json.JSONDecodeError as e:
+        return f"Error: Invalid JSON — {e}"
+
+    lore_name, legacy_name = file_map[category]
+    try:
+        # Write to both lore/ and 01_Global_Settings/ for compatibility
+        with open(lore_dir / lore_name, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        with open(legacy_dir / legacy_name, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        return f"Lore '{category}' saved successfully."
+    except Exception as e:
+        return f"Error saving lore: {e}"
+
 # ── Skill Registry ──
 # Each skill has a short description (shown to the agent) and a file path (loaded on demand)
 
@@ -290,6 +343,45 @@ AUTHOR_TOOLS = [
                     }
                 },
                 "required": ["task_id", "draft_text"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "save_outline",
+            "description": "Save or update the book's outline. Pass the full outline as a JSON string.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "outline_json": {
+                        "type": "string",
+                        "description": "The complete outline data as a JSON string."
+                    }
+                },
+                "required": ["outline_json"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "save_lore",
+            "description": "Save or update lore data (characters or world settings). Category must be 'characters' or 'world_setting'.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "category": {
+                        "type": "string",
+                        "enum": ["characters", "world_setting"],
+                        "description": "The lore category to update."
+                    },
+                    "content_json": {
+                        "type": "string",
+                        "description": "The lore data as a JSON string."
+                    }
+                },
+                "required": ["category", "content_json"]
             }
         }
     }

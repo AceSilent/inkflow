@@ -19,7 +19,7 @@ from fastapi.responses import FileResponse, JSONResponse
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.api.routes import books, brainstorm, generate, review, characters, settings, inbox, writing, groupchat
+from src.api.routes import books, brainstorm, generate, review, characters, settings, inbox, writing, groupchat, author_chat
 
 # ── Create App ──
 app = FastAPI(
@@ -47,6 +47,7 @@ app.include_router(settings.router, prefix="/api/v1")
 app.include_router(inbox.router)
 app.include_router(writing.router, prefix="/api/v1")
 app.include_router(groupchat.router, prefix="/api/v1")
+app.include_router(author_chat.router, prefix="/api/v1")
 
 # ── Emotion endpoint (lightweight, no separate file needed) ──
 @app.get("/api/v1/emotion/{book_id}/curve")

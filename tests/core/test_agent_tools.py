@@ -3,7 +3,10 @@ import os
 import json
 import shutil
 from pathlib import Path
-from src.core.agent_tools import read_file, search_lore, read_outline, load_skill, save_draft, submit_for_review
+from src.core.agent_tools import (
+    read_file, search_lore, read_outline, load_skill,
+    save_draft, submit_for_review, save_outline, save_lore
+)
 
 TEST_DATA_DIR = "test_books_output_agent_tools"
 
@@ -99,3 +102,33 @@ def test_submit_for_review():
     updated = get_task(book_id, task.id)
     assert updated.status.value == "editorial_review"
     assert updated.payload["draft_text"] == "这是完成的草稿。"
+
+def test_save_outline():
+    book_id = "test_book"
+    outline_data = json.dumps({"volumes": [{"title": "卷一", "chapters": []}]})
+    
+    result = save_outline(book_id, outline_data)
+    assert "saved" in result.lower()
+    
+    # Read back and verify
+    content = read_outline(book_id)
+    assert "卷一" in content
+    
+    # Invalid JSON should fail
+    result_bad = save_outline(book_id, "not valid json{")
+    assert "Error" in result_bad
+
+def test_save_lore():
+    book_id = "test_book"
+    chars = json.dumps({"林辰": {"age": 25, "role": "主角"}})
+    
+    result = save_lore(book_id, "characters", chars)
+    assert "saved" in result.lower()
+    
+    # Verify searchable via search_lore
+    found = search_lore(book_id, "林辰")
+    assert "主角" in found
+    
+    # Invalid category
+    result_bad = save_lore(book_id, "nonexistent", "{}")
+    assert "Error" in result_bad

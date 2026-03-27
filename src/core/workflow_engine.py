@@ -7,7 +7,7 @@ from src.core.task_manager import update_task_status
 from src.core.llm_factory import get_llm_client
 from src.core.agent_tools import (
     AUTHOR_TOOLS, read_file, search_lore, read_outline,
-    load_skill, save_draft, submit_for_review
+    load_skill, save_draft, submit_for_review, save_outline, save_lore
 )
 from src.core.groupchat_orchestrator import AGENT_SYSTEM_PROMPTS
 
@@ -30,6 +30,10 @@ def _dispatch_tool(name: str, book_id: str, task_id: str, args: dict) -> tuple[s
         return load_skill(args.get("skill_name", "")), False
     elif name == "save_draft":
         return save_draft(book_id, args.get("file_path", ""), args.get("content", "")), False
+    elif name == "save_outline":
+        return save_outline(book_id, args.get("outline_json", "")), False
+    elif name == "save_lore":
+        return save_lore(book_id, args.get("category", ""), args.get("content_json", "")), False
     elif name == "submit_for_review":
         result = submit_for_review(book_id, task_id, args.get("draft_text", ""))
         return result, True  # Terminal — agent is done
