@@ -172,14 +172,17 @@ async def generate_scene_draft(
 
     llm = get_llm_client("author")
 
-    # ── Iceberg Engine via author_iceberg_v3.j2 ──
-    logger.info(f"Iceberg (j2) for {scene.scene_id}...")
+    # ── Iceberg Writing Skill (replaces legacy author_iceberg_v3.j2) ──
+    logger.info(f"Iceberg skill for {scene.scene_id}...")
     try:
-        iceberg_prompt = render_prompt("author_iceberg_v3",
-            book_tone=lore.get("synopsis", "未知基调"),
-            current_scene_characters=scene_characters,
-            scene_outline_text=scene_outline_text,
-            example_samples="",
+        from src.core.agent_tools import load_skill
+        iceberg_skill_text = load_skill("iceberg_writing")
+        if iceberg_skill_text.startswith("Error"):
+            raise FileNotFoundError(iceberg_skill_text)
+        iceberg_prompt = (
+            f"你是「冰山引擎」——小说创作的深层分析系统。\n"
+            f"请基于以下写作方法论分析本场景的潜台词、感官锚点、情绪暗流。控制在300字以内。\n\n"
+            f"{iceberg_skill_text}"
         )
     except Exception:
         iceberg_prompt = (

@@ -104,6 +104,13 @@ SKILL_REGISTRY = {
             "冰山写作法：五层创作方法论，包括信息差地图、潜台词推演、白描铁律、"
             "节奏呼吸控制、AI脏词黑名单。写正文之前必须先加载此skill。"
         )
+    },
+    "lore_compliance": {
+        "file": "skill_lore_compliance.md",
+        "description": (
+            "设定忠实度约束：零添加原则、数据库即圣经、时间线一致性、人设锁定。"
+            "引用角色/地点/物品设定时加载此skill。"
+        )
     }
 }
 
@@ -190,7 +197,8 @@ AUTHOR_TOOLS = [
             "name": "load_skill",
             "description": (
                 "Load a writing skill/methodology by name. Available skills: "
-                "'iceberg_writing' (冰山写作法：信息差地图、潜台词推演、白描铁律、节奏控制、AI脏词黑名单。写正文前必须先调用！)"
+                "'iceberg_writing' (冰山写作法：写正文前必须先调用), "
+                "'lore_compliance' (设定忠实度约束：引用设定时调用)"
             ),
             "parameters": {
                 "type": "object",
