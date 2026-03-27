@@ -380,7 +380,7 @@ export function BrainstormPanel({ addToast, onNext, currentBook }) {
       
       {/* LEFT PANE: Multi-Agent Group Chat */}
       <div style={{ display: 'flex', flexDirection: 'column', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-        <TaskBoardPanel bookId={currentBook} />
+        <TaskBoardPanel bookId={currentBook?.book_id} />
       </div>
 
 
