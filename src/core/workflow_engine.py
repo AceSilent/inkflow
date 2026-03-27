@@ -5,44 +5,26 @@ from typing import Dict, Any, List
 from src.core.models import TaskRecord, TaskStatus
 from src.core.task_manager import update_task_status
 from src.core.llm_factory import get_llm_client
-from src.core.agent_tools import AUTHOR_TOOLS, read_file, search_lore, read_outline
+from src.core.agent_tools import AUTHOR_TOOLS, read_file, search_lore, read_outline, load_skill
 from src.core.groupchat_orchestrator import AGENT_SYSTEM_PROMPTS
 
 logger = logging.getLogger(__name__)
 
-_SKILL_CACHE: Dict[str, str] = {}
-
-def _load_skill(name: str) -> str:
-    """Load a writing skill prompt from prompts/ directory."""
-    if name in _SKILL_CACHE:
-        return _SKILL_CACHE[name]
-    skill_path = Path(__file__).parent.parent.parent / "prompts" / name
-    if skill_path.exists():
-        text = skill_path.read_text(encoding="utf-8")
-        _SKILL_CACHE[name] = text
-        return text
-    logger.warning(f"Skill file not found: {skill_path}")
-    return ""
-
 async def execute_drafting(task: TaskRecord) -> TaskRecord:
     """Execute the drafting phase. Author uses tools to write."""
     llm = get_llm_client()
-    
-    # Build system prompt: base identity + iceberg writing skill
-    base_prompt = AGENT_SYSTEM_PROMPTS["author"]
-    iceberg_skill = _load_skill("skill_iceberg_writing.md")
-    system_prompt = f"{base_prompt}\n\n{iceberg_skill}" if iceberg_skill else base_prompt
+    system_prompt = AGENT_SYSTEM_PROMPTS["author"]
     
     # Base user prompt tells Author what to write
     scene_id = task.payload.get("scene_id", "Unknown Scene")
-    user_prompt = f"Task: Write the draft for scene '{scene_id}'. Use tools to gather context first."
+    user_prompt = f"Task: Write the draft for scene '{scene_id}'. Use your tools to gather context and load writing skills first."
     
     messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_prompt}
     ]
     
-    max_tool_loops = 5
+    max_tool_loops = 8
     loops = 0
     final_text = ""
     
@@ -84,6 +66,8 @@ async def execute_drafting(task: TaskRecord) -> TaskRecord:
                             tool_result = search_lore(task.book_id, args.get("query", ""))
                         elif name == "read_outline":
                             tool_result = read_outline(task.book_id, args.get("volume"))
+                        elif name == "load_skill":
+                            tool_result = load_skill(args.get("skill_name", ""))
                         else:
                             tool_result = f"Error: Unknown tool {name}"
                             

@@ -92,6 +92,45 @@ def read_outline(book_id: str, volume: int = None) -> str:
     except Exception as e:
         return f"Error reading outline: {e}"
 
+# ── Skill Registry ──
+# Each skill has a short description (shown to the agent) and a file path (loaded on demand)
+
+_SKILL_DIR = Path(__file__).parent.parent.parent / "prompts"
+
+SKILL_REGISTRY = {
+    "iceberg_writing": {
+        "file": "skill_iceberg_writing.md",
+        "description": (
+            "冰山写作法：五层创作方法论，包括信息差地图、潜台词推演、白描铁律、"
+            "节奏呼吸控制、AI脏词黑名单。写正文之前必须先加载此skill。"
+        )
+    }
+}
+
+def load_skill(skill_name: str) -> str:
+    """Load a writing skill's full content by name."""
+    if skill_name not in SKILL_REGISTRY:
+        available = ", ".join(SKILL_REGISTRY.keys())
+        return f"Error: Unknown skill '{skill_name}'. Available skills: {available}"
+    
+    skill_info = SKILL_REGISTRY[skill_name]
+    skill_path = _SKILL_DIR / skill_info["file"]
+    
+    if not skill_path.exists():
+        return f"Error: Skill file not found at {skill_path}"
+    
+    try:
+        return skill_path.read_text(encoding="utf-8")
+    except Exception as e:
+        return f"Error loading skill: {e}"
+
+def list_skills() -> str:
+    """List all available skills with their descriptions."""
+    lines = []
+    for name, info in SKILL_REGISTRY.items():
+        lines.append(f"- {name}: {info['description']}")
+    return "\n".join(lines)
+
 # ── OpenAI Tool Schemas ──
 
 AUTHOR_TOOLS = [
@@ -142,6 +181,26 @@ AUTHOR_TOOLS = [
                         "description": "The volume number to read (optional). If not provided, reads the entire outline."
                     }
                 }
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "load_skill",
+            "description": (
+                "Load a writing skill/methodology by name. Available skills: "
+                "'iceberg_writing' (冰山写作法：信息差地图、潜台词推演、白描铁律、节奏控制、AI脏词黑名单。写正文前必须先调用！)"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "skill_name": {
+                        "type": "string",
+                        "description": "The skill name to load, e.g., 'iceberg_writing'."
+                    }
+                },
+                "required": ["skill_name"]
             }
         }
     }

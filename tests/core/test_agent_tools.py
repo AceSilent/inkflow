@@ -3,7 +3,7 @@ import os
 import json
 import shutil
 from pathlib import Path
-from src.core.agent_tools import read_file, search_lore, read_outline
+from src.core.agent_tools import read_file, search_lore, read_outline, load_skill
 
 TEST_DATA_DIR = "test_books_output_agent_tools"
 
@@ -56,3 +56,14 @@ def test_read_outline():
     book_id = "test_book"
     result = read_outline(book_id)
     assert "Vol 1" in result
+
+def test_load_skill():
+    # Known skill loads content 
+    result = load_skill("iceberg_writing")
+    assert "冰山写作法" in result or "信息差地图" in result
+    assert len(result) > 100  # Should be substantial content
+    
+    # Unknown skill returns error with available skills listed
+    result_bad = load_skill("nonexistent_skill")
+    assert "Error" in result_bad
+    assert "iceberg_writing" in result_bad  # Should list available skills
