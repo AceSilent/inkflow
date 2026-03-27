@@ -1,5 +1,6 @@
 import json
 import logging
+from pathlib import Path
 from typing import Dict, Any, List
 from src.core.models import TaskRecord, TaskStatus
 from src.core.task_manager import update_task_status
@@ -9,10 +10,28 @@ from src.core.groupchat_orchestrator import AGENT_SYSTEM_PROMPTS
 
 logger = logging.getLogger(__name__)
 
+_SKILL_CACHE: Dict[str, str] = {}
+
+def _load_skill(name: str) -> str:
+    """Load a writing skill prompt from prompts/ directory."""
+    if name in _SKILL_CACHE:
+        return _SKILL_CACHE[name]
+    skill_path = Path(__file__).parent.parent.parent / "prompts" / name
+    if skill_path.exists():
+        text = skill_path.read_text(encoding="utf-8")
+        _SKILL_CACHE[name] = text
+        return text
+    logger.warning(f"Skill file not found: {skill_path}")
+    return ""
+
 async def execute_drafting(task: TaskRecord) -> TaskRecord:
     """Execute the drafting phase. Author uses tools to write."""
     llm = get_llm_client()
-    system_prompt = AGENT_SYSTEM_PROMPTS["author"]
+    
+    # Build system prompt: base identity + iceberg writing skill
+    base_prompt = AGENT_SYSTEM_PROMPTS["author"]
+    iceberg_skill = _load_skill("skill_iceberg_writing.md")
+    system_prompt = f"{base_prompt}\n\n{iceberg_skill}" if iceberg_skill else base_prompt
     
     # Base user prompt tells Author what to write
     scene_id = task.payload.get("scene_id", "Unknown Scene")

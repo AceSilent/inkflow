@@ -6,8 +6,14 @@ from typing import Dict, Any, Optional, Union
 from ..core.llm_client import BaseLLMClient
 from ..utils.prompt_utils import PromptBuilder, get_prompt_manager
 from ..utils.example_library import get_example_library
-from .iceberg_engine import IcebergEngine
-from ..core.models import IcebergDraftOutput, SceneOutlineV3, CharacterMemory
+# Legacy IcebergEngine removed — writing craft is now a prompt-level skill
+# see prompts/skill_iceberg_writing.md
+try:
+    from ..core.models import IcebergDraftOutput, SceneOutlineV3, CharacterMemory
+except ImportError:
+    IcebergDraftOutput = None
+    SceneOutlineV3 = None
+    CharacterMemory = None
 from ..core.state_machine import ProjectContext
 import types
 
@@ -44,7 +50,7 @@ class AuthorAgent:
         self.prompt_manager = prompt_manager or get_prompt_manager()
         self.use_examples = use_examples
         self.example_library = get_example_library() if use_examples else None
-        self.iceberg_engine = IcebergEngine(llm_client, use_examples=use_examples) if llm_client else None
+        self.iceberg_engine = None  # Legacy engine removed; craft skill is prompt-level now
         model_name = llm_client.model_name if llm_client else "none"
         logger.info(f"Initialized Author Agent with model: {model_name}, examples: {use_examples}")
 
