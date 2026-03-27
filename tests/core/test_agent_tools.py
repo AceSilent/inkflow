@@ -3,7 +3,7 @@ import os
 import json
 import shutil
 from pathlib import Path
-from src.core.agent_tools import read_file, search_lore, read_outline, load_skill
+from src.core.agent_tools import read_file, search_lore, read_outline, load_skill, save_draft, submit_for_review
 
 TEST_DATA_DIR = "test_books_output_agent_tools"
 
@@ -67,3 +67,35 @@ def test_load_skill():
     result_bad = load_skill("nonexistent_skill")
     assert "Error" in result_bad
     assert "iceberg_writing" in result_bad  # Should list available skills
+
+def test_save_draft():
+    book_id = "test_book"
+    
+    # Save a new draft file
+    result = save_draft(book_id, "04_Drafts/test_scene.md", "这是测试草稿内容。")
+    assert "saved" in result.lower()
+    assert "04_Drafts/test_scene.md" in result
+    
+    # Verify file was written
+    content = read_file(book_id, "04_Drafts/test_scene.md")
+    assert content == "这是测试草稿内容。"
+    
+    # Path traversal must be blocked
+    result_bad = save_draft(book_id, "../../../../tmp/evil.txt", "hacked")
+    assert "Error" in result_bad or "Access denied" in result_bad
+
+def test_submit_for_review():
+    from src.core.task_manager import create_task, get_task
+    
+    book_id = "test_book"
+    task = create_task(book_id, "draft_scene", {"scene_id": "s1"})
+    assert task.status.value == "drafting"
+    
+    # Submit for review
+    result = submit_for_review(book_id, task.id, "这是完成的草稿。")
+    assert "submitted" in result.lower()
+    
+    # Verify task status changed
+    updated = get_task(book_id, task.id)
+    assert updated.status.value == "editorial_review"
+    assert updated.payload["draft_text"] == "这是完成的草稿。"

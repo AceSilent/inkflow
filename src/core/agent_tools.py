@@ -92,6 +92,45 @@ def read_outline(book_id: str, volume: int = None) -> str:
     except Exception as e:
         return f"Error reading outline: {e}"
 
+def save_draft(book_id: str, file_path: str, content: str) -> str:
+    """Save a draft to the book's drafts directory."""
+    book_dir = _get_book_dir(book_id)
+    target_path = book_dir / file_path
+
+    # Security: prevent path traversal
+    try:
+        resolved_target = target_path.resolve()
+        resolved_book = book_dir.resolve()
+        if not str(resolved_target).startswith(str(resolved_book)):
+            return "Error: Access denied to path outside book directory."
+    except Exception:
+        return "Error: Invalid path."
+
+    # Create parent directories if needed
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        with open(target_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        return f"Draft saved to {file_path} ({len(content)} chars)"
+    except Exception as e:
+        return f"Error saving draft: {e}"
+
+def submit_for_review(book_id: str, task_id: str, draft_text: str) -> str:
+    """Submit a draft for editorial review by updating the task status."""
+    from src.core.task_manager import update_task_status
+    from src.core.models import TaskStatus
+
+    try:
+        updated = update_task_status(
+            book_id, task_id,
+            TaskStatus.EDITORIAL_REVIEW,
+            payload_updates={"draft_text": draft_text}
+        )
+        return f"Task {task_id} submitted for editorial review."
+    except Exception as e:
+        return f"Error submitting for review: {e}"
+
 # ── Skill Registry ──
 # Each skill has a short description (shown to the agent) and a file path (loaded on demand)
 
@@ -209,6 +248,48 @@ AUTHOR_TOOLS = [
                     }
                 },
                 "required": ["skill_name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "save_draft",
+            "description": "Save draft text to a file in the book's directory. Call this after writing your prose.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "file_path": {
+                        "type": "string",
+                        "description": "Relative path within the book directory, e.g., '04_Drafts/ch1_s1.md'."
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "The full draft text content to save."
+                    }
+                },
+                "required": ["file_path", "content"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "submit_for_review",
+            "description": "Submit the draft for editorial review. Call this after saving the draft to advance the task to the editor.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "string",
+                        "description": "The ID of the current task being worked on."
+                    },
+                    "draft_text": {
+                        "type": "string",
+                        "description": "The full draft text to submit for review."
+                    }
+                },
+                "required": ["task_id", "draft_text"]
             }
         }
     }
