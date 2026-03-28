@@ -19,7 +19,22 @@ export function AuthorChatPanel({ currentBook, addToast }) {
     if (!bookId) return
     fetch(`/api/v1/author-chat/${bookId}/history`)
       .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data?.messages) setMessages(data.messages) })
+      .then(data => {
+        if (!data?.messages) return
+        // Restore attachment metadata from content markers
+        const restored = data.messages.map((m, i) => {
+          if (m.role === 'user' && m.content?.includes('\n\n--- 附件:')) {
+            const parts = m.content.split('\n\n--- 附件:')
+            const names = parts.slice(1).map(p => {
+              const match = p.match(/^([^\n(]+)/)
+              return match ? match[1].trim() : 'file'
+            })
+            return { ...m, hasAttachments: true, attachmentNames: names, id: m.id || i }
+          }
+          return { ...m, id: m.id || i }
+        })
+        setMessages(restored)
+      })
       .catch(() => {})
   }, [bookId])
 
