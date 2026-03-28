@@ -105,7 +105,10 @@ async def send_message(book_id: str, req: ChatRequest):
         tools_used = []
         max_loops = 10
         
+        yield _sse({"type": "status", "phase": "init"})
+        
         # ── Phase 1: Tool-calling loop (non-streaming, fast) ──
+        yield _sse({"type": "status", "phase": "tools"})
         for loop_i in range(max_loops):
             try:
                 if not hasattr(llm, "client"):
@@ -171,20 +174,27 @@ async def send_message(book_id: str, req: ChatRequest):
                 return
         
         # ── Phase 2: Final response — streaming with thinking ──
+        yield _sse({"type": "status", "phase": "streaming"})
+        
         try:
-            # Remove tools param, add thinking mode
             stream_params = {
                 "model": llm.model_name,
                 "messages": llm_messages,
                 "temperature": 0.7,
                 "stream": True,
-                "extra_body": {"enable_thinking": True}
             }
+            
+            # Try with thinking mode; some providers may not support it
+            try:
+                test_params = {**stream_params, "extra_body": {"enable_thinking": True}}
+                stream = await llm.client.chat.completions.create(**test_params)
+            except Exception:
+                logger.info("enable_thinking not supported, falling back to plain streaming")
+                stream = await llm.client.chat.completions.create(**stream_params)
             
             content_parts = []
             thinking_parts = []
             
-            stream = await llm.client.chat.completions.create(**stream_params)
             async for chunk in stream:
                 if not chunk.choices:
                     continue

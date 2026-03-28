@@ -92,7 +92,7 @@ export function AuthorChatPanel({ currentBook, addToast }) {
       hasAttachments: attachmentNames.length > 0, attachmentNames
     }])
     setLoading(true)
-    setStreamingMsg({ thinking: '', content: '', tools: [], thinkingDone: false })
+    setStreamingMsg({ thinking: '', content: '', tools: [], thinkingDone: false, phase: 'init' })
 
     try {
       const resp = await fetch(`/api/v1/author-chat/${bookId}/send`, {
@@ -120,7 +120,9 @@ export function AuthorChatPanel({ currentBook, addToast }) {
           try {
             const evt = JSON.parse(line.slice(6))
 
-            if (evt.type === 'thinking') {
+            if (evt.type === 'status') {
+              setStreamingMsg(prev => ({ ...prev, phase: evt.phase }))
+            } else if (evt.type === 'thinking') {
               finalThinking += evt.token
               setStreamingMsg(prev => ({ ...prev, thinking: prev.thinking + evt.token }))
             } else if (evt.type === 'content') {
@@ -297,9 +299,14 @@ export function AuthorChatPanel({ currentBook, addToast }) {
             ) : !streamingMsg.thinking && streamingMsg.tools.length === 0 && (
               <div style={{
                 padding: '10px 14px', borderRadius: 12, background: 'var(--bg-elevated)',
-                fontSize: 13, color: 'var(--text-muted)', borderBottomLeftRadius: 4
+                fontSize: 13, color: 'var(--text-muted)', borderBottomLeftRadius: 4,
+                display: 'flex', alignItems: 'center', gap: 6
               }}>
-                思考中<span style={{ animation: 'pulse 1.5s infinite' }}>...</span>
+                <Loader size={12} style={{ animation: 'spin 1.5s linear infinite' }} />
+                {streamingMsg.phase === 'init' && '连接中...'}
+                {streamingMsg.phase === 'tools' && '分析需求...'}
+                {streamingMsg.phase === 'streaming' && '生成回复...'}
+                {!streamingMsg.phase && '处理中...'}
               </div>
             )}
           </div>
