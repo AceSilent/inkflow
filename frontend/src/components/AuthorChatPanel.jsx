@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Send, Trash2, Wrench, Paperclip, X, FileText, ChevronDown, ChevronRight, Brain } from 'lucide-react'
+import { Send, Trash2, Wrench, Paperclip, X, FileText, ChevronDown, ChevronRight, Brain, PenTool, User, Loader } from 'lucide-react'
 
 export function AuthorChatPanel({ currentBook, addToast }) {
   const [messages, setMessages] = useState([])
@@ -184,7 +184,7 @@ export function AuthorChatPanel({ currentBook, addToast }) {
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 18 }}>✍️</span>
+          <PenTool size={18} style={{ color: 'var(--accent)' }} />
           <span style={{ fontSize: 13, fontWeight: 600 }}>作者 Agent</span>
           <span style={{ fontSize: 10, color: 'var(--text-muted)', background: 'var(--bg-elevated)', padding: '2px 6px', borderRadius: 4 }}>
             8 tools · streaming
@@ -200,10 +200,10 @@ export function AuthorChatPanel({ currentBook, addToast }) {
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
         {messages.length === 0 && !streamingMsg && (
           <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: 40, fontSize: 13, lineHeight: 2 }}>
-            <div style={{ fontSize: 32, marginBottom: 8 }}>✍️</div>
+            <PenTool size={32} style={{ marginBottom: 8, color: 'var(--accent)' }} />
             <div>直接和作者 Agent 对话</div>
             <div style={{ fontSize: 11 }}>他能查设定、写大纲、写正文、提交审核</div>
-            <div style={{ fontSize: 11, marginTop: 4 }}>📎 支持发送文件 · 🧠 支持查看思考过程</div>
+            <div style={{ fontSize: 11, marginTop: 4 }}>支持发送文件 · 支持查看思考过程</div>
           </div>
         )}
 
@@ -220,7 +220,7 @@ export function AuthorChatPanel({ currentBook, addToast }) {
         {/* Live streaming message */}
         {streamingMsg && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2 }}>✍️ 作者</div>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 3 }}><PenTool size={9} /> 作者</div>
 
             {/* Tool calls in progress */}
             {streamingMsg.tools.length > 0 && (
@@ -235,8 +235,8 @@ export function AuthorChatPanel({ currentBook, addToast }) {
                     <Wrench size={10} />
                     <span>{t.name}</span>
                     {t.status === 'running'
-                      ? <span style={{ animation: 'pulse 1.5s infinite', marginLeft: 4 }}>⏳</span>
-                      : <span style={{ color: 'var(--success)', marginLeft: 4 }}>✓</span>
+                      ? <Loader size={10} style={{ animation: 'spin 1.5s linear infinite', marginLeft: 4 }} />
+                      : <span style={{ color: 'var(--success)', marginLeft: 4 }}>done</span>
                     }
                   </div>
                 ))}
@@ -355,8 +355,8 @@ function MessageBubble({ msg, isExpanded, onToggleThinking }) {
       display: 'flex', flexDirection: 'column',
       alignItems: isUser ? 'flex-end' : 'flex-start',
     }}>
-      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2 }}>
-        {isUser ? '👤 你' : '✍️ 作者'}
+      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 3 }}>
+        {isUser ? <><User size={9} /> 你</> : <><PenTool size={9} /> 作者</>}
       </div>
 
       {/* Attachment badges */}
