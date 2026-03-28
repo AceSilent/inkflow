@@ -127,19 +127,18 @@ async def send_message(book_id: str, req: ChatRequest):
                 response = await llm.client.chat.completions.create(**params)
                 message = response.choices[0].message
                 
-                # Append assistant message to context
-                if hasattr(message, "model_dump"):
-                    msg_dict = message.model_dump(exclude_none=True)
-                else:
-                    msg_dict = {"role": "assistant", "content": message.content}
-                    if getattr(message, "tool_calls", None):
+                if getattr(message, "tool_calls", None):
+                    # Append assistant message with tool_calls to context
+                    if hasattr(message, "model_dump"):
+                        msg_dict = message.model_dump(exclude_none=True)
+                    else:
+                        msg_dict = {"role": "assistant", "content": message.content}
                         msg_dict["tool_calls"] = [
                             {"id": tc.id, "type": "function", "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
                             for tc in message.tool_calls
                         ]
-                llm_messages.append(msg_dict)
-                
-                if getattr(message, "tool_calls", None):
+                    llm_messages.append(msg_dict)
+                    
                     # Execute tools, emit events
                     for tc in message.tool_calls:
                         args = json.loads(tc.function.arguments)
@@ -160,7 +159,8 @@ async def send_message(book_id: str, req: ChatRequest):
                         })
                     continue  # Loop back for more tools
                 else:
-                    # No tool calls — ready for final streaming response
+                    # No tool calls — DON'T append this response.
+                    # Phase 2 will re-generate with streaming + thinking.
                     break
                     
             except Exception as e:
@@ -226,8 +226,11 @@ async def send_message(book_id: str, req: ChatRequest):
                 final_thinking = ""
                 yield _sse({"type": "error", "message": str(e2)})
         
-        # Save to history
-        history.append({"role": "assistant", "content": final_content})
+        # Save to history (include thinking so it survives refresh)
+        assistant_entry = {"role": "assistant", "content": final_content}
+        if final_thinking:
+            assistant_entry["thinking"] = final_thinking
+        history.append(assistant_entry)
         _save_history(book_id, history)
         
         yield _sse({"type": "done", "tools_used": tools_used, "has_thinking": bool(final_thinking)})

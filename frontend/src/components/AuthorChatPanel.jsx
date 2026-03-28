@@ -21,19 +21,28 @@ export function AuthorChatPanel({ currentBook, addToast }) {
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (!data?.messages) return
-        // Restore attachment metadata from content markers
+        const thinkingState = {}
+        // Restore attachment + thinking metadata
         const restored = data.messages.map((m, i) => {
+          const id = m.id || Date.now() + i
+          const out = { ...m, id }
           if (m.role === 'user' && m.content?.includes('\n\n--- 附件:')) {
             const parts = m.content.split('\n\n--- 附件:')
             const names = parts.slice(1).map(p => {
               const match = p.match(/^([^\n(]+)/)
               return match ? match[1].trim() : 'file'
             })
-            return { ...m, hasAttachments: true, attachmentNames: names, id: m.id || i }
+            out.hasAttachments = true
+            out.attachmentNames = names
           }
-          return { ...m, id: m.id || i }
+          // Restore thinking from backend
+          if (m.thinking) {
+            thinkingState[id] = false  // collapsed by default
+          }
+          return out
         })
         setMessages(restored)
+        setExpandedThinking(prev => ({ ...prev, ...thinkingState }))
       })
       .catch(() => {})
   }, [bookId])
