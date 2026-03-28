@@ -1,9 +1,10 @@
-"""Author Agent 1v1 Chat API — direct conversation with tool-calling Author."""
+"""Author Agent 1v1 Chat API — streaming with thinking mode."""
 import json
 import logging
 from pathlib import Path
 from typing import Optional
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from src.core.llm_factory import get_llm_client
@@ -35,11 +36,10 @@ def _load_history(book_id: str) -> list:
 
 def _save_history(book_id: str, messages: list):
     p = _history_path(book_id)
-    # Keep only last 50 messages to avoid unbounded growth
     trimmed = messages[-50:]
     p.write_text(json.dumps(trimmed, ensure_ascii=False, indent=2), encoding="utf-8")
 
-# ── Tool dispatch (reuse same logic as workflow_engine) ──
+# ── Tool dispatch ──
 
 def _dispatch_tool(name: str, book_id: str, args: dict) -> str:
     if name == "read_file":
@@ -61,110 +61,182 @@ def _dispatch_tool(name: str, book_id: str, args: dict) -> str:
     else:
         return f"Error: Unknown tool {name}"
 
+def _sse(data: dict) -> str:
+    return f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
+
 # ── API Models ──
 
 class ChatRequest(BaseModel):
     message: str
 
-class ChatResponse(BaseModel):
-    reply: str
-    tool_calls: list = []  # List of tool names called during this turn
-
 # ── Endpoints ──
 
 @router.get("/{book_id}/history")
 async def get_history(book_id: str):
-    """Get the chat history for display."""
     history = _load_history(book_id)
-    # Filter to only user/assistant messages (not system/tool)
     display = [m for m in history if m.get("role") in ("user", "assistant")]
     return {"messages": display}
 
 @router.delete("/{book_id}/history")
 async def clear_history(book_id: str):
-    """Clear the chat history."""
     _save_history(book_id, [])
     return {"status": "ok"}
 
 @router.post("/{book_id}/send")
 async def send_message(book_id: str, req: ChatRequest):
-    """Send a message to the Author Agent and get a response."""
-    llm = get_llm_client()
+    """Send message to Author Agent. Returns SSE stream with thinking + content."""
     
-    system_prompt = (
-        AGENT_SYSTEM_PROMPTS["author"] + "\n\n"
-        "你正在与人类用户直接对话。用户可能给你下达写作任务、要求修改大纲、"
-        "查询设定、或讨论创作方向。你可以使用所有工具来完成任务。\n"
-        "回复时使用中文。完成写入操作后告诉用户你做了什么。"
-    )
-    
-    # Load existing history
-    history = _load_history(book_id)
-    
-    # Add user message
-    history.append({"role": "user", "content": req.message})
-    
-    # Build messages for LLM (system + recent history)
-    messages = [{"role": "system", "content": system_prompt}] + history[-20:]
-    
-    max_loops = 10
-    tools_used = []
-    final_reply = ""
-    
-    for _ in range(max_loops):
-        try:
-            if not hasattr(llm, "client"):
-                final_reply = await llm.generate_with_fallback(system_prompt, req.message)
-                break
-            
-            params = {
-                "model": llm.model_name,
-                "messages": messages,
-                "temperature": 0.7,
-                "tools": AUTHOR_TOOLS,
-                "tool_choice": "auto"
-            }
-            response = await llm.client.chat.completions.create(**params)
-            message = response.choices[0].message
-            
-            # Append assistant message
-            if hasattr(message, "model_dump"):
-                msg_dict = message.model_dump(exclude_none=True)
-            else:
-                msg_dict = {"role": "assistant", "content": message.content}
-                if getattr(message, "tool_calls", None):
-                    msg_dict["tool_calls"] = [
-                        {"id": tc.id, "type": "function", "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
-                        for tc in message.tool_calls
-                    ]
-            messages.append(msg_dict)
-            
-            if getattr(message, "tool_calls", None):
-                for tc in message.tool_calls:
-                    args = json.loads(tc.function.arguments)
-                    result = _dispatch_tool(tc.function.name, book_id, args)
-                    tools_used.append(tc.function.name)
-                    messages.append({
-                        "role": "tool",
-                        "tool_call_id": tc.id,
-                        "name": tc.function.name,
-                        "content": str(result)
-                    })
-                continue
-            else:
-                final_reply = message.content or ""
-                break
+    async def generate():
+        llm = get_llm_client()
+        
+        system_prompt = (
+            AGENT_SYSTEM_PROMPTS["author"] + "\n\n"
+            "你正在与人类用户直接对话。用户可能给你下达写作任务、要求修改大纲、"
+            "查询设定、或讨论创作方向。你可以使用所有工具来完成任务。\n"
+            "回复时使用中文。完成写入操作后告诉用户你做了什么。"
+        )
+        
+        history = _load_history(book_id)
+        history.append({"role": "user", "content": req.message})
+        
+        # Build LLM messages
+        llm_messages = [{"role": "system", "content": system_prompt}] + history[-20:]
+        
+        tools_used = []
+        max_loops = 10
+        
+        # ── Phase 1: Tool-calling loop (non-streaming, fast) ──
+        for loop_i in range(max_loops):
+            try:
+                if not hasattr(llm, "client"):
+                    # Fallback: no streaming support
+                    reply = await llm.generate_with_fallback(system_prompt, req.message)
+                    yield _sse({"type": "content", "token": reply})
+                    yield _sse({"type": "done"})
+                    history.append({"role": "assistant", "content": reply})
+                    _save_history(book_id, history)
+                    return
                 
+                params = {
+                    "model": llm.model_name,
+                    "messages": llm_messages,
+                    "temperature": 0.7,
+                    "tools": AUTHOR_TOOLS,
+                    "tool_choice": "auto"
+                }
+                response = await llm.client.chat.completions.create(**params)
+                message = response.choices[0].message
+                
+                # Append assistant message to context
+                if hasattr(message, "model_dump"):
+                    msg_dict = message.model_dump(exclude_none=True)
+                else:
+                    msg_dict = {"role": "assistant", "content": message.content}
+                    if getattr(message, "tool_calls", None):
+                        msg_dict["tool_calls"] = [
+                            {"id": tc.id, "type": "function", "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
+                            for tc in message.tool_calls
+                        ]
+                llm_messages.append(msg_dict)
+                
+                if getattr(message, "tool_calls", None):
+                    # Execute tools, emit events
+                    for tc in message.tool_calls:
+                        args = json.loads(tc.function.arguments)
+                        name = tc.function.name
+                        tools_used.append(name)
+                        
+                        yield _sse({"type": "tool_start", "name": name, "args_preview": str(args)[:200]})
+                        
+                        result = _dispatch_tool(name, book_id, args)
+                        
+                        yield _sse({"type": "tool_done", "name": name, "result_preview": str(result)[:200]})
+                        
+                        llm_messages.append({
+                            "role": "tool",
+                            "tool_call_id": tc.id,
+                            "name": name,
+                            "content": str(result)
+                        })
+                    continue  # Loop back for more tools
+                else:
+                    # No tool calls — ready for final streaming response
+                    break
+                    
+            except Exception as e:
+                logger.error(f"Tool loop error: {e}")
+                yield _sse({"type": "error", "message": str(e)})
+                history.append({"role": "assistant", "content": f"错误: {e}"})
+                _save_history(book_id, history)
+                return
+        
+        # ── Phase 2: Final response — streaming with thinking ──
+        try:
+            # Remove tools param, add thinking mode
+            stream_params = {
+                "model": llm.model_name,
+                "messages": llm_messages,
+                "temperature": 0.7,
+                "stream": True,
+                "extra_body": {"enable_thinking": True}
+            }
+            
+            content_parts = []
+            thinking_parts = []
+            
+            stream = await llm.client.chat.completions.create(**stream_params)
+            async for chunk in stream:
+                if not chunk.choices:
+                    continue
+                delta = chunk.choices[0].delta
+                
+                # Thinking tokens (reasoning_content from DeepSeek)
+                reasoning = getattr(delta, 'reasoning_content', None)
+                if reasoning:
+                    thinking_parts.append(reasoning)
+                    yield _sse({"type": "thinking", "token": reasoning})
+                
+                # Content tokens
+                if delta.content:
+                    content_parts.append(delta.content)
+                    yield _sse({"type": "content", "token": delta.content})
+            
+            final_content = "".join(content_parts)
+            final_thinking = "".join(thinking_parts)
+            
+            if not final_content:
+                final_content = "(Author Agent 没有生成回复)"
+                yield _sse({"type": "content", "token": final_content})
+            
         except Exception as e:
-            logger.error(f"Author chat error: {e}")
-            final_reply = f"抱歉，处理你的请求时出错了：{e}"
-            break
+            logger.warning(f"Streaming with thinking failed, falling back: {e}")
+            # Fallback: use the non-streaming response from the last loop iteration
+            try:
+                fallback_params = {
+                    "model": llm.model_name,
+                    "messages": llm_messages,
+                    "temperature": 0.7,
+                }
+                fallback_resp = await llm.client.chat.completions.create(**fallback_params)
+                final_content = fallback_resp.choices[0].message.content or ""
+                final_thinking = ""
+                yield _sse({"type": "content", "token": final_content})
+            except Exception as e2:
+                final_content = f"错误: {e2}"
+                final_thinking = ""
+                yield _sse({"type": "error", "message": str(e2)})
+        
+        # Save to history
+        history.append({"role": "assistant", "content": final_content})
+        _save_history(book_id, history)
+        
+        yield _sse({"type": "done", "tools_used": tools_used, "has_thinking": bool(final_thinking)})
     
-    if not final_reply:
-        final_reply = "（Author Agent 没有生成回复）"
-    
-    # Save to history (only user + assistant, not tool messages)
-    history.append({"role": "assistant", "content": final_reply})
-    _save_history(book_id, history)
-    
-    return ChatResponse(reply=final_reply, tool_calls=tools_used)
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        }
+    )
