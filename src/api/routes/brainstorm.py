@@ -171,7 +171,7 @@ async def brainstorm_chat(req: BrainstormChatRequest):
         labels = [key_labels.get(k, k) for k in lore_keys]
         all_msgs.append({
             "role": "tool",
-            "content": f"📝 已提取设定：{'、'.join(labels)}",
+            "content": f"已提取设定：{'、'.join(labels)}",
             "tool_type": "lore_extraction",
             "tool_data": result.extracted_lore,
         })
@@ -312,7 +312,7 @@ async def generate_outline(book_id: str):
     # Append tool message
     append_messages(book_id, [{
         "role": "tool",
-        "content": f"📋 已生成大纲：{vol_count} 卷，共 {ch_count} 章",
+        "content": f"已生成大纲：{vol_count} 卷，共 {ch_count} 章",
         "tool_type": "outline_generation",
         "tool_data": {"volumes": vol_count, "chapters": ch_count},
     }])

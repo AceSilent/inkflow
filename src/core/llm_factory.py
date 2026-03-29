@@ -37,8 +37,11 @@ def get_llm_client(role: str = "author") -> OpenAILLMClient:
         api_key = provider.get("apiKey", "")
         base_url = provider.get("baseUrl", "")
         
-    return OpenAILLMClient(
+    client = OpenAILLMClient(
         model_name=model_name,
         api_key=api_key,
         base_url=base_url
     )
+    # Attach provider metadata for thinking/tool awareness
+    client._provider_id = provider_id
+    return client

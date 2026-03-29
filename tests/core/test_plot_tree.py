@@ -164,5 +164,5 @@ def test_get_summary():
     summary = tree.get_summary()
     assert "第一卷" in summary
     assert "重生" in summary
-    assert "✅" in summary  # confirmed icon
-    assert "🔍" in summary  # exploring icon
+    assert "[OK]" in summary  # confirmed icon
+    assert "[?]" in summary  # exploring icon

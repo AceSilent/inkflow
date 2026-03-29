@@ -399,10 +399,10 @@ SKILL_REGISTRY = {
 TERMINAL_TOOLS = {"present_options", "request_guidance", "submit_for_review"}
 
 CATEGORY_LABELS = {
-    "writing": "📂 写作技法 (writing)",
-    "plotting": "📂 剧情构建 (plotting)",
-    "worldbuilding": "📂 世界观与角色 (worldbuilding)",
-    "planning": "📂 规划 (planning)",
+    "writing": "[Writing] 写作技法",
+    "plotting": "[Plotting] 剧情构建",
+    "worldbuilding": "[World] 世界观与角色",
+    "planning": "[Planning] 规划",
 }
 
 

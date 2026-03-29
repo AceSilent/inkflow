@@ -105,11 +105,11 @@ def append_context_messages(book_id: str, messages: List[Dict[str, Any]], channe
 def build_llm_context(book_id: str, channel_id: str = "group") -> str:
     """Build the context string for LLM consumption with clear speaker attribution."""
     ROLE_LABELS = {
-        "human": "👤人类(用户)",
-        "proposer": "💡提案策划",
-        "devil": "😈魔鬼代言人",
-        "author": "✍️作者",
-        "editor": "👑总编辑",
+        "human": "[Human] 人类(用户)",
+        "proposer": "[Proposer] 提案策划",
+        "devil": "[Devil] 魔鬼代言人",
+        "author": "[Author] 作者",
+        "editor": "[Editor] 编辑",
     }
     ctx = load_context(book_id, channel_id)
     parts = []

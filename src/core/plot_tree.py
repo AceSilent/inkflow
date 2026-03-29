@@ -126,11 +126,11 @@ class PlotTree:
                 return
             prefix = "  " * depth
             state_icons = {
-                "confirmed": "✅",
-                "exploring": "🔍",
-                "candidate": "🤔",
-                "pruned": "✂️",
-                "exported": "📤",
+                "confirmed": "[OK]",
+                "exploring": "[?]",
+                "candidate": "[~]",
+                "pruned": "[X]",
+                "exported": "[->]",
             }
             icon = state_icons.get(node.state, "?")
             lines.append(f"{prefix}{icon} [{node.type}] {node.title}")

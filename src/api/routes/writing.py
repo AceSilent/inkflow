@@ -75,7 +75,7 @@ async def generate_chapter(book_id: str, chapter_id: str, req: GenerateChapterRe
 
     append_messages(book_id, [{
         "role": "tool",
-        "content": f"✍️ 已生成「{result.title}」— {result.total_word_count}字 · {scene_count}场景 · 读者均分{avg_score}/10",
+        "content": f"已生成「{result.title}」-- {result.total_word_count}字 / {scene_count}场景 / 读者均分{avg_score}/10",
         "tool_type": "chapter_generation",
         "tool_data": {
             "chapter_id": chapter_id,

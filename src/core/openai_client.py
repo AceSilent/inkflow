@@ -173,6 +173,116 @@ class OpenAILLMClient(BaseLLMClient):
                 raise RateLimitError(f"API rate limit exceeded: {e}")
             raise LLMError(f"OpenAI API streaming call failed: {e}")
 
+    async def generate_with_tools_stream(
+        self,
+        messages: list,
+        tools: list = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        enable_thinking: bool = False,
+        **kwargs
+    ):
+        """
+        Streaming agent turn with tools + thinking mode.
+        Accepts full message history (system + user + assistant + tool messages).
+
+        Yields dicts with keys:
+          {"type": "thinking", "token": str}
+          {"type": "content", "token": str}
+          {"type": "tool_call_delta", "index": int, "id": str, "name": str, "arguments": str}
+          {"type": "finish", "finish_reason": str, "tool_calls": list}
+
+        The caller accumulates tool_call_delta events into complete tool_call
+        objects, On "finish" with tool_calls, dispatch them, append
+        messages, and loop back for another iteration.
+        """
+        params = {
+            "model": self.model_name,
+            "messages": messages,
+            "temperature": temperature or self.default_temperature,
+            "stream": True,
+        }
+
+        if max_tokens or self.default_max_tokens:
+            params["max_tokens"] = max_tokens or self.default_max_tokens
+
+        if tools:
+            params["tools"] = tools
+            params["tool_choice"] = "auto"
+
+        if enable_thinking:
+            params["extra_body"] = {"enable_thinking": True}
+
+        params.update(kwargs)
+
+        # Try streaming with thinking; fallback if provider doesn't support it
+        try:
+            stream = await self.client.chat.completions.create(**params)
+        except Exception as e:
+            if enable_thinking:
+                logger.info(f"enable_thinking not supported or streaming+tools failed ({e}), retrying without")
+                params.pop("extra_body", None)
+                stream = await self.client.chat.completions.create(**params)
+            else:
+                raise
+
+        tool_calls_accum: Dict[int, dict] = {}  # keyed by index
+
+        try:
+            async for chunk in stream:
+                if not chunk.choices:
+                    continue
+                delta = chunk.choices[0].delta
+                choice = chunk.choices[0]
+
+                # Thinking tokens (reasoning_content from DashScope/DeepSeek)
+                reasoning = getattr(delta, 'reasoning_content', None)
+                if reasoning:
+                    yield {"type": "thinking", "token": reasoning}
+
+                # Content tokens
+                if delta.content:
+                    yield {"type": "content", "token": delta.content}
+
+                # Tool call deltas — accumulate by index
+                if delta.tool_calls:
+                    for tc_delta in delta.tool_calls:
+                        idx = tc_delta.index
+                        if idx not in tool_calls_accum:
+                            tool_calls_accum[idx] = {"id": "", "name": "", "arguments": ""}
+                        if tc_delta.id:
+                            tool_calls_accum[idx]["id"] += tc_delta.id
+                        if hasattr(tc_delta, 'function') and tc_delta.function:
+                            if tc_delta.function.name:
+                                tool_calls_accum[idx]["name"] += tc_delta.function.name
+                            if tc_delta.function.arguments:
+                                tool_calls_accum[idx]["arguments"] += tc_delta.function.arguments
+
+                # Finish reason
+                if choice.finish_reason:
+                    final_tool_calls = []
+                    for idx in sorted(tool_calls_accum.keys()):
+                        tc = tool_calls_accum[idx]
+                        final_tool_calls.append({
+                            "id": tc["id"],
+                            "type": "function",
+                            "function": {
+                                "name": tc["name"],
+                                "arguments": tc["arguments"],
+                            }
+                        })
+                    yield {
+                        "type": "finish",
+                        "finish_reason": choice.finish_reason,
+                        "tool_calls": final_tool_calls,
+                    }
+                    return  # stream is done
+        except Exception as e:
+            error_msg = str(e)
+            if "rate_limit" in error_msg.lower():
+                raise RateLimitError(f"API rate limit exceeded: {e}")
+            raise LLMError(f"OpenAI API streaming call failed: {e}")
+
     async def generate_text_with_thinking(
         self,
         system_prompt: str,

@@ -4,152 +4,124 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-AutoNovel-Studio is an AI-powered novel generation system using a **GAN-inspired architecture** with multiple agents:
-- **Author Agent**: Generates content (Generator)
-- **Matrix Reader Agents**: Evaluate content across dimensions (Discriminator)
-- **Editor Agent**: Arbitrates decisions (Loss Function)
-- **Human Intervention**: Final gradient intervention
+AutoNovel-Studio is an AI-powered novel generation system using a **GAN-inspired multi-agent architecture**: Author (Generator) writes, Reader Matrix (Discriminator) evaluates, Editor (Loss Function) arbitrates, and Human provides final gradient intervention. The system uses **pure Python + State Machine + File System as Database** — no LangChain or black-box frameworks.
 
-The system uses **pure Python + State Machine + File System as Database** architecture, explicitly avoiding LangChain and other black-box frameworks.
+## Common Commands
 
-## Directory Structure
-
-```
-AutoNovel-Studio/
-├── 00_Config/
-│   └── book_meta.json          # Novel metadata (tone, genre, forbidden tropes)
-├── 01_Global_Settings/
-│   ├── world_lore.json         # World-building dictionary
-│   └── characters.json         # Character profiles and real-time status
-├── 02_Outlines/
-│   ├── volume_01.md            # Volume outline
-│   └── ch_01_outline.json      # Chapter detailed outline (scene divisions)
-├── 03_Story_Memory/
-│   ├── full_summaries.md       # Complete minimal summaries
-│   └── recent_chapters/        # Sliding window memory (last N chapters)
-├── 04_Drafts/
-│   ├── ch01_v1.txt             # Author drafts with version numbers
-│   └── ch01_v2.txt
-├── 05_Reviews/
-│   ├── ch01_v1_readers.json    # Raw feedback from reader matrix
-│   └── ch01_v1_editor.json     # Editor's revision guidance
-├── prompts/                    # Jinja2 prompt templates
-└── src/
-    ├── agents/                 # Agent logic
-    ├── core/                   # State machine, LLM client, Pydantic models
-    └── utils/                  # File I/O, Jinja2 rendering
+### Backend
+```bash
+pip install -r requirements.txt          # Install Python dependencies
+python main.py                           # CLI: generate chapter 1
+python main.py 5                         # CLI: generate chapter 5
+python src/api/main.py                   # FastAPI server on port 9864
 ```
 
-**Critical Rule**: **NO OVERWRITE** - All data must be persisted with version numbers. 100% traceability required.
-
-## Core Technology Stack
-
-- **State Management**: Pure Python control flow with `transitions` library for state machines
-- **Data Validation**: Pydantic for strict LLM output formatting
-- **LLM Calls**: Lightweight wrapper using native APIs or OpenAI SDK (multi-model compatible), with `instructor` or native Tool Calling for structured output
-- **Prompt Management**: Jinja2 templates - complete separation of prompts from code
-- **Concurrency**: `asyncio` - Reader Agent reviews MUST execute concurrently (respect API rate limits)
-
-## Core Data Models (Pydantic)
-
-### Reader Feedback
-Each Reader Agent must return this structure:
-- `Issue`: error_type, severity (1-5), quote, description
-- `ReaderFeedback`: reader_role, immersion_score (1-10), emotional_watermark, issues: List[Issue]
-
-### Editor Arbitration
-Editor Agent outputs:
-- `EditorRevisionPlan`: pass_status (bool), rejected_feedbacks, revision_instructions, scene_target
-
-## Agent Specifications
-
-### Author Agent
-- **Input**: book_meta + volume_outline + recent_summaries (sliding window) + ch_outline + editor_plan (if rewrite)
-- **Constraints**: 600-1000 characters per generation (per Scene). "Show, Don't Tell" principle
-- **Recommended Models**: DeepSeek-V3 / Kimi / 智谱 (good web novel style)
-
-### Lore Keeper Reader
-- **Input**: characters.json + world_lore.json + Draft
-- **Role**: Purely rational. Only compares against JSON settings. Finds names wrong, dead characters resurrecting, power level inconsistencies
-
-### Pacing Junkie Reader
-- **Input**: Previous 2 chapters full text + Chapters 3-10 summaries + Draft + book_meta.tone
-- **Role**: Maintains emotional experience using emotional_watermark. Reports severity: 5 fatal errors for "3 consecutive chapters of frustration", "pacing drag", "golden three chapters without hook"
-
-### Anti-Trope Scanner
-- **Input**: book_meta.forbidden_elements + Draft
-- **Role**: Mechanical scan + experiential warning. Immediate report on forbidden vocabulary or tropes
-
-### Editor Agent
-- **Input**: book_meta + all reader feedback + ch_outline + Draft
-- **Role**: Constitution guardian. Filters reader opinions conflicting with book_meta, consolidates remaining opinions
-- **Recommended Models**: Claude 3.5 Sonnet / GPT-4o (strongest logic and instruction following)
-
-## State Machine Design
-
-### States
-- **INIT**: Load metadata, character cards, detailed outline
-- **DRAFTING**: Trigger Author Agent (write one Scene at a time)
-- **REVIEWING**: Concurrently trigger three Reader Agents (async)
-- **EDITING**: Trigger Editor Agent to consolidate reviews
-- **HUMAN_INTERVENTION**: Suspend for console input (pass/modify outline/force rewrite)
-- **COMMITTING**: Merge approved draft, update Summarizer for recent summaries and character JSON
-
-### Transitions with Circuit Breaker
-- DRAFTING -> REVIEWING -> EDITING
-- If EDITING pass_status == True and scene incomplete: back to DRAFTING
-- If EDITING pass_status == True and scene complete: enter HUMAN_INTERVENTION for final review
-- If EDITING pass_status == False: retry_counter + 1, back to DRAFTING
-- **Circuit Breaker**: If current Scene retry_counter > 3, force transition to HUMAN_INTERVENTION with deadlock alert
-
-## Development Guidelines
-
-### LLM Client Abstraction
-Never hardcode `openai.ChatCompletion` in business logic. Implement base class:
-```python
-class BaseLLMClient(ABC):
-    @abstractmethod
-    async def generate_text(self, system_prompt: str, user_prompt: str, **kwargs) -> str: pass
-
-    @abstractmethod
-    async def generate_json(self, system_prompt: str, user_prompt: str, response_model: Type[BaseModel]) -> BaseModel: pass
+### Frontend
+```bash
+cd frontend
+npm install                              # Install JS dependencies
+npm run dev                              # Vite dev server on port 5173
+npm run build                            # Production build to frontend/dist
+npm run lint                             # ESLint check
 ```
 
-### Prompt as Code
-All prompts must be .j2 files. Business code only passes context:
-```python
-template = jinja_env.get_template('editor_review.j2')
-prompt = template.render(book_tags=book_meta.sub_genres, outline=current_outline, feedbacks=reader_feedbacks_json)
+### Testing
+```bash
+python run_tests.py                      # Interactive test menu
+python run_tests.py all                  # Run all tests
+python run_tests.py author               # Single test: author agent
+python run_tests.py readers              # Single test: reader matrix
+python run_tests.py editor               # Single test: editor agent
+python run_tests.py ai_tone              # Single test: AI tone scanner
+python run_tests.py system               # Single test: full pipeline
+python -m pytest tests/                  # Run pytest suite
+python -m pytest tests/unit/test_openai_client.py  # Single pytest file
 ```
 
-### Robustness with Tenacity
-Network requests and JSON parsing must use Tenacity for retry logic:
-```python
-from tenacity import retry, stop_after_attempt, wait_exponential
+The custom test runner (`run_tests.py`) uses subprocess to invoke individual `tests/test_*.py` files. The pytest suite lives under `tests/unit/`, `tests/core/`, and `tests/api/`. Tests mock LLM calls — `conftest.py` sets a dummy `OPENAI_API_KEY`.
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
-async def safe_json_generation(...): pass
+## Architecture
+
+### Two Entry Points
+
+1. **CLI** (`main.py`): `NovelGenerator` class orchestrates agents directly via `NovelStateMachine` (the older `transitions`-based state machine). Used for headless generation.
+2. **Web API** (`src/api/main.py`): FastAPI server (port 9864) with React frontend (port 5173, proxied via Vite). Uses `StateMachine` (the newer checkpoint-based state machine in `src/core/state_machine.py`). Frontend is a pure SPA — no SSR.
+
+### Dual State Machine Coexistence
+
+There are **two** state machine implementations serving different entry points:
+- `src/core/state_machine.py` — `StateMachine` + `WorkflowState` enum + `ProjectContext`. Checkpoint-based persistence (`.checkpoint/`), used by the web API workflow.
+- `src/core/workflow.py` — `NovelStateMachine` using the `transitions` library. Used by `main.py` CLI. Has states: INIT, DRAFTING, REVIEWING, EDITING, HUMAN_INTERVENTION, COMMITTING.
+
+Both share the same agent implementations and Pydantic models.
+
+### Multi-Agent Pipeline
+
+```
+DRAFTING (AuthorAgent) → REVIEWING (ReaderMatrix, concurrent asyncio)
+  → EDITING (EditorAgent) → loop or HUMAN_INTERVENTION → COMMITTING
 ```
 
-### Incremental State Updates
-Only update characters.json and recent_chapters in COMMITTING phase. Use dedicated StateUpdater Agent. Backup original files before update (e.g., to .backup/).
+**Reader agents** (all in `src/agents/readers.py`) run concurrently:
+- `LoreKeeperAgent` — consistency against characters.json / world_lore.json
+- `PacingJunkieAgent` — emotional watermark tracking
+- `AntiTropeScannerAgent` — forbidden tropes from book_meta
+- `AIToneScannerAgent` — detects AI-generated patterns
 
-## Development Order
+Each reader returns `ReaderFeedback` (immersion_score, emotional_watermark, issues). Editor returns `EditorRevisionPlan` (pass_status, revision_instructions). Circuit breaker: max 3 retries per scene, then force human intervention.
 
-1. Read full documentation
-2. **Infrastructure**: Setup project directory, install dependencies (pydantic, transitions, jinja2, tenacity, asyncio)
-3. **Define Models**: Implement Pydantic models in src/core/models.py
-4. **Implement LLM Base Class**: Complete generate_json interface with retry mechanism
-5. **Mock Testing**: Use static data to verify state machine flow, file system I/O, and version increment logic without LLM
-6. **Agent Implementation**: Write Jinja2 templates, mount real LLM APIs for single scene testing
+### Key Source Directories
+
+| Path | Purpose |
+|------|---------|
+| `src/core/llm_client.py` | `BaseLLMClient` ABC — all LLM calls go through here with tenacity retry |
+| `src/core/openai_client.py` | `OpenAILLMClient`, `InstructorLLMClient` — concrete implementations |
+| `src/core/models.py` | All Pydantic models: `ReaderFeedback`, `EditorRevisionPlan`, `SceneBeat`, `BookMeta`, etc. |
+| `src/core/book_manager.py` | `BookPathManager` — path resolution per-book, `BookManager` — CRUD |
+| `src/core/workflow_engine.py` | Web API workflow orchestration |
+| `src/core/scene_pipeline.py` | Scene-level generation pipeline |
+| `src/core/groupchat_orchestrator.py` | Multi-agent group chat system |
+| `src/agents/` | Agent implementations: `author.py`, `editor.py`, `readers.py`, `scene_readers.py`, `draft_summarizer.py`, `brainstorming.py` |
+| `src/api/routes/` | FastAPI route modules: `books.py`, `generate.py`, `review.py`, `characters.py`, `groupchat.py`, `author_chat.py`, `brainstorm.py`, `writing.py`, `inbox.py`, `settings.py` |
+| `prompts/` | Jinja2 `.j2` templates — all prompts live here, never inline in Python |
+
+### Book Data Layout
+
+Each book has its own isolated directory under `books/`:
+```
+books/{title}_{id}/
+├── 00_Config/           # book_meta.json, book_state.json
+├── 01_Global_Settings/  # world_lore.json, characters.json
+├── 02_Outlines/         # volume_*.md, chapter_*_outline.json
+├── 03_Story_Memory/     # full_summaries.md, recent_chapters/
+├── 04_Drafts/ch*/       # scene_*_v{N}.txt (versioned, never overwritten)
+├── 05_Reviews/ch*/      # scene_*_v{N}_readers.json, *_editor.json
+└── .backup/             # backups before state updates
+```
+
+### Frontend
+
+React 19 + Vite 8 in `frontend/`. Components in `frontend/src/components/` — each major panel is a file: `AuthorChatPanel.jsx`, `GroupChatPanel.jsx`, `BrainstormPanel.jsx`, `ChapterEditor.jsx`, `CharactersPanel.jsx`, etc. Vite proxies `/api` to `localhost:9864`. Icons: Lucide React only (no emoji in UI code).
+
+## Critical Rules
+
+- **NO OVERWRITE**: All data persisted with version numbers (`_v1`, `_v2`, ...). 100% traceability.
+- **Prompts as .j2 files**: Never hardcode prompts in Python. Always use Jinja2 templates from `prompts/`.
+- **LLM calls via BaseLLMClient**: Never use `openai.ChatCompletion` directly in business logic. Use the abstract interface with retry.
+- **Reader concurrency**: Reader agents MUST run concurrently via `asyncio.gather`, respecting API rate limits.
+- **File operations**: Use `FileManager` from `src/utils/file_utils.py` for all reads/writes — it handles versioning and encoding.
+
+## Configuration
+
+Environment variables in `.env`:
+- `LLM_PROVIDER` — openai, deepseek, kimi
+- `OPENAI_API_KEY`, `OPENAI_BASE_URL` — API credentials
+- `AUTHOR_MODEL`, `EDITOR_MODEL`, `READER_MODEL` — model names per role
+- Separate clients are instantiated per role (author/editor/reader) to use different models
 
 ## Language Context
 
-This project's documentation is in Chinese. When working with this codebase, understand that:
-- "小说" = Novel
-- "大纲" = Outline
-- "草稿" = Draft
-- "考据党" = Lore Keeper (fact-checker)
-- "毒点" = Forbidden elements/tropes that readers dislike
-- "爽文" = Power fantasy/gratification novels
-- "情绪水位" = Emotional watermark/state
+Documentation and prompts are in Chinese. Key terms:
+- 小说 = Novel, 大纲 = Outline, 草稿 = Draft
+- 考据党 = Lore Keeper, 毒点 = Forbidden tropes, 爽文 = Power fantasy
+- 情绪水位 = Emotional watermark/state

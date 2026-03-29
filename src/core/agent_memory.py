@@ -211,9 +211,9 @@ def build_memory_context(book_id: str) -> str:
     if "anti_patterns" in core:
         antis = core["anti_patterns"]
         if isinstance(antis, list):
-            anti_text = "\n".join(f"- ❌ {a}" for a in antis[:5])
+            anti_text = "\n".join(f"- [X] {a}" for a in antis[:5])
         elif isinstance(antis, dict):
-            anti_text = "\n".join(f"- ❌ {k}: {v}" for k, v in list(antis.items())[:5])
+            anti_text = "\n".join(f"- [X] {k}: {v}" for k, v in list(antis.items())[:5])
         else:
             anti_text = str(antis)[:300]
         parts.append(f"[核心记忆·反模式]\n{anti_text}")

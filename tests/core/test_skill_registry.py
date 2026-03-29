@@ -13,10 +13,10 @@ def test_skill_registry_has_categories():
 
 def test_list_skills_grouped():
     output = list_skills()
-    assert "写作技法 (writing)" in output
-    assert "剧情构建 (plotting)" in output
-    assert "世界观与角色 (worldbuilding)" in output
-    assert "规划 (planning)" in output
+    assert "[Writing]" in output
+    assert "[Plotting]" in output
+    assert "[World]" in output
+    assert "[Planning]" in output
 
 
 def test_list_skills_contains_all():
