@@ -6,7 +6,7 @@ export function AuthorChatPanel({ currentBook, addToast }) {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [attachments, setAttachments] = useState([])
-  const [streamingMsg, setStreamingMsg] = useState(null) // {thinking, content, tools, thinkingDone}
+  const [streamingMsg, setStreamingMsg] = useState(null) // {thinking, segments[], thinkingDone, phase}
   const [expandedThinking, setExpandedThinking] = useState({})
   const chatEndRef = useRef(null)
   const inputRef = useRef(null)
@@ -22,7 +22,6 @@ export function AuthorChatPanel({ currentBook, addToast }) {
       .then(data => {
         if (!data?.messages) return
         const thinkingState = {}
-        // Restore attachment + thinking metadata
         const restored = data.messages.map((m, i) => {
           const id = m.id || Date.now() + i
           const out = { ...m, id }
@@ -35,9 +34,21 @@ export function AuthorChatPanel({ currentBook, addToast }) {
             out.hasAttachments = true
             out.attachmentNames = names
           }
-          // Restore thinking from backend
           if (m.thinking) {
-            thinkingState[id] = false  // collapsed by default
+            thinkingState[id] = false
+          }
+          // Convert legacy format to segments if needed
+          if (m.role === 'assistant' && !m.segments) {
+            out.segments = []
+            if (m.tool_calls?.length > 0) {
+              m.tool_calls.forEach(t => {
+                const toolName = typeof t === 'string' ? t : t.name
+                out.segments.push({ type: 'tool_call', name: toolName, status: 'done' })
+              })
+            }
+            if (m.content) {
+              out.segments.push({ type: 'content', text: m.content })
+            }
           }
           return out
         })
@@ -92,7 +103,7 @@ export function AuthorChatPanel({ currentBook, addToast }) {
       hasAttachments: attachmentNames.length > 0, attachmentNames
     }])
     setLoading(true)
-    setStreamingMsg({ thinking: '', content: '', tools: [], thinkingDone: false, phase: 'init' })
+    setStreamingMsg({ thinking: '', segments: [], thinkingDone: false, phase: 'init' })
 
     try {
       const resp = await fetch(`/api/v1/author-chat/${bookId}/send`, {
@@ -104,9 +115,17 @@ export function AuthorChatPanel({ currentBook, addToast }) {
       const reader = resp.body.getReader()
       const decoder = new TextDecoder()
       let buf = ''
-      let finalContent = ''
       let finalThinking = ''
-      let finalTools = []
+      // Segment-based accumulation
+      let segments = []
+      let currentContentBuf = ''
+
+      const flushContent = () => {
+        if (currentContentBuf.trim()) {
+          segments.push({ type: 'content', text: currentContentBuf })
+          currentContentBuf = ''
+        }
+      }
 
       while (true) {
         const { done, value } = await reader.read()
@@ -124,29 +143,35 @@ export function AuthorChatPanel({ currentBook, addToast }) {
               setStreamingMsg(prev => ({ ...prev, phase: evt.phase }))
             } else if (evt.type === 'thinking') {
               finalThinking += evt.token
-              setStreamingMsg(prev => ({ ...prev, thinking: prev.thinking + evt.token }))
+              setStreamingMsg(prev => ({ ...prev, thinking: prev.thinking + evt.token, thinkingDone: false }))
             } else if (evt.type === 'content') {
-              finalContent += evt.token
+              currentContentBuf += evt.token
+              // Update segments for live display
+              const liveSegments = [...segments, { type: 'content', text: currentContentBuf, streaming: true }]
               setStreamingMsg(prev => ({
-                ...prev, content: prev.content + evt.token, thinkingDone: true
+                ...prev, segments: liveSegments
               }))
             } else if (evt.type === 'tool_start') {
-              finalTools.push(evt.name)
-              setStreamingMsg(prev => ({
-                ...prev, tools: [...prev.tools, { name: evt.name, status: 'running' }]
-              }))
+              flushContent()
+              segments.push({
+                type: 'tool_call', name: evt.name, status: 'running',
+                argsPreview: evt.args_preview || ''
+              })
+              setStreamingMsg(prev => ({ ...prev, segments: [...segments] }))
             } else if (evt.type === 'tool_done') {
-              setStreamingMsg(prev => ({
-                ...prev,
-                tools: prev.tools.map(t =>
-                  t.name === evt.name && t.status === 'running'
-                    ? { ...t, status: 'done', preview: evt.result_preview }
-                    : t
-                )
-              }))
+              // Update the last matching running tool
+              for (let i = segments.length - 1; i >= 0; i--) {
+                if (segments[i].type === 'tool_call' && segments[i].name === evt.name && segments[i].status === 'running') {
+                  segments[i] = { ...segments[i], status: 'done', result: evt.result_preview || '' }
+                  break
+                }
+              }
+              setStreamingMsg(prev => ({ ...prev, segments: [...segments] }))
             } else if (evt.type === 'error') {
-              finalContent = `错误: ${evt.message}`
-              setStreamingMsg(prev => ({ ...prev, content: finalContent }))
+              currentContentBuf += `错误: ${evt.message}`
+              setStreamingMsg(prev => ({
+                ...prev, segments: [...segments, { type: 'content', text: currentContentBuf }]
+              }))
             } else if (evt.type === 'done') {
               // Stream complete
             }
@@ -154,13 +179,15 @@ export function AuthorChatPanel({ currentBook, addToast }) {
         }
       }
 
+      // Flush remaining content
+      flushContent()
+
       // Commit the final message
       const msgId = Date.now()
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: finalContent || '(无回复)',
+        segments: segments.length > 0 ? segments : [{ type: 'content', text: '(无回复)' }],
         thinking: finalThinking,
-        tool_calls: finalTools,
         id: msgId
       }])
       if (finalThinking) {
@@ -213,7 +240,7 @@ export function AuthorChatPanel({ currentBook, addToast }) {
           <PenTool size={18} style={{ color: 'var(--accent)' }} />
           <span style={{ fontSize: 13, fontWeight: 600 }}>作者 Agent</span>
           <span style={{ fontSize: 10, color: 'var(--text-muted)', background: 'var(--bg-elevated)', padding: '2px 6px', borderRadius: 4 }}>
-            8 tools · streaming
+            17 tools · streaming
           </span>
         </div>
         <button onClick={handleClear} title="清空对话"
@@ -228,8 +255,8 @@ export function AuthorChatPanel({ currentBook, addToast }) {
           <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: 40, fontSize: 13, lineHeight: 2 }}>
             <PenTool size={32} style={{ marginBottom: 8, color: 'var(--accent)' }} />
             <div>直接和作者 Agent 对话</div>
-            <div style={{ fontSize: 11 }}>他能查设定、写大纲、写正文、提交审核</div>
-            <div style={{ fontSize: 11, marginTop: 4 }}>支持发送文件 · 支持查看思考过程</div>
+            <div style={{ fontSize: 11 }}>他能查设定、写大纲、写正文、构建剧情树、提交审核</div>
+            <div style={{ fontSize: 11, marginTop: 4 }}>支持发送文件 · 支持查看思考过程 · 工具调用可展开</div>
           </div>
         )}
 
@@ -248,27 +275,6 @@ export function AuthorChatPanel({ currentBook, addToast }) {
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
             <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 3 }}><PenTool size={9} /> 作者</div>
 
-            {/* Tool calls in progress */}
-            {streamingMsg.tools.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 6 }}>
-                {streamingMsg.tools.map((t, j) => (
-                  <div key={j} style={{
-                    fontSize: 11, padding: '4px 8px', borderRadius: 6,
-                    background: 'var(--bg-elevated)', color: 'var(--text-muted)',
-                    display: 'flex', alignItems: 'center', gap: 4,
-                    border: '1px solid var(--border-subtle)'
-                  }}>
-                    <Wrench size={10} />
-                    <span>{t.name}</span>
-                    {t.status === 'running'
-                      ? <Loader size={10} style={{ animation: 'spin 1.5s linear infinite', marginLeft: 4 }} />
-                      : <span style={{ color: 'var(--success)', marginLeft: 4 }}>done</span>
-                    }
-                  </div>
-                ))}
-              </div>
-            )}
-
             {/* Thinking */}
             {streamingMsg.thinking && (
               <div style={{
@@ -285,27 +291,33 @@ export function AuthorChatPanel({ currentBook, addToast }) {
               </div>
             )}
 
-            {/* Content */}
-            {streamingMsg.content ? (
-              <div style={{
-                maxWidth: '85%', padding: '10px 14px', borderRadius: 12,
-                fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                background: 'var(--bg-elevated)', color: 'var(--text-primary)',
-                borderBottomLeftRadius: 4,
-              }}>
-                {streamingMsg.content}
-                <span style={{ animation: 'pulse 1s infinite' }}>▍</span>
+            {/* Segments (interleaved content + tool calls) */}
+            {streamingMsg.segments?.length > 0 ? (
+              <div style={{ maxWidth: '85%', display: 'flex', flexDirection: 'column', gap: 4, width: '100%' }}>
+                {streamingMsg.segments.map((seg, j) => (
+                  seg.type === 'content' ? (
+                    <div key={j} style={{
+                      padding: '10px 14px', borderRadius: 12,
+                      fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                      background: 'var(--bg-elevated)', color: 'var(--text-primary)',
+                      borderBottomLeftRadius: 4,
+                    }}>
+                      {seg.text}
+                      {seg.streaming && <span style={{ animation: 'pulse 1s infinite' }}>▍</span>}
+                    </div>
+                  ) : seg.type === 'tool_call' ? (
+                    <StreamingToolCard key={j} segment={seg} />
+                  ) : null
+                ))}
               </div>
-            ) : !streamingMsg.thinking && streamingMsg.tools.length === 0 && (
+            ) : !streamingMsg.thinking && (
               <div style={{
                 padding: '10px 14px', borderRadius: 12, background: 'var(--bg-elevated)',
                 fontSize: 13, color: 'var(--text-muted)', borderBottomLeftRadius: 4,
                 display: 'flex', alignItems: 'center', gap: 6
               }}>
                 <Loader size={12} style={{ animation: 'spin 1.5s linear infinite' }} />
-                {streamingMsg.phase === 'init' && '连接中...'}
-                {streamingMsg.phase === 'tools' && '分析需求...'}
-                {streamingMsg.phase === 'streaming' && '生成回复...'}
+                {streamingMsg.phase === 'agent_loop' && '思考中...'}
                 {!streamingMsg.phase && '处理中...'}
               </div>
             )}
@@ -376,6 +388,71 @@ export function AuthorChatPanel({ currentBook, addToast }) {
   )
 }
 
+// ── Tool Call Card (streaming) ──
+
+function StreamingToolCard({ segment }) {
+  return (
+    <div style={{
+      padding: '5px 10px',
+      borderLeft: '3px solid #00BCD4',
+      background: 'var(--bg-elevated)',
+      borderRadius: '0 6px 6px 0',
+      fontSize: 11,
+      display: 'flex', alignItems: 'center', gap: 6,
+    }}>
+      <Wrench size={10} style={{ color: '#00BCD4', flexShrink: 0 }} />
+      <code style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--text-primary)' }}>{segment.name}</code>
+      {segment.status === 'running'
+        ? <Loader size={10} style={{ animation: 'spin 1.5s linear infinite', color: '#00BCD4' }} />
+        : <span style={{ color: '#4CAF50', fontSize: 10 }}>✓</span>
+      }
+    </div>
+  )
+}
+
+// ── Tool Call Card (committed, expandable) ──
+
+function ToolCallCard({ segment }) {
+  const [expanded, setExpanded] = useState(false)
+
+  return (
+    <div
+      style={{
+        padding: '5px 10px',
+        borderLeft: '3px solid #00BCD4',
+        background: 'var(--bg-elevated)',
+        borderRadius: '0 6px 6px 0',
+        fontSize: 11,
+        cursor: segment.result ? 'pointer' : 'default',
+        transition: 'background 0.15s',
+      }}
+      onClick={() => segment.result && setExpanded(!expanded)}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        {segment.result ? (
+          expanded ? <ChevronDown size={10} style={{ color: 'var(--text-muted)' }} /> : <ChevronRight size={10} style={{ color: 'var(--text-muted)' }} />
+        ) : null}
+        <Wrench size={10} style={{ color: '#00BCD4', flexShrink: 0 }} />
+        <code style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--text-primary)' }}>{segment.name}</code>
+        {segment.argsPreview && (
+          <span style={{ color: 'var(--text-muted)', fontSize: 10, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            ({segment.argsPreview})
+          </span>
+        )}
+        <span style={{ color: '#4CAF50', fontSize: 10, marginLeft: 'auto' }}>✓</span>
+      </div>
+      {expanded && segment.result && (
+        <pre style={{
+          margin: '4px 0 0 20px', fontSize: 10, color: 'var(--text-muted)',
+          whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+          maxHeight: 200, overflowY: 'auto',
+          padding: '4px 0', borderTop: '1px solid var(--border-subtle)', marginTop: 4
+        }}>{segment.result}</pre>
+      )}
+    </div>
+  )
+}
+
 // ── Message Bubble Component ──
 
 function MessageBubble({ msg, isExpanded, onToggleThinking }) {
@@ -431,33 +508,38 @@ function MessageBubble({ msg, isExpanded, onToggleThinking }) {
         </div>
       )}
 
-      {/* Content bubble */}
-      <div style={{
-        maxWidth: '85%', padding: '10px 14px', borderRadius: 12,
-        fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-        background: isUser ? 'var(--accent)' : 'var(--bg-elevated)',
-        color: isUser ? 'white' : 'var(--text-primary)',
-        borderBottomRightRadius: isUser ? 4 : 12,
-        borderBottomLeftRadius: isUser ? 12 : 4,
-      }}>
-        {isUser && msg.hasAttachments
-          ? msg.content.split('\n\n--- 附件:')[0] || '(已发送附件)'
-          : msg.content
-        }
-      </div>
-
-      {/* Tool call badges */}
-      {msg.tool_calls?.length > 0 && (
-        <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
-          {msg.tool_calls.map((tool, j) => (
-            <span key={j} style={{
-              fontSize: 10, padding: '2px 6px', borderRadius: 4,
-              background: 'var(--bg-elevated)', color: 'var(--text-muted)',
-              display: 'flex', alignItems: 'center', gap: 3
-            }}>
-              <Wrench size={9} /> {tool}
-            </span>
+      {/* Segment-based rendering for assistant */}
+      {!isUser && msg.segments ? (
+        <div style={{ maxWidth: '85%', display: 'flex', flexDirection: 'column', gap: 4, width: '100%' }}>
+          {msg.segments.map((seg, i) => (
+            seg.type === 'content' ? (
+              <div key={i} style={{
+                padding: '10px 14px', borderRadius: 12,
+                fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                background: 'var(--bg-elevated)', color: 'var(--text-primary)',
+                borderBottomLeftRadius: 4,
+              }}>
+                {seg.text}
+              </div>
+            ) : seg.type === 'tool_call' ? (
+              <ToolCallCard key={i} segment={seg} />
+            ) : null
           ))}
+        </div>
+      ) : (
+        /* User messages or legacy assistant messages */
+        <div style={{
+          maxWidth: '85%', padding: '10px 14px', borderRadius: 12,
+          fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+          background: isUser ? 'var(--accent)' : 'var(--bg-elevated)',
+          color: isUser ? 'white' : 'var(--text-primary)',
+          borderBottomRightRadius: isUser ? 4 : 12,
+          borderBottomLeftRadius: isUser ? 12 : 4,
+        }}>
+          {isUser && msg.hasAttachments
+            ? msg.content.split('\n\n--- 附件:')[0] || '(已发送附件)'
+            : msg.content
+          }
         </div>
       )}
     </div>
