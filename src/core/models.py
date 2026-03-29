@@ -71,14 +71,40 @@ class BookMeta(BaseModel):
     tone: str = ""
 
 class BookMetadata(BaseModel):
+    """Full book metadata — matches BookManager.create_book() signature."""
+    model_config = {"extra": "ignore"}
     book_id: str = ""
     title: str = ""
     genre: str = ""
+    sub_genres: List[str] = Field(default_factory=list)
+    tone: str = ""
+    forbidden_elements: List[str] = Field(default_factory=list)
+    target_word_count: Dict[str, int] = Field(default_factory=lambda: {"chapter": 3000, "scene": 800})
+    creation_date: str = ""
+    last_modified: str = ""
+    status: str = "planning"
+    statistics: Dict[str, Any] = Field(default_factory=dict)
 
-class BookState(str, Enum):
+
+class BookStatus(str, Enum):
+    """Enum for book lifecycle status values."""
     INIT = "init"
+    PLANNING = "planning"
     ACTIVE = "active"
     COMPLETE = "complete"
+
+
+class BookState(BaseModel):
+    """Mutable book progress state — persisted to book_state.json."""
+    model_config = {"extra": "ignore"}
+    book_id: str = ""
+    current_chapter: int = 1
+    current_scene: int = 1
+    chapter_status: Dict[int, str] = Field(default_factory=dict)
+    scene_versions: Dict[str, int] = Field(default_factory=dict)
+    auto_save_enabled: bool = True
+    last_auto_save: Optional[str] = None
+    outdated_scenes: List[Any] = Field(default_factory=list)
 
 class SceneStatus(str, Enum):
     PENDING = "pending"

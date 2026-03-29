@@ -9,7 +9,7 @@ from .models import (
     SceneIssue, SceneReaderFeedback, EditorRevisionPlan,
     DraftMetadata, CharacterState, WorldLore, SceneOutline,
     SceneOutlineDraft, ChapterOutline, BookMeta,
-    BookMetadata, BookState, SceneStatus, SceneInfo,
+    BookMetadata, BookStatus, BookState, SceneStatus, SceneInfo,
     # v4.0 Pipeline Models
     SceneBeat, ChapterDetailOutline, SceneState, SceneResult, ChapterPipelineResult,
 )
@@ -64,7 +64,7 @@ __all__ = [
     "SceneIssue", "SceneReaderFeedback", "EditorRevisionPlan",
     "DraftMetadata", "CharacterState", "WorldLore", "SceneOutline",
     "SceneOutlineDraft", "ChapterOutline", "BookMeta",
-    "BookMetadata", "BookState", "SceneStatus", "SceneInfo",
+    "BookMetadata", "BookStatus", "BookState", "SceneStatus", "SceneInfo",
     # v4.0
     "SceneBeat", "ChapterDetailOutline", "SceneState", "SceneResult", "ChapterPipelineResult",
     # LLM

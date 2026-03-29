@@ -1,18 +1,24 @@
-"""Tests for BookPathManager path resolution and directory creation.
+"""Tests for BookPathManager and BookManager (CRUD).
 
-Note: BookManager.create_book() is currently broken due to model drift
-(BookState is an Enum but book_manager.py treats it as a BaseModel).
-This is tracked as legacy debt. Tests here focus on the working parts.
+BookManager model drift was fixed in Round 6 — BookState is now a proper
+BaseModel and BookMetadata has all required fields.
 """
 import pytest
 from pathlib import Path
-from src.core.book_manager import BookPathManager
+from src.core.book_manager import BookPathManager, BookManager
+from src.core.models import BookMetadata, BookState
 
 
 @pytest.fixture
 def pm(tmp_path):
     """BookPathManager rooted at a temp directory."""
     return BookPathManager(library_root=str(tmp_path))
+
+
+@pytest.fixture
+def bm(pm):
+    """BookManager backed by a temp BookPathManager."""
+    return BookManager(path_manager=pm)
 
 
 # ── Library Root ──
@@ -173,3 +179,96 @@ def test_create_multiple_books(pm, tmp_path):
     pm.create_book_directory_structure("book_2")
     books = pm.list_all_books()
     assert len(books) == 2
+
+
+# ═══════════════════════════════════════════════════════════════
+# BookManager CRUD Tests
+# ═══════════════════════════════════════════════════════════════
+
+def test_create_book(bm, pm):
+    meta = bm.create_book("bk_001", "Test Novel", "xianxia",
+                          ["cultivation", "revenge"], "dark", ["harem"])
+    assert isinstance(meta, BookMetadata)
+    assert meta.book_id == "bk_001"
+    assert meta.title == "Test Novel"
+    assert meta.genre == "xianxia"
+    assert meta.sub_genres == ["cultivation", "revenge"]
+    assert meta.status == "planning"
+    assert pm.get_book_meta_path("bk_001").exists()
+    assert pm.get_book_state_path("bk_001").exists()
+
+
+def test_create_book_default_word_count(bm):
+    meta = bm.create_book("bk", "T", "g", [], "t", [])
+    assert meta.target_word_count == {"chapter": 3000, "scene": 800}
+
+
+def test_create_book_custom_word_count(bm):
+    meta = bm.create_book("bk", "T", "g", [], "t", [],
+                          target_word_count={"chapter": 5000, "scene": 1200})
+    assert meta.target_word_count["chapter"] == 5000
+
+
+def test_load_book_metadata(bm):
+    bm.create_book("bk", "Title", "genre", [], "tone", [])
+    loaded = bm.load_book_metadata("bk")
+    assert loaded is not None
+    assert loaded.title == "Title"
+
+
+def test_load_book_metadata_not_found(bm):
+    assert bm.load_book_metadata("nonexistent") is None
+
+
+def test_load_book_state(bm):
+    bm.create_book("bk", "T", "g", [], "t", [])
+    state = bm.load_book_state("bk")
+    assert isinstance(state, BookState)
+    assert state.book_id == "bk"
+    assert state.current_chapter == 1
+    assert state.current_scene == 1
+
+
+def test_load_book_state_not_found(bm):
+    assert bm.load_book_state("nonexistent") is None
+
+
+def test_update_book_metadata(bm):
+    bm.create_book("bk", "Old Title", "genre", [], "tone", [])
+    bm.update_book_metadata("bk", title="New Title", status="active")
+    loaded = bm.load_book_metadata("bk")
+    assert loaded.title == "New Title"
+    assert loaded.status == "active"
+
+
+def test_update_book_metadata_not_found(bm):
+    with pytest.raises(ValueError, match="Book not found"):
+        bm.update_book_metadata("nonexistent", title="X")
+
+
+def test_list_books(bm):
+    bm.create_book("bk1", "Book One", "xianxia", [], "dark", [])
+    bm.create_book("bk2", "Book Two", "wuxia", [], "light", [])
+    books = bm.list_books()
+    assert len(books) == 2
+    titles = [b["title"] for b in books]
+    assert "Book One" in titles
+    assert "Book Two" in titles
+
+
+def test_list_books_empty(bm):
+    assert bm.list_books() == []
+
+
+def test_delete_book_requires_confirm(bm):
+    bm.create_book("bk", "T", "g", [], "t", [])
+    with pytest.raises(ValueError, match="confirm=True"):
+        bm.delete_book("bk", confirm=False)
+    assert bm.load_book_metadata("bk") is not None
+
+
+def test_delete_book(bm, pm):
+    bm.create_book("bk", "T", "g", [], "t", [])
+    bm.delete_book("bk", confirm=True)
+    assert not pm.get_book_dir("bk").exists()
+    assert bm.load_book_metadata("bk") is None
