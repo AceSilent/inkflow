@@ -347,7 +347,7 @@ export function BrainstormPanel({ addToast, onNext, currentBook }) {
               borderBottom: leftTab === 'chat' ? '2px solid var(--accent)' : '2px solid transparent',
               border: 'none', borderRadius: 0, transition: 'all 0.2s'
             }}
-          >💬 对话</button>
+          ><MessageSquare size={13} style={{ display: 'inline', verticalAlign: -2 }} /> 对话</button>
           <button
             onClick={() => setLeftTab('tasks')}
             style={{
@@ -357,7 +357,7 @@ export function BrainstormPanel({ addToast, onNext, currentBook }) {
               borderBottom: leftTab === 'tasks' ? '2px solid var(--accent)' : '2px solid transparent',
               border: 'none', borderRadius: 0, transition: 'all 0.2s'
             }}
-          >📋 任务看板</button>
+          ><FileText size={13} style={{ display: 'inline', verticalAlign: -2 }} /> 任务看板</button>
         </div>
         {/* Tab Content */}
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
@@ -382,7 +382,7 @@ export function BrainstormPanel({ addToast, onNext, currentBook }) {
           <div style={{ flex: 1, padding: '12px 16px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
             {/* Section Tabs */}
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-              {[['meta','📋 基础'],['world','🌍 世界观'],['chars','👤 角色'],['outline','📖 大纲']].map(([key, label]) => (
+              {[['meta','基础'],['world','世界观'],['chars','角色'],['outline','大纲']].map(([key, label]) => (
                 <button key={key} onClick={() => setLoreSection(key)} style={{
                   padding: '4px 10px', borderRadius: 4, fontSize: 11, border: 'none', cursor: 'pointer',
                   background: loreSection === key ? 'var(--accent)' : 'var(--bg-subtle)',

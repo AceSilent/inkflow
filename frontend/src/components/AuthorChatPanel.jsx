@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Send, Trash2, Wrench, Paperclip, X, FileText, ChevronDown, ChevronRight, Brain, PenTool, User, Loader } from 'lucide-react'
+import { Send, Trash2, Wrench, Paperclip, X, FileText, ChevronDown, ChevronRight, Brain, PenTool, User, Loader, Check } from 'lucide-react'
 
 export function AuthorChatPanel({ currentBook, addToast }) {
   const [messages, setMessages] = useState([])
@@ -404,7 +404,7 @@ function StreamingToolCard({ segment }) {
       <code style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--text-primary)' }}>{segment.name}</code>
       {segment.status === 'running'
         ? <Loader size={10} style={{ animation: 'spin 1.5s linear infinite', color: '#00BCD4' }} />
-        : <span style={{ color: '#4CAF50', fontSize: 10 }}>✓</span>
+        : <Check size={10} style={{ color: '#4CAF50' }} />
       }
     </div>
   )
@@ -439,7 +439,7 @@ function ToolCallCard({ segment }) {
             ({segment.argsPreview})
           </span>
         )}
-        <span style={{ color: '#4CAF50', fontSize: 10, marginLeft: 'auto' }}>✓</span>
+        <Check size={10} style={{ color: '#4CAF50', marginLeft: 'auto' }} />
       </div>
       {expanded && segment.result && (
         <pre style={{

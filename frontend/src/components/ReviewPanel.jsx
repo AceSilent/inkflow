@@ -76,7 +76,7 @@ export function ReviewPanel({ currentBook, addToast }) {
         <h2 style={{ fontSize: 18, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
           <Shield size={20} style={{ color: 'var(--accent)' }} /> {t('review.title')}
         </h2>
-        <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>7位读者Agent的真实评审结果（3场景级 + 4章节级）</p>
+        <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>编辑部审阅结果（场景级 + 章节级）</p>
       </div>
 
       {/* Chapter Selector */}
@@ -134,11 +134,11 @@ export function ReviewPanel({ currentBook, addToast }) {
             <div>
               <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>审阅级别</h3>
               <div className="card" style={{ marginBottom: 12, borderLeftWidth: 3, borderLeftColor: 'var(--accent)' }}>
-                <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>🔬 场景级审阅 (3位)</div>
+                <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>场景级审阅</div>
                 <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>设定检查 · 节奏评审 · AI腔检测</div>
               </div>
               <div className="card" style={{ borderLeftWidth: 3, borderLeftColor: 'var(--success)' }}>
-                <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>📖 章节级审阅 (4位)</div>
+                <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>章节级审阅</div>
                 <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>考据党 · 节奏体验官 · 反套路扫描 · AI味排雷</div>
               </div>
             </div>

@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, ChevronDown, ChevronRight, MessageSquare, Hash, Lock, Upload, FileText, X, Paperclip } from 'lucide-react'
+import { Send, ChevronDown, ChevronRight, MessageSquare, Hash, Lock, Upload, FileText, X, Paperclip, Crown, Lightbulb, Skull, PenTool, User, Brain } from 'lucide-react'
 
-// Agent icon mapping
-const AGENT_ICONS = {
-  editor: '👑', proposer: '💡', devil: '😈', author: '✍️', human: '👤',
+// Agent icon components (lucide-react)
+const AGENT_ICON_MAP = {
+  editor: Crown, proposer: Lightbulb, devil: Skull, author: PenTool, human: User,
 }
 
 const AGENT_LABELS = {
@@ -318,13 +318,13 @@ export function GroupChatPanel({ currentBook, addToast, onFileEdits, forceChanne
                 background: activeChannel === forceChannel ? '#4FC3F7' : 'transparent',
                 color: activeChannel === forceChannel ? '#000' : '#888',
                 fontWeight: activeChannel === forceChannel ? 600 : 400,
-              }}>👑 1:1 编辑</button>
+              }}><Crown size={12} style={{ display: 'inline', verticalAlign: -2 }} /> 1:1 编辑</button>
               <button onClick={() => setActiveChannel('group')} style={{
                 padding: '4px 10px', borderRadius: 4, fontSize: 11, border: 'none', cursor: 'pointer',
                 background: activeChannel === 'group' ? '#4FC3F7' : 'transparent',
                 color: activeChannel === 'group' ? '#000' : '#888',
                 fontWeight: activeChannel === 'group' ? 600 : 400,
-              }}>👥 群聊</button>
+              }}><Hash size={12} style={{ display: 'inline', verticalAlign: -2 }} /> 群聊</button>
             </div>
           )}
           {!forceChannel && (
@@ -463,10 +463,10 @@ function MessageBubble({ msg, expanded, onToggleThinking }) {
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: msg.avatar_color || '#aaa' }}>
-              {AGENT_ICONS[msg.role]} {msg.display_name}
+              {msg.display_name}
             </span>
-            <span style={{ fontSize: 10, color: '#4FC3F7' }}>
-              {msg._streamPhase === 'thinking' ? '🧠 思考中...' : '✍️ 回复中...'}
+            <span style={{ fontSize: 10, color: '#4FC3F7', display: 'flex', alignItems: 'center', gap: 3 }}>
+              <Brain size={10} /> {msg._streamPhase === 'thinking' ? '思考中...' : '回复中...'}
             </span>
           </div>
 
@@ -500,8 +500,8 @@ function MessageBubble({ msg, expanded, onToggleThinking }) {
 
           {/* Show cursor when nothing yet */}
           {!msg.thinking && !msg.content && (
-            <div style={{ color: '#666', fontSize: 13, fontStyle: 'italic' }}>
-              <span style={{ animation: 'pulse 1s infinite' }}>🧠 思考中...</span>
+            <div style={{ color: '#666', fontSize: 13, fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <Brain size={13} style={{ animation: 'pulse 1s infinite' }} /> 思考中...
             </div>
           )}
         </div>
@@ -528,7 +528,7 @@ function MessageBubble({ msg, expanded, onToggleThinking }) {
             fontSize: 12, fontWeight: 700,
             color: msg.avatar_color || '#aaa',
           }}>
-            {AGENT_ICONS[msg.role]} {msg.display_name || AGENT_LABELS[msg.role] || msg.role}
+            {msg.display_name || AGENT_LABELS[msg.role] || msg.role}
           </span>
           {msg.round_number > 0 && (
             <span style={{ fontSize: 10, color: '#555' }}>
@@ -552,7 +552,7 @@ function MessageBubble({ msg, expanded, onToggleThinking }) {
               }}
             >
               {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-              🧠 思考过程
+              <Brain size={11} style={{ marginRight: 2 }} /> 思考过程
             </button>
             {expanded && (
               <div style={{
@@ -592,7 +592,7 @@ function MessageBubble({ msg, expanded, onToggleThinking }) {
               }}>
                 <FileText size={12} style={{ color: '#66BB6A' }} />
                 <span style={{ color: '#66BB6A' }}>
-                  📝 {edit.summary || `已修改: ${edit.file_path}`}
+                  {edit.summary || `已修改: ${edit.file_path}`}
                 </span>
               </div>
             ))}
@@ -605,15 +605,16 @@ function MessageBubble({ msg, expanded, onToggleThinking }) {
 
 
 function AgentAvatar({ role, color }) {
+  const IconComp = AGENT_ICON_MAP[role] || User
   return (
     <div style={{
       width: 32, height: 32, borderRadius: '50%',
       background: `${color || '#444'}22`,
       border: `2px solid ${color || '#444'}`,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontSize: 16, flexShrink: 0, marginTop: 2,
+      flexShrink: 0, marginTop: 2,
     }}>
-      {AGENT_ICONS[role] || '?'}
+      <IconComp size={16} style={{ color: color || '#888' }} />
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { FileText, PenTool, RotateCw, Loader, BookOpen, Copy, ChevronDown, ChevronRight, Eye, Shield, Zap, BookCheck, AlertTriangle } from 'lucide-react'
+import { FileText, PenTool, RotateCw, Loader, BookOpen, Copy, ChevronDown, ChevronRight, Eye, Shield, Zap, BookCheck, AlertTriangle, User, MapPin, Sparkles, Target, Anchor, Hexagon, BarChart3, CheckCircle2, XCircle } from 'lucide-react'
 
 export function ChapterEditor({ bookId, chapterId, chapterLabel, addToast }) {
   const [data, setData] = useState(null)
@@ -56,7 +56,7 @@ export function ChapterEditor({ bookId, chapterId, chapterLabel, addToast }) {
 
   const handleGenerate = async (regenerate = false) => {
     setGenerating(true)
-    setProgress('📐 生成章节细纲...')
+    setProgress('生成章节细纲...')
     try {
       const resp = await fetch(`/api/v1/writing/${bookId}/generate-chapter/${chapterId}`, {
         method: 'POST',
@@ -66,7 +66,7 @@ export function ChapterEditor({ bookId, chapterId, chapterLabel, addToast }) {
       if (resp.ok) {
         const result = await resp.json()
         setData(prev => ({ ...prev, content: result.content, status: 'draft', word_count: result.word_count }))
-        addToast?.(`✅ 已生成「${data?.label || chapterId}」— ${result.word_count}字`, 'success')
+        addToast?.(`已生成「${data?.label || chapterId}」-- ${result.word_count}字`, 'success')
         fetchReviews()
         fetchIceberg()
         fetchDetailOutline()
@@ -167,29 +167,29 @@ export function ChapterEditor({ bookId, chapterId, chapterLabel, addToast }) {
       {/* Outline summary */}
       {data.summary && (
         <div style={{ padding: '10px 14px', margin: '12px 0', borderRadius: 8, background: 'rgba(255,193,7,0.06)', border: '1px solid rgba(255,193,7,0.15)', fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.7, flexShrink: 0 }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--warning)', marginBottom: 4 }}>📋 章节大纲</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--warning)', marginBottom: 4 }}><FileText size={11} style={{ display: 'inline', verticalAlign: -1 }} /> 章节大纲</div>
           {data.summary}
         </div>
       )}
 
       {/* Detail Outline — Scene Beats */}
       {detailOutline?.scenes && detailOutline.scenes.length > 0 && (
-        <CollapsibleSection title="📐 场景细纲" defaultOpen={!data.content}>
+        <CollapsibleSection title="场景细纲" defaultOpen={!data.content}>
           {detailOutline.scenes.map((scene, i) => (
             <div key={scene.scene_id} style={{ padding: '8px 12px', marginBottom: 6, borderRadius: 6, background: 'var(--bg-surface)', fontSize: 12, borderLeft: '3px solid var(--accent)' }}>
               <div style={{ fontWeight: 600, marginBottom: 4 }}>场景{i+1}：{scene.title}</div>
               <div style={{ color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                <span>👤 {scene.pov}</span>
-                {scene.location && <span> · 📍 {scene.location}</span>}
-                {scene.emotion_arc && <span> · 💫 {scene.emotion_arc}</span>}
-                <div>🎯 {scene.goal}</div>
-                {scene.conflict && <div>⚔️ {scene.conflict}</div>}
+                <span><User size={11} style={{ display: 'inline', verticalAlign: -1 }} /> {scene.pov}</span>
+                {scene.location && <span> · <MapPin size={11} style={{ display: 'inline', verticalAlign: -1 }} /> {scene.location}</span>}
+                {scene.emotion_arc && <span> · <Sparkles size={11} style={{ display: 'inline', verticalAlign: -1 }} /> {scene.emotion_arc}</span>}
+                <div><Target size={11} style={{ display: 'inline', verticalAlign: -1 }} /> {scene.goal}</div>
+                {scene.conflict && <div><Zap size={11} style={{ display: 'inline', verticalAlign: -1 }} /> {scene.conflict}</div>}
               </div>
             </div>
           ))}
           {detailOutline.chapter_hook && (
             <div style={{ fontSize: 12, color: 'var(--warning)', fontStyle: 'italic', marginTop: 4 }}>
-              🪝 章末钩子：{detailOutline.chapter_hook}
+              章末钩子：{detailOutline.chapter_hook}
             </div>
           )}
         </CollapsibleSection>
@@ -197,10 +197,10 @@ export function ChapterEditor({ bookId, chapterId, chapterLabel, addToast }) {
 
       {/* Iceberg Analysis */}
       {iceberg?.scenes && iceberg.scenes.length > 0 && (
-        <CollapsibleSection title="🧊 冰山引擎分析" defaultOpen={false}>
+        <CollapsibleSection title="冰山引擎分析" defaultOpen={false}>
           {iceberg.scenes.map(s => (
             <div key={s.scene_id} style={{ padding: '8px 12px', marginBottom: 6, borderRadius: 6, background: 'rgba(99,179,237,0.06)', border: '1px solid rgba(99,179,237,0.1)', fontSize: 12, lineHeight: 1.8 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)', marginBottom: 4 }}>{s.scene_id}</div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)', marginBottom: 4 }}><Hexagon size={11} style={{ display: 'inline', verticalAlign: -1 }} /> {s.scene_id}</div>
               <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', margin: 0 }}>{s.analysis}</pre>
             </div>
           ))}
@@ -209,7 +209,7 @@ export function ChapterEditor({ bookId, chapterId, chapterLabel, addToast }) {
 
       {/* Review Details */}
       {reviews?.scenes && reviews.scenes.some(s => s.reader_feedbacks?.length > 0) && (
-        <CollapsibleSection title="📊 读者评审详情" defaultOpen={false}>
+        <CollapsibleSection title="评审详情" defaultOpen={false}>
           {reviews.scenes.map(scene => (
             <div key={scene.scene_id} style={{ marginBottom: 12 }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>{scene.scene_id}</div>
@@ -231,7 +231,7 @@ export function ChapterEditor({ bookId, chapterId, chapterLabel, addToast }) {
               {scene.editor_plan && (
                 <div style={{ padding: '6px 10px', borderRadius: 6, background: scene.editor_plan.pass_status ? 'rgba(72,199,142,0.08)' : 'rgba(245,101,101,0.08)', border: `1px solid ${scene.editor_plan.pass_status ? 'rgba(72,199,142,0.2)' : 'rgba(245,101,101,0.2)'}`, fontSize: 12, marginTop: 4 }}>
                   <span style={{ fontWeight: 600, color: scene.editor_plan.pass_status ? 'var(--success)' : 'var(--danger)' }}>
-                    {scene.editor_plan.pass_status ? '✅ 主编通过' : '❌ 主编驳回'}
+                    {scene.editor_plan.pass_status ? <><CheckCircle2 size={12} style={{ display: 'inline', verticalAlign: -2 }} /> 通过</> : <><XCircle size={12} style={{ display: 'inline', verticalAlign: -2 }} /> 驳回</>}
                   </span>
                   {scene.editor_plan.revision_instructions?.length > 0 && (
                     <ul style={{ margin: '4px 0', paddingLeft: 16, fontSize: 11 }}>
@@ -281,7 +281,7 @@ export function ChapterEditor({ bookId, chapterId, chapterLabel, addToast }) {
               {generating ? <><Loader size={14} className="spin" /> {progress}</> : <><PenTool size={14} /> 生成本章正文</>}
             </button>
             <p style={{ color: 'var(--text-muted)', fontSize: 11, maxWidth: 400, textAlign: 'center' }}>
-              流程：章节细纲 → 场景冰山分析 → 逐场景起草(600-1000字) → 3位读者评审 → 主编仲裁 → 组装章节
+              流程：章节细纲 → 场景冰山分析 → 逐场景起草 → 编辑部审阅 → 组装章节
             </p>
           </div>
         )}

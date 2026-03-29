@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ChevronRight, Eye, EyeOff, Target, Users, Loader } from 'lucide-react'
+import { ChevronRight, Eye, EyeOff, Target, Users, Loader, Check } from 'lucide-react'
 import { useI18n } from '../i18n/index.jsx'
 
 export function CharactersPanel({ currentBook }) {
@@ -71,7 +71,7 @@ function AccSection({ title, icon: Icon, variant, content }) {
         <ChevronRight size={10} />
         {Icon && <Icon size={12} />}
         <span style={{ flex: 1 }}>{title}</span>
-        <span className={`badge badge-${variant}`}>{content ? '✓' : '—'}</span>
+        <span className={`badge badge-${variant}`}>{content ? <Check size={10} /> : '—'}</span>
       </button>
       <div className="acc-body">
         <div style={{ fontSize: 12, lineHeight: 1.8, whiteSpace: 'pre-wrap', color: 'var(--text-secondary)' }}>
