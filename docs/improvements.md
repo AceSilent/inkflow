@@ -71,3 +71,20 @@
 **Coverage**: chat_session(load/save, append/delete/truncate, lore, token estimation) + agent_memory(project CRUD, core memory, context builder)
 **Verify**: pytest -> 128 passed
 **Status**: Phase A COMPLETE. 系统已达到稳定状态, 所有核心模块均有测试覆盖. 可进入 Phase B.
+
+## Round 8 -- 2026-03-30
+
+**Phase**: B (创作能力验证)
+**Stability**: [HIGH]
+**Level**: L4
+**Change**: Phase B 首轮验证 — 启动完整 UI, 创建测试书, 使用 Author Agent 进行头脑风暴
+**Test Book**: 《极诣剑道》(仙侠修真·暗黑复仇)
+**Result**: 
+- BookManager.create_book() 工作正常 (model drift 修复生效)
+- Author Agent 成功完成完整的头脑风暴响应(约2000字)
+- 输出包含: 修炼体系(剑魄九重天)、前10章大纲、5个关键角色
+- 输出质量: 无 emoji, 全中文, 逻辑自洽, 暗黑基调一致
+**Issues Found**:
+- Lore Book 面板为空 — Agent 未自动同步设定到 Lore Book (需要工具调用)
+- 状态栏显示 INIT + 示例模式, 字数为 0
+**Next**: 解决 Lore Book 同步问题, 继续大纲生成和正文写作测试
