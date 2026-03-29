@@ -1,10 +1,13 @@
 import os
 import json
+import logging
 import time
 import uuid
 from typing import List, Optional, Dict, Any
 
 from src.core.models import TaskRecord, TaskStatus
+
+logger = logging.getLogger(__name__)
 
 def get_task_dir(book_id: str) -> str:
     """Gets the path to the tasks directory for a specific book."""
@@ -49,7 +52,7 @@ def get_task(book_id: str, task_id: str) -> Optional[TaskRecord]:
             data = json.load(f)
             return TaskRecord(**data)
     except Exception as e:
-        print(f"Error loading task {task_id}: {e}")
+        logger.warning("Error loading task %s: %s", task_id, e)
         return None
 
 def update_task_status(book_id: str, task_id: str, status: TaskStatus, payload_updates: Dict[str, Any] = None, metadata_updates: Dict[str, Any] = None) -> Optional[TaskRecord]:

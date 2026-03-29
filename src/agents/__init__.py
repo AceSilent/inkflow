@@ -1,5 +1,5 @@
 """
-Agents module for AutoNovel-Studio v2.1.
+Agents module for AutoNovel-Studio v5.2.
 """
 from .author import AuthorAgent
 from .readers import (
@@ -11,12 +11,6 @@ from .readers import (
     ReaderMatrix
 )
 from .editor import EditorAgent
-from .scene_readers import (
-    BaseSceneReader,
-    ScenePacingReviewer,
-    SceneLoreChecker,
-    SceneAIToneDetector
-)
 from .draft_summarizer import DraftSummarizer
 
 __all__ = [
@@ -28,11 +22,5 @@ __all__ = [
     "AIToneScannerAgent",
     "ReaderMatrix",
     "EditorAgent",
-    # Scene-level readers
-    "BaseSceneReader",
-    "ScenePacingReviewer",
-    "SceneLoreChecker",
-    "SceneAIToneDetector",
-    # v2.1 NEW: Draft Summarizer
     "DraftSummarizer",
 ]
