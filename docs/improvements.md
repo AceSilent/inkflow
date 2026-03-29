@@ -50,3 +50,14 @@
 **Reason**: 进化技能要求核心模块必须有测试覆盖; 这两个模块是纯 I/O 无需 mock LLM
 **Verify**: pytest → 82 passed
 **Next**: 继续补测试: chat_session.py, agent_memory.py; 然后修复 BookManager model drift
+
+## Round 6 -- 2026-03-30
+
+**Phase**: A (系统稳固化)
+**Stability**: [HIGH]
+**Level**: L2/L3
+**Change**: 修复 BookMetadata/BookState model 漂移 + 新增 13 个 BookManager CRUD 测试 (82 -> 95 total)
+**Root Cause**: BookMetadata 被简化为只有 3 个字段, BookState 被错误地改为 Enum; 但 book_manager.py 和 state_manager.py 仍按 BaseModel 使用
+**Fix**: BookMetadata 扩展为完整的 12 个字段; BookState 从 Enum 改回 BaseModel; 新增 BookStatus Enum
+**Verify**: pytest -> 95 passed / frontend build -> success / BookManager smoke test -> all CRUD OK
+**Next**: 补 chat_session/agent_memory 测试 -> Phase B (创作能力)
