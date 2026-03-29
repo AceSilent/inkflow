@@ -265,3 +265,45 @@ class TaskRecord(BaseModel):
     updated_at: float
     payload: Dict[str, Any] = Field(default_factory=dict)
     metadata: Dict[str, Any] = Field(default_factory=dict)
+
+
+# ── Plot Tree Models ──
+
+class NodeType(str, Enum):
+    ROOT = "root"
+    ARC = "arc"
+    PLOT_POINT = "plot_point"
+    BRANCH_POINT = "branch_point"
+    CONVERGENCE = "convergence"
+
+
+class NodeState(str, Enum):
+    EXPLORING = "exploring"
+    CANDIDATE = "candidate"
+    CONFIRMED = "confirmed"
+    PRUNED = "pruned"
+    EXPORTED = "exported"
+
+
+class Causality(BaseModel):
+    depends_on: List[str] = Field(default_factory=list)
+    enables: List[str] = Field(default_factory=list)
+
+
+class PlotTreeNode(BaseModel):
+    """A single node in the plot tree."""
+    id: str
+    parent: Optional[str] = None
+    children: List[str] = Field(default_factory=list)
+    type: NodeType
+    state: NodeState = NodeState.EXPLORING
+    title: str = ""
+    description: str = ""
+    causality: Causality = Field(default_factory=Causality)
+    characters: List[str] = Field(default_factory=list)
+    emotional_tone: str = ""
+    tags: List[str] = Field(default_factory=list)
+    export_ref: Optional[str] = None
+    created_at: float = 0.0
+    confirmed_at: Optional[float] = None
+    pruned_reason: Optional[str] = None
