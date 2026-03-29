@@ -15,23 +15,25 @@ description: "AutoNovel Evolution -- 以50章玄幻小说为靶心, 永不满足
 
 ## 系统现状快照（供首次执行参考）
 
-当前架构中的审阅Agent（**不是**"读者"，是**编辑部**）：
+系统中存在 **两套并行但互不相连的写作管线**：
 
-**场景级审阅 (3 位)**:
-- scene_lore_checker (reader_scene_lore.j2) -- 设定合规检查
-- scene_pacing_reviewer (reader_scene_pacing.j2) -- 节奏/物理引擎检查
-- scene_ai_tone_detector (reader_scene_ai_tone.j2) -- AI腔调检测
+**[NEW] AuthorChat 管线** (当前主力):
+- 入口: AuthorChatPanel -> author_chat.py
+- 作者Agent自主循环调用tools (read_tree, load_skill, save_draft...)
+- 审阅: submit_for_review -> workflow_engine.execute_editorial_review (仅1个LLM调用做pass/reject)
+- 问题: 审阅环节极度简陋，只有一个单轮editor判定
 
-**章节级审阅 (4 位)**:
-- lore_keeper (reader_lore_keeper.j2) -- 全章设定守门人
-- pacing_junkie (reader_pacing_junkie.j2) -- 全章节奏审查
-- anti_trope_scanner (reader_anti_trope.j2) -- 俗套/反矫情检测
-- anti_ai_tone_scanner (reader_ai_tone.j2) -- 全章AI味检测
+**[OLD] Scene Pipeline 管线** (历史债务，待清理/重构):
+- 入口: writing.py API -> scene_pipeline.py -> ChapterEditor前端按钮
+- 场景级审阅(3位): scene_lore_checker, scene_pacing_reviewer, scene_ai_tone_detector
+- 章节级审阅(4位): lore_keeper, pacing_junkie, anti_trope_scanner, anti_ai_tone_scanner
+- 总编仲裁(1位): editor_arbitrate -- **已确认不需要，历史债务**
+- 问题: 整个管线是硬编码流程，不是Agent自主调用
 
-**终审 (1 位)**:
-- editor (editor_review.j2) -- 总编辑仲裁, 决定 pass/reject
+**[DEAD] scene_generator.py + src/agents/scene_readers.py** -- 完全死代码，v2.1残留，无任何入口
 
-共 **8 位审阅Agent**，不是3位。代码注释和UI中残留"3位读者""4位读者"等过时描述需清理。
+决策: 新架构以 AuthorChat Agent 自主驱动。旧管线中有价值的 j2 评审模板
+可在后续作为 agent tool 复活（如 review_draft tool），但旧管线本身和总编角色应废弃。
 
 ---
 
@@ -88,7 +90,8 @@ description: "AutoNovel Evolution -- 以50章玄幻小说为靶心, 永不满足
 - 消除 warning、清理死代码、修复 import 顺序
 - 改 print -> logger
 - 补 docstring 和类型标注
-- 修复过时的注释（如"3位读者"应改为"8位编辑部成员"）
+- 修复过时的注释（如"3位读者"等过时描述）
+- 标记或清理已确认的死代码（scene_generator.py, src/agents/scene_readers.py）
 
 **Prompt 微调**:
 - 只在有真实产出暴露问题时才改 prompt，不凭空优化
@@ -130,22 +133,23 @@ description: "AutoNovel Evolution -- 以50章玄幻小说为靶心, 永不满足
 
 ### L3 -- 架构师 (稳定性 = HIGH)
 
-**管线改进**:
-- 新增 pipeline 阶段（如: 章节间连贯性检查、伏笔跟踪）
-- 重构 scene_pipeline 中重复的 JSON 解析代码为公共工具
+**旧管线迁移/清理**:
+- 将旧 scene_pipeline 中有价值的审阅能力迁移为 AuthorChat 的 agent tool
+  - 如: review_draft(book_id, draft_text) -- 调用 j2 模板做多维审阅
+- 清理已确认的死代码: scene_generator.py, src/agents/scene_readers.py
+- 清理旧 writing.py API 中不再需要的 endpoint
+- 统一 JSON 解析逻辑（当前 openai_client + scene_pipeline 各自重复实现）
+
+**新架构增强**:
 - 改进 plot_tree 与 outline 的衔接（树 -> 大纲自动化）
 - 新增 agent tool（必须有明确的使用场景和测试）
+- 增强 execute_editorial_review 的审阅深度（当前只有1个LLM调用太简陋）
 - 统一错误处理模式
-
-**编辑部优化**:
-- 评估 8 位审阅Agent 的有效性（哪些高价值、哪些冗余）
-- 调整审阅 Agent 数量或合并职责
-- 改进 editor 仲裁逻辑（当前过于简单的 pass/reject 二元判定）
 
 流程:
 1. 先在 docs/improvements.md 记录设计意图
 2. 实施
-3. 跑通至少 1 章 pipeline 验证
+3. 跑通至少 1 章 AuthorChat 验证
 4. 后续至少 2 轮守 (L1-L2)
 
 产出: 1-3 个 commit + 文档
@@ -256,18 +260,18 @@ description: "AutoNovel Evolution -- 以50章玄幻小说为靶心, 永不满足
 - 世界设定和角色设定已录入
 - 剧情树根节点到第一卷第一弧已 confirmed
 - 大纲已生成 (卷纲+章纲)
-- scene_pipeline 能跑通: 大纲拆分 -> 场景 -> 冰山 -> 起草 -> 7位编辑部审阅 -> 总编仲裁 -> 组装
+- 通过 AuthorChat 完整走通: 加载skill -> 读设定 -> 构建剧情树 -> 起草 -> 提交审核
 - 每章 3000-5000 字
-- 编辑部平均评分 >= 5.0
+- 审阅通过 (pass_status=true)
 
 #### Phase B2: 质量攀升 (第4-10章)
 消灭高频 issue, 提升评分
 
 验证:
-- 编辑部平均评分 >= 6.5
+- 审阅通过率 >= 70%
 - 0 个 severity >= 5 的 issue
 - 没有连续 2 章出现相同 error_type
-- AI 腔调检测(anti_ai_tone)通过率 >= 80%
+- 文本中无明显 AI 腔调词汇（系统应自检）
 - 角色对话有辨识度
 
 #### Phase B3: 连贯性 (第11-30章)
@@ -277,16 +281,13 @@ description: "AutoNovel Evolution -- 以50章玄幻小说为靶心, 永不满足
 - 角色信息跨 5 章保持一致
 - 伏笔有埋有收（通过剧情树 causality 跟踪）
 - 卷级节奏符合三幕式结构
-- 编辑部平均评分 >= 7.0
-- 每章通过率(pass_status=true) >= 70%
+- 每章审阅通过率 >= 80%
 
 #### Phase B4: 量产稳定 (第31-50章)
 系统无需人工干预连续产出
 
 验证:
-- 连续 5 章零人工干预完成
-- NEEDS_HUMAN 发生率 < 10%
-- 编辑部平均评分 >= 7.5
+- 连续 5 章零人工干预完成（Agent自动完成 drafting -> review 循环）
 - 总字数达到 15-25 万字
 - 剧情树完整覆盖全卷
 
@@ -308,10 +309,10 @@ emoji 残留数量是否 = 0 ?
 **阶段 B 判定 (量产后)**:
 ```
 已完成章节数是否 >= 50 ?
-最新章节编辑部平均评分是否 >= 7.0 ?
-最新章节是否通过总编仲裁 (pass_status = true) ?
-最新章节是否有 0 个 severity >= 4 的 issue ?
-连续 3 章是否没有相同 error_type 重复出现 ?
+最新章节是否通过审阅 (pass_status = true) ?
+最新章节文本是否无明显 AI 腔调 ?
+连续 3 章是否角色/设定保持一致 ?
+连续 3 章是否没有相同类型问题重复出现 ?
 ```
 
 ---
