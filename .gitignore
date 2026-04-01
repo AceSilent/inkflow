@@ -73,6 +73,10 @@ nul
 frontend/dist/
 frontend/node_modules/
 
+# Server build output
+server/node_modules/
+server/dist/
+
 # Temporary files
 *.tmp
 *.bak
