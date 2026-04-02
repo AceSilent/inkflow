@@ -1,0 +1,226 @@
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { createAllTools } from '../src/tools/index.js'
+import fs from 'fs'
+import path from 'path'
+import os from 'os'
+
+describe('Tool Registration', () => {
+  it('should register all tools', () => {
+    const registry = createAllTools()
+    expect(registry.listNames().length).toBeGreaterThanOrEqual(13)
+    expect(registry.get('read_file')).toBeDefined()
+    expect(registry.get('save_draft')).toBeDefined()
+    expect(registry.get('read_tree')).toBeDefined()
+    expect(registry.get('submit_for_review')).toBeDefined()
+    expect(registry.get('present_options')).toBeDefined()
+  })
+
+  it('should mark write tools correctly', () => {
+    const registry = createAllTools()
+    const writeTools = registry.getWriteTools()
+    expect(writeTools).toContain('save_draft')
+    expect(writeTools).toContain('save_lore')
+    expect(writeTools).toContain('save_outline')
+    expect(writeTools).toContain('submit_for_review')
+    expect(writeTools).not.toContain('read_file')
+    expect(writeTools).not.toContain('search_lore')
+  })
+
+  it('should identify terminal tools', () => {
+    const registry = createAllTools()
+    expect(registry.isTerminal('submit_for_review')).toBe(true)
+    expect(registry.isTerminal('present_options')).toBe(true)
+    expect(registry.isTerminal('request_guidance')).toBe(true)
+    expect(registry.isTerminal('read_file')).toBe(false)
+    expect(registry.isTerminal('save_draft')).toBe(false)
+  })
+})
+
+describe('ReadFile Tool', () => {
+  let tmpDir: string
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tools-'))
+    const bookDir = path.join(tmpDir, 'test-book')
+    fs.mkdirSync(bookDir, { recursive: true })
+    fs.writeFileSync(path.join(bookDir, 'ch1.md'), '# Chapter 1\nHello world', 'utf-8')
+  })
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true })
+  })
+
+  it('should read existing file', async () => {
+    const registry = createAllTools()
+    const result = await registry.execute('read_file', { relative_path: 'ch1.md' }, { bookId: 'test-book', dataDir: tmpDir })
+    expect(result).toContain('# Chapter 1')
+    expect(result).toContain('Hello world')
+  })
+
+  it('should return error for nonexistent file', async () => {
+    const registry = createAllTools()
+    const result = await registry.execute('read_file', { relative_path: 'nope.md' }, { bookId: 'test-book', dataDir: tmpDir })
+    expect(result).toContain('Error')
+  })
+
+  it('should block path traversal', async () => {
+    const registry = createAllTools()
+    const result = await registry.execute('read_file', { relative_path: '../../etc/passwd' }, { bookId: 'test-book', dataDir: tmpDir })
+    expect(result).toContain('Error')
+  })
+})
+
+describe('SearchLore Tool', () => {
+  let tmpDir: string
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tools-'))
+    const loreDir = path.join(tmpDir, 'test-book', '01_Global_Settings')
+    fs.mkdirSync(loreDir, { recursive: true })
+    fs.writeFileSync(path.join(loreDir, 'characters.json'), JSON.stringify({
+      '萧炎': { level: '斗帝', age: 18 },
+      '萧薰儿': { level: '斗宗', age: 17 },
+    }), 'utf-8')
+  })
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true })
+  })
+
+  it('should find matching character', async () => {
+    const registry = createAllTools()
+    const result = await registry.execute('search_lore', { query: '萧炎' }, { bookId: 'test-book', dataDir: tmpDir })
+    expect(result).toContain('萧炎')
+    expect(result).toContain('斗帝')
+  })
+
+  it('should return no results for unknown query', async () => {
+    const registry = createAllTools()
+    const result = await registry.execute('search_lore', { query: 'nonexistent_xyz' }, { bookId: 'test-book', dataDir: tmpDir })
+    expect(result).toContain('No matching')
+  })
+})
+
+describe('Write Tools', () => {
+  let tmpDir: string
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tools-'))
+    fs.mkdirSync(path.join(tmpDir, 'test-book'), { recursive: true })
+  })
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true })
+  })
+
+  it('save_draft should create file and audit log', async () => {
+    const registry = createAllTools()
+    const result = await registry.execute('save_draft', {
+      file_path: '04_Drafts/ch1.md',
+      content: '# 第一章\n这是正文。',
+    }, { bookId: 'test-book', dataDir: tmpDir })
+
+    expect(result).toContain('saved')
+    const file = path.join(tmpDir, 'test-book', '04_Drafts', 'ch1.md')
+    expect(fs.existsSync(file)).toBe(true)
+    expect(fs.readFileSync(file, 'utf-8')).toContain('第一章')
+
+    // Verify audit log
+    const log = path.join(tmpDir, 'test-book', 'audit_log.jsonl')
+    expect(fs.existsSync(log)).toBe(true)
+  })
+
+  it('save_outline should create outline file', async () => {
+    const registry = createAllTools()
+    const outline = JSON.stringify({ title: '测试小说', volumes: [] })
+    const result = await registry.execute('save_outline', { outline_json: outline }, { bookId: 'test-book', dataDir: tmpDir })
+    expect(result).toContain('Outline saved')
+  })
+
+  it('save_lore should reject invalid category', async () => {
+    const registry = createAllTools()
+    const result = await registry.execute('save_lore', { category: 'invalid', content_json: '{}' }, { bookId: 'test-book', dataDir: tmpDir })
+    expect(result).toContain('Error')
+    expect(result).toContain('Unknown category')
+  })
+
+  it('save_lore should save to both dirs', async () => {
+    const registry = createAllTools()
+    const chars = JSON.stringify({ '萧炎': { level: '斗帝' } })
+    const result = await registry.execute('save_lore', { category: 'characters', content_json: chars }, { bookId: 'test-book', dataDir: tmpDir })
+    expect(result).toContain('saved successfully')
+    expect(fs.existsSync(path.join(tmpDir, 'test-book', 'lore', 'characters.json'))).toBe(true)
+    expect(fs.existsSync(path.join(tmpDir, 'test-book', '01_Global_Settings', 'characters.json'))).toBe(true)
+  })
+})
+
+describe('PlotTree Tools', () => {
+  let tmpDir: string
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tools-'))
+    fs.mkdirSync(path.join(tmpDir, 'test-book'), { recursive: true })
+  })
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true })
+  })
+
+  it('read_tree should return empty message when no tree', async () => {
+    const registry = createAllTools()
+    const result = await registry.execute('read_tree', {}, { bookId: 'test-book', dataDir: tmpDir })
+    expect(result).toContain('No plot tree')
+  })
+
+  it('add_plot_node should create tree and node', async () => {
+    const registry = createAllTools()
+    const result = await registry.execute('add_plot_node', {
+      parent: 'root', node_type: 'arc', title: '第一卷', description: '起始篇',
+    }, { bookId: 'test-book', dataDir: tmpDir })
+    expect(result).toContain('Node created')
+    expect(result).toContain('第一卷')
+
+    // Tree file should exist now
+    expect(fs.existsSync(path.join(tmpDir, 'test-book', 'plot_tree.json'))).toBe(true)
+  })
+
+  it('confirm_path should update node status', async () => {
+    const registry = createAllTools()
+    // First create a node
+    const addResult = await registry.execute('add_plot_node', {
+      parent: 'root', node_type: 'chapter', title: '第一章',
+    }, { bookId: 'test-book', dataDir: tmpDir })
+    const nodeId = addResult.match(/Node created: (\S+)/)?.[1] ?? ''
+    expect(nodeId).toBeTruthy()
+
+    // Confirm it
+    const result = await registry.execute('confirm_path', { node_id: nodeId }, { bookId: 'test-book', dataDir: tmpDir })
+    expect(result).toContain('confirmed')
+  })
+})
+
+describe('Terminal Tools', () => {
+  it('submit_for_review should return terminal marker', async () => {
+    const registry = createAllTools()
+    const result = await registry.execute('submit_for_review', { draft_text: '测试草稿' }, { bookId: 'test', dataDir: '/tmp' })
+    expect(result).toContain('TERMINAL:SUBMIT_FOR_REVIEW')
+  })
+
+  it('present_options should return options', async () => {
+    const registry = createAllTools()
+    const result = await registry.execute('present_options', {
+      description: '选择方向', options: 'A: 战斗\nB: 探索',
+    }, { bookId: 'test', dataDir: '/tmp' })
+    expect(result).toContain('TERMINAL:PRESENT_OPTIONS')
+    expect(result).toContain('战斗')
+  })
+
+  it('request_guidance should include context', async () => {
+    const registry = createAllTools()
+    const result = await registry.execute('request_guidance', {
+      question: '接下来怎么写?', context: '主角刚打完boss',
+    }, { bookId: 'test', dataDir: '/tmp' })
+    expect(result).toContain('TERMINAL:REQUEST_GUIDANCE')
+    expect(result).toContain('boss')
+  })
+})
