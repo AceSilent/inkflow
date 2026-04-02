@@ -1,3 +1,10 @@
+---
+name: outline_generation
+category: plotting
+description: 大纲生成方法论：从剧情树的confirmed路径生成可执行Markdown大纲。
+when_to_use: 需要将剧情树转化为写作施工图时
+---
+
 # 大纲生成方法论 (Outline Generation)
 
 > 从剧情树的confirmed路径生成可执行的Markdown大纲。大纲是给写作Agent的施工图纸。

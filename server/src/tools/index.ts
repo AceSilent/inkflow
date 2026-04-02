@@ -8,6 +8,7 @@ import { searchLoreTool } from './search-lore.js'
 import { saveDraftTool, saveOutlineTool, saveLoreTool, readOutlineTool } from './write-tools.js'
 import { readTreeTool, addPlotNodeTool, confirmPathTool, pruneBranchTool, mergeBranchesTool } from './plot-tree.js'
 import { submitForReviewTool, presentOptionsTool, requestGuidanceTool } from './terminal.js'
+import { loadSkillTool, listSkillsTool } from './skills.js'
 
 export function createAllTools(): ToolRegistry {
   const registry = new ToolRegistry()
@@ -33,6 +34,10 @@ export function createAllTools(): ToolRegistry {
   registry.register(submitForReviewTool)
   registry.register(presentOptionsTool)
   registry.register(requestGuidanceTool)
+
+  // Skill tools
+  registry.register(loadSkillTool)
+  registry.register(listSkillsTool)
 
   return registry
 }

@@ -1,3 +1,10 @@
+---
+name: scene_rhythm
+category: writing
+description: 场景节奏控制：长短句交错、留白技巧、转场节奏、禁排比回忆。
+when_to_use: 关注场景内部节奏和转场时
+---
+
 # 场景节奏控制 (Scene Rhythm)
 
 > 独立于冰山写作法的节奏专项skill。关注场景内部的呼吸、转场、留白。

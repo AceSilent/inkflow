@@ -1,3 +1,10 @@
+---
+name: plot_tree_methodology
+category: plotting
+description: 剧情树构建方法论：用树思维构建和探索剧情，主干是命运，分支是可能性，合流是宿命。
+when_to_use: 构思剧情、建立分支、合流时
+---
+
 # 剧情树构建方法论 (Plot Tree Methodology)
 
 > 用树的思维构建和探索剧情。主干是命运，分支是可能性，合流是宿命。

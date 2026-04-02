@@ -1,3 +1,10 @@
+---
+name: chapter_arc_design
+category: writing
+description: 章节弧线设计：每一章的情感体验曲线，起承转合与余韵控制。
+when_to_use: 设计章节结构和情感弧线时
+---
+
 # 章节弧线设计 (Chapter Arc Design)
 
 > 每一章都是一个完整的情感体验。有开始、有攀升、有高潮、有余韵。

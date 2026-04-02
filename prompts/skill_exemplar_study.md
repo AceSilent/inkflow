@@ -1,3 +1,10 @@
+---
+name: exemplar_study
+category: writing
+description: 范文研读方法论：从优秀范文库中学习写作技巧，学习手法而非抄袭内容。
+when_to_use: 需要参考范文提高写作质量时
+---
+
 # 范文研读方法论 (Exemplar Study)
 
 > 从优秀范文库中学习写作技巧。重点是学习手法，不是抄袭内容。

@@ -1,3 +1,10 @@
+---
+name: volume_planning
+category: planning
+description: 卷级节奏规划：卷是"季"的概念，有自己的主线、高潮和收束。
+when_to_use: 规划卷级结构和整体节奏时
+---
+
 # 卷级节奏规划 (Volume Planning)
 
 > 卷是"季"的概念——一季电视剧，有自己的主线、高潮和收束。

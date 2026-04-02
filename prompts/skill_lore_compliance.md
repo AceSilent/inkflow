@@ -1,3 +1,10 @@
+---
+name: lore_compliance
+category: worldbuilding
+description: 设定忠实度约束：角色、地点、物品、修为体系、时间线的严格一致性校验。
+when_to_use: 引用任何设定信息时
+---
+
 # 设定忠实度约束 · Lore Compliance Skill
 
 你在引用任何设定信息（角色、地点、物品、修为体系、时间线）时，必须严格遵守以下约束。

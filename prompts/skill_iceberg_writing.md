@@ -1,3 +1,10 @@
+---
+name: iceberg_writing
+category: writing
+description: 冰山写作法：五层创作方法论，包含信息差地图、潜台词推演、白描铁律、节奏呼吸、AI脏词黑名单。
+when_to_use: 在撰写任何正文/草稿之前
+---
+
 # 冰山写作法 · 作者核心创作技法 (Iceberg Writing Skill)
 
 你在写任何正文之前，必须在你的内部思考（thinking）中完成以下推演。这不是可选步骤，这是你创作的地基。

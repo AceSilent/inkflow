@@ -1,3 +1,10 @@
+---
+name: relationship_dynamics
+category: worldbuilding
+description: 角色关系网推演：活的网络拓扑，每次互动都在改变关系网。
+when_to_use: 处理角色互动和关系变化时
+---
+
 # 角色关系网推演 (Relationship Dynamics)
 
 > 角色之间的关系是活的网络，不是静态标签。每次互动都在改变网络的拓扑。
