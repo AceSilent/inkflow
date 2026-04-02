@@ -37,6 +37,29 @@ def _load_history(book_id: str) -> list:
             return []
     return []
 
+def _sanitize_for_llm(messages: list) -> list:
+    """Strip UI-only fields from history before sending to LLM API.
+    
+    Saved history may contain 'tool_calls' as a list of plain strings (tool names)
+    which is only for UI display. The LLM API expects proper ToolCall dicts.
+    Also strip 'thinking', 'segments', 'id', 'hasAttachments', etc.
+    """
+    clean = []
+    for msg in messages:
+        entry = {"role": msg["role"], "content": msg.get("content", "")}
+        # Only keep tool_calls if they are proper dicts (not string tool names)
+        if "tool_calls" in msg and isinstance(msg["tool_calls"], list):
+            if msg["tool_calls"] and isinstance(msg["tool_calls"][0], dict) and "function" in msg["tool_calls"][0]:
+                entry["tool_calls"] = msg["tool_calls"]
+        # Keep tool role fields
+        if msg["role"] == "tool":
+            if "tool_call_id" in msg:
+                entry["tool_call_id"] = msg["tool_call_id"]
+            if "name" in msg:
+                entry["name"] = msg["name"]
+        clean.append(entry)
+    return clean
+
 def _save_history(book_id: str, messages: list):
     p = _history_path(book_id)
     trimmed = messages[-50:]
@@ -149,7 +172,7 @@ async def send_message(book_id: str, req: ChatRequest):
         history = _load_history(book_id)
         history.append({"role": "user", "content": req.message})
 
-        llm_messages = [{"role": "system", "content": system_prompt}] + history[-20:]
+        llm_messages = [{"role": "system", "content": system_prompt}] + _sanitize_for_llm(history[-20:])
 
         tools_used = []
         all_thinking = []
@@ -189,7 +212,7 @@ async def send_message(book_id: str, req: ChatRequest):
 
                 except Exception as e:
                     # Streaming + tools failed — fallback to non-streaming loop
-                    logger.warning(f"Streaming tools loop failed (loop {loop_i}): {e}, falling back to non-streaming")
+                    logger.warning(f"Streaming tools loop failed: {e}, falling back to non-streaming")
                     use_streaming_tools = False
 
             if not use_streaming_tools:

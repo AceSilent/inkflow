@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { Send, Trash2, Wrench, Paperclip, X, FileText, ChevronDown, ChevronRight, Brain, PenTool, User, Loader, Check } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
 
-export function AuthorChatPanel({ currentBook, addToast }) {
+export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -173,7 +174,10 @@ export function AuthorChatPanel({ currentBook, addToast }) {
                 ...prev, segments: [...segments, { type: 'content', text: currentContentBuf }]
               }))
             } else if (evt.type === 'done') {
-              // Stream complete
+              // Stream complete — refresh lore if tools were used
+              if (evt.tools_used?.length > 0 && onLoreUpdated) {
+                onLoreUpdated()
+              }
             }
           } catch {}
         }
@@ -513,13 +517,13 @@ function MessageBubble({ msg, isExpanded, onToggleThinking }) {
         <div style={{ maxWidth: '85%', display: 'flex', flexDirection: 'column', gap: 4, width: '100%' }}>
           {msg.segments.map((seg, i) => (
             seg.type === 'content' ? (
-              <div key={i} style={{
+              <div key={i} className="markdown-chat" style={{
                 padding: '10px 14px', borderRadius: 12,
-                fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                fontSize: 13, lineHeight: 1.6, wordBreak: 'break-word',
                 background: 'var(--bg-elevated)', color: 'var(--text-primary)',
                 borderBottomLeftRadius: 4,
               }}>
-                {seg.text}
+                <ReactMarkdown>{seg.text}</ReactMarkdown>
               </div>
             ) : seg.type === 'tool_call' ? (
               <ToolCallCard key={i} segment={seg} />
@@ -528,17 +532,19 @@ function MessageBubble({ msg, isExpanded, onToggleThinking }) {
         </div>
       ) : (
         /* User messages or legacy assistant messages */
-        <div style={{
+        <div className={isUser ? '' : 'markdown-chat'} style={{
           maxWidth: '85%', padding: '10px 14px', borderRadius: 12,
-          fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+          fontSize: 13, lineHeight: 1.6,
+          whiteSpace: isUser ? 'pre-wrap' : 'normal',
+          wordBreak: 'break-word',
           background: isUser ? 'var(--accent)' : 'var(--bg-elevated)',
           color: isUser ? 'white' : 'var(--text-primary)',
           borderBottomRightRadius: isUser ? 4 : 12,
           borderBottomLeftRadius: isUser ? 12 : 4,
         }}>
-          {isUser && msg.hasAttachments
-            ? msg.content.split('\n\n--- 附件:')[0] || '(已发送附件)'
-            : msg.content
+          {isUser
+            ? (msg.hasAttachments ? msg.content.split('\n\n--- 附件:')[0] || '(已发送附件)' : msg.content)
+            : <ReactMarkdown>{msg.content}</ReactMarkdown>
           }
         </div>
       )}

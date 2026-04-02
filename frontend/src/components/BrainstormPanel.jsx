@@ -362,7 +362,7 @@ export function BrainstormPanel({ addToast, onNext, currentBook }) {
         {/* Tab Content */}
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
           {leftTab === 'chat'
-            ? <AuthorChatPanel currentBook={currentBook} addToast={addToast} />
+            ? <AuthorChatPanel currentBook={currentBook} addToast={addToast} onLoreUpdated={fetchLore} />
             : <TaskBoardPanel bookId={currentBook?.book_id} />
           }
         </div>
