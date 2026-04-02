@@ -9,6 +9,7 @@ import { saveDraftTool, saveOutlineTool, saveLoreTool, readOutlineTool } from '.
 import { readTreeTool, addPlotNodeTool, confirmPathTool, pruneBranchTool, mergeBranchesTool } from './plot-tree.js'
 import { submitForReviewTool, presentOptionsTool, requestGuidanceTool } from './terminal.js'
 import { loadSkillTool, listSkillsTool } from './skills.js'
+import { submitToEditorialTool } from '../editorial/editorial.js'
 
 export function createAllTools(): ToolRegistry {
   const registry = new ToolRegistry()
@@ -38,6 +39,9 @@ export function createAllTools(): ToolRegistry {
   // Skill tools
   registry.register(loadSkillTool)
   registry.register(listSkillsTool)
+
+  // Editorial tools
+  registry.register(submitToEditorialTool)
 
   return registry
 }
