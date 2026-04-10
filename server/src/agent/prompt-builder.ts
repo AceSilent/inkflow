@@ -66,6 +66,14 @@ export const AUTHOR_SECTIONS: PromptSection[] = [
     ].join('\n'),
   },
   {
+    title: '工具箱',
+    contentFn: (ctx) => {
+      const summary = ctx.toolSummary as string | undefined
+      return summary ?? ''
+    },
+    condition: (ctx) => !!ctx.toolSummary,
+  },
+  {
     title: '记忆',
     contentFn: (ctx) => ctx.memory ?? '',
     condition: (ctx) => !!ctx.memory,

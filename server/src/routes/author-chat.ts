@@ -124,6 +124,11 @@ export async function authorChatRoutes(app: FastifyInstance) {
 
       const toolsUsed: string[] = []
 
+      // AbortController for client disconnect
+      const abortController = new AbortController()
+      const onClose = () => { abortController.abort() }
+      request.raw.on('close', onClose)
+
       try {
         const history = loadHistory(dataDir, bookId)
 
@@ -137,6 +142,7 @@ export async function authorChatRoutes(app: FastifyInstance) {
           llmConfig,
           toolRegistry,
           mode,
+          abortSignal: abortController.signal,
         })
 
         let fullText = ''
@@ -174,8 +180,14 @@ export async function authorChatRoutes(app: FastifyInstance) {
         saveHistory(dataDir, bookId, updatedHistory)
 
         sse({ type: 'done', tools_used: toolsUsed, has_thinking: false })
-      } catch (err) {
-        sse({ type: 'error', message: String(err) })
+      } catch (err: any) {
+        if (abortController.signal.aborted) {
+          sse({ type: 'aborted', message: 'Stream cancelled by client' })
+        } else {
+          sse({ type: 'error', message: String(err) })
+        }
+      } finally {
+        request.raw.off('close', onClose)
       }
 
       reply.raw.end()

@@ -65,4 +65,19 @@ describe('ToolRegistry', () => {
     reg.register(mockWriteTool)
     expect(reg.getWriteTools()).toEqual(['save_draft'])
   })
+
+  it('should list read tools', () => {
+    const reg = new ToolRegistry()
+    reg.register(mockReadTool)
+    reg.register(mockWriteTool)
+    expect(reg.getReadTools()).toEqual(['read_file'])
+  })
+
+  it('should generate tool summary', () => {
+    const reg = new ToolRegistry()
+    reg.register(mockReadTool)
+    reg.register(mockWriteTool)
+    const summary = reg.getToolSummary()
+    expect(summary).toContain('read_file')
+  })
 })
