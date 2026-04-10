@@ -8,7 +8,7 @@ export function SettingsPanel({ addToast, theme, toggleTheme }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch('/api/v1/settings/')
+    fetch('/api/v1/settings')
       .then(r => r.json())
       .then(data => {
         if (!data.providers) data.providers = []
@@ -24,7 +24,7 @@ export function SettingsPanel({ addToast, theme, toggleTheme }) {
 
   const handleSave = async () => {
     try {
-      const resp = await fetch('/api/v1/settings/', {
+      const resp = await fetch('/api/v1/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settings)

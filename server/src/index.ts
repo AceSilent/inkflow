@@ -8,7 +8,7 @@ import { booksRoutes } from './routes/books.js'
 import { dataRoutes } from './routes/data.js'
 import { settingsRoutes } from './routes/settings.js'
 
-const app = Fastify({ logger: true })
+const app = Fastify({ logger: true, ignoreTrailingSlash: true })
 
 await app.register(cors, { origin: true })
 await app.register(authorChatRoutes)
