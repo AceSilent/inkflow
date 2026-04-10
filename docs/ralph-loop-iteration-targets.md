@@ -140,7 +140,7 @@
 - [x] 13 个错误类型测试
 - [x] 207 tests passing
 
-### Loop 8: 前端 i18n 完善 (P2-Q4) 🔄 IN PROGRESS
+### Loop 8: 前端 i18n 完善 (P2-Q4) ✅ DONE
 
 **目标**: 补全 i18n 缺失的 key
 
@@ -149,9 +149,9 @@
 - [x] 添加缺失的 i18n key 到 zh.json 和 en.json
 - [x] ChapterEditor 替换硬编码文案为 `t('key')` 调用
 - [x] OutlineTreeEditor 替换硬编码文案为 `t('key')` 调用
-- [ ] Sidebar 替换硬编码文案
-- [ ] AuthorChatPanel 替换硬编码文案
-- [ ] BrainstormPanel 替换硬编码文案
+- [x] Sidebar 替换硬编码文案
+- [x] AuthorChatPanel 替换硬编码文案
+- [x] BrainstormPanel 替换硬编码文案
 
 ### Loop 9: 前端 CSS 模块化 (P3-A4) 🔲 PLANNED
 
