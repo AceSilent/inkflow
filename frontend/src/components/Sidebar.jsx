@@ -17,12 +17,12 @@ export function Sidebar({ activePanel, addToast, onSelect, onBookSelect, onNewBo
         const data = await resp.json()
         const tree = Array.isArray(data) ? data : (data.tree || [])
         setTreeData(tree)
-        if (showFeedback) addToast?.('已刷新', 'success')
+        if (showFeedback) addToast?.(t('sidebar.refreshed'), 'success')
         return tree.filter(n => n.type === 'book').map(n => n.id)
       }
     } catch (e) {
       console.error(e)
-      if (showFeedback) addToast?.('刷新失败', 'error')
+      if (showFeedback) addToast?.(t('sidebar.refreshFailed'), 'error')
     } finally {
       setLoading(false)
     }
@@ -66,15 +66,15 @@ export function Sidebar({ activePanel, addToast, onSelect, onBookSelect, onNewBo
     try {
       const res = await fetch(`/api/v1/books/${node.id}`, { method: 'DELETE' })
       if (res.ok) {
-        addToast?.(`已删除「${node.label}」`, 'success')
+        addToast?.(t('sidebar.deleted').replace('{label}', node.label), 'success')
         onBookSelect?.(null)  // Clear current book
         setSelectedId(null)
         fetchTree()
       } else {
-        addToast?.('删除失败', 'error')
+        addToast?.(t('sidebar.deleteFailed'), 'error')
       }
     } catch {
-      addToast?.('删除失败', 'error')
+      addToast?.(t('sidebar.deleteFailed'), 'error')
     }
   }
 
@@ -108,6 +108,7 @@ export function Sidebar({ activePanel, addToast, onSelect, onBookSelect, onNewBo
 }
 
 function TreeNode({ node, bookId, level = 0, selectedId, onSelect, onDeleteBook, pendingDelete, onCancelDelete }) {
+  const { t } = useI18n()
   const [open, setOpen] = useState(level < 2)
   const [hovered, setHovered] = useState(false)
   const hasChildren = node.children?.length > 0
@@ -132,21 +133,21 @@ function TreeNode({ node, bookId, level = 0, selectedId, onSelect, onDeleteBook,
           <span style={{
             width: 6, height: 6, borderRadius: '50%', flexShrink: 0, marginLeft: 4,
             background: node.status === 'draft' ? 'var(--success)' : node.status === 'reviewed' ? 'var(--accent)' : 'var(--warning)',
-          }} title={node.status === 'draft' ? '已生成草稿' : node.status === 'reviewed' ? '已审阅' : '仅大纲'} />
+          }} title={node.status === 'draft' ? t('sidebar.statusDraft') : node.status === 'reviewed' ? t('sidebar.statusReviewed') : t('sidebar.statusOutline')} />
         )}
         {isBook && isConfirming && (
           <button
             style={{ marginLeft: 'auto', background: 'var(--danger)', color: '#fff', border: 'none', borderRadius: 4, padding: '1px 8px', fontSize: 10, cursor: 'pointer', fontWeight: 600 }}
             onClick={(e) => { e.stopPropagation(); onDeleteBook?.(node); }}
           >
-            确认删除
+            {t('sidebar.confirmDelete')}
           </button>
         )}
         {isBook && hovered && !isConfirming && (
           <button
             className="btn-icon"
             style={{ marginLeft: 'auto', color: 'var(--danger)', opacity: 0.7, padding: 2 }}
-            title="删除此书"
+            title={t('sidebar.deleteBook')}
             onClick={(e) => { e.stopPropagation(); onDeleteBook?.(node); }}
           >
             <Trash2 size={12} />

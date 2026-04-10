@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
 import { Send, Trash2, Wrench, Paperclip, X, FileText, ChevronDown, ChevronRight, Brain, PenTool, User, Loader, Check } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
+import { useI18n } from '../i18n/index.jsx'
 
 export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
+  const { t } = useI18n()
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -69,7 +71,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
     const files = Array.from(e.target.files || [])
     files.forEach(file => {
       if (file.size > 512 * 1024) {
-        addToast?.(`文件 ${file.name} 超过 512KB 限制`, 'error')
+        addToast?.(t('authorChat.fileTooLarge').replace('{name}', file.name), 'error')
         return
       }
       const reader = new FileReader()
@@ -91,7 +93,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
     let userMsg = input.trim()
     if (attachments.length > 0) {
       const fileParts = attachments.map(a =>
-        `\n\n--- 附件: ${a.name} (${(a.size / 1024).toFixed(1)}KB) ---\n${a.content}`
+        `\n\n--- ${t('authorChat.attachment')}: ${a.name} (${(a.size / 1024).toFixed(1)}KB) ---\n${a.content}`
       ).join('')
       userMsg = userMsg + fileParts
     }
@@ -169,7 +171,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
               }
               setStreamingMsg(prev => ({ ...prev, segments: [...segments] }))
             } else if (evt.type === 'error') {
-              currentContentBuf += `错误: ${evt.message}`
+              currentContentBuf += `${t('authorChat.error')}: ${evt.message}`
               setStreamingMsg(prev => ({
                 ...prev, segments: [...segments, { type: 'content', text: currentContentBuf }]
               }))
@@ -190,7 +192,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
       const msgId = Date.now()
       setMessages(prev => [...prev, {
         role: 'assistant',
-        segments: segments.length > 0 ? segments : [{ type: 'content', text: '(无回复)' }],
+        segments: segments.length > 0 ? segments : [{ type: 'content', text: t('authorChat.noReply') }],
         thinking: finalThinking,
         id: msgId
       }])
@@ -199,7 +201,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
       }
 
     } catch (e) {
-      addToast?.('发送失败: ' + e.message, 'error')
+      addToast?.(t('authorChat.sendFailed') + ': ' + e.message, 'error')
     } finally {
       setLoading(false)
       setStreamingMsg(null)
@@ -228,7 +230,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
   if (!bookId) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', fontSize: 14 }}>
-        请先选择或创建一本书
+        {t('authorChat.noBook')}
       </div>
     )
   }
@@ -258,9 +260,9 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
         {messages.length === 0 && !streamingMsg && (
           <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: 40, fontSize: 13, lineHeight: 2 }}>
             <PenTool size={32} style={{ marginBottom: 8, color: 'var(--accent)' }} />
-            <div>直接和作者 Agent 对话</div>
-            <div style={{ fontSize: 11 }}>他能查设定、写大纲、写正文、构建剧情树、提交审核</div>
-            <div style={{ fontSize: 11, marginTop: 4 }}>支持发送文件 · 支持查看思考过程 · 工具调用可展开</div>
+            <div>{t('authorChat.directChat')}</div>
+            <div style={{ fontSize: 11 }}>{t('authorChat.capabilities')}</div>
+            <div style={{ fontSize: 11, marginTop: 4 }}>{t('authorChat.features')}</div>
           </div>
         )}
 
@@ -277,7 +279,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
         {/* Live streaming message */}
         {streamingMsg && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 3 }}><PenTool size={9} /> 作者</div>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 3 }}><PenTool size={9} /> {t('authorChat.author')}</div>
 
             {/* Thinking */}
             {streamingMsg.thinking && (
@@ -289,7 +291,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
                 maxHeight: 200, overflowY: 'auto'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4, fontSize: 10, fontWeight: 600, color: 'rgba(139,92,246,0.8)' }}>
-                  <Brain size={10} /> 思考中...
+                  <Brain size={10} /> {t('authorChat.thinking')}
                 </div>
                 {streamingMsg.thinking}
               </div>
@@ -321,8 +323,8 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
                 display: 'flex', alignItems: 'center', gap: 6
               }}>
                 <Loader size={12} style={{ animation: 'spin 1.5s linear infinite' }} />
-                {streamingMsg.phase === 'agent_loop' && '思考中...'}
-                {!streamingMsg.phase && '处理中...'}
+                {streamingMsg.phase === 'agent_loop' && t('authorChat.thinking')}
+                {!streamingMsg.phase && t('authorChat.processing')}
               </div>
             )}
           </div>
@@ -362,7 +364,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
       }}>
         <input ref={fileInputRef} type="file" multiple accept=".txt,.md,.json,.csv,.py,.js,.jsx"
           onChange={handleFileSelect} style={{ display: 'none' }} />
-        <button onClick={() => fileInputRef.current?.click()} title="附加文件"
+        <button onClick={() => fileInputRef.current?.click()} title={t('authorChat.attachFile')}
           style={{
             background: 'none', border: '1px solid var(--border-subtle)', cursor: 'pointer',
             color: 'var(--text-muted)', padding: '6px 8px', borderRadius: 8, display: 'flex', alignItems: 'center'
@@ -370,7 +372,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
           <Paperclip size={16} />
         </button>
         <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKeyDown}
-          placeholder="给作者下指令... (Enter 发送, Shift+Enter 换行)" rows={1}
+          placeholder={t('authorChat.placeholder')} rows={1}
           style={{
             flex: 1, resize: 'none', padding: '8px 12px', borderRadius: 8,
             border: '1px solid var(--border-subtle)', background: 'var(--bg-elevated)',
@@ -385,7 +387,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
             color: (input.trim() || attachments.length > 0) && !loading ? 'white' : 'var(--text-muted)',
             display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 600, transition: 'all 0.2s'
           }}>
-          <Send size={14} /> 发送
+          <Send size={14} /> {t('authorChat.send')}
         </button>
       </div>
     </div>
@@ -460,6 +462,7 @@ function ToolCallCard({ segment }) {
 // ── Message Bubble Component ──
 
 function MessageBubble({ msg, isExpanded, onToggleThinking }) {
+  const { t } = useI18n()
   const isUser = msg.role === 'user'
 
   return (
@@ -468,7 +471,7 @@ function MessageBubble({ msg, isExpanded, onToggleThinking }) {
       alignItems: isUser ? 'flex-end' : 'flex-start',
     }}>
       <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 3 }}>
-        {isUser ? <><User size={9} /> 你</> : <><PenTool size={9} /> 作者</>}
+        {isUser ? <><User size={9} /> {t('authorChat.you')}</> : <><PenTool size={9} /> {t('authorChat.author')}</>}
       </div>
 
       {/* Attachment badges */}
@@ -496,7 +499,7 @@ function MessageBubble({ msg, isExpanded, onToggleThinking }) {
           }}>
             {isExpanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
             <Brain size={10} />
-            思考过程 ({msg.thinking.length} 字)
+            {t('authorChat.thinkingProcess')} ({msg.thinking.length} {t('authorChat.chars')})
           </button>
           {isExpanded && (
             <div style={{
@@ -543,7 +546,7 @@ function MessageBubble({ msg, isExpanded, onToggleThinking }) {
           borderBottomLeftRadius: isUser ? 12 : 4,
         }}>
           {isUser
-            ? (msg.hasAttachments ? msg.content.split('\n\n--- 附件:')[0] || '(已发送附件)' : msg.content)
+            ? (msg.hasAttachments ? msg.content.split('\n\n--- 附件:')[0] || t('authorChat.sentAttachment') : msg.content)
             : <ReactMarkdown>{msg.content}</ReactMarkdown>
           }
         </div>

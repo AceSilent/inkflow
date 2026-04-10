@@ -5,6 +5,7 @@ import { AuthorChatPanel } from './AuthorChatPanel.jsx'
 
 // Recursive JSON viewer for lore files
 function LoreJsonViewer({ data, depth = 0 }) {
+  const { t } = useI18n()
   if (data === null || data === undefined) return null
 
   // Primitive value
@@ -14,7 +15,7 @@ function LoreJsonViewer({ data, depth = 0 }) {
 
   // Array
   if (Array.isArray(data)) {
-    if (data.length === 0) return <span style={{ color: 'var(--text-muted)' }}>（空）</span>
+    if (data.length === 0) return <span style={{ color: 'var(--text-muted)' }}>{t('common.empty')}</span>
     // Array of primitives — inline
     if (data.every(v => typeof v !== 'object')) {
       return <span>{data.join('、')}</span>
@@ -32,7 +33,7 @@ function LoreJsonViewer({ data, depth = 0 }) {
 
   // Object
   const entries = Object.entries(data)
-  if (entries.length === 0) return <span style={{ color: 'var(--text-muted)' }}>（空）</span>
+  if (entries.length === 0) return <span style={{ color: 'var(--text-muted)' }}>{t('common.empty')}</span>
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -149,7 +150,7 @@ export function BrainstormPanel({ addToast, currentBook, onDataChanged }) {
           <div style={{ flex: 1, padding: '12px 16px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
             {/* Section Tabs */}
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-              {[['meta','基础'],['world','世界观'],['chars','角色'],['outline','大纲']].map(([key, label]) => (
+              {[['meta', t('brainstorm.meta')],['world', t('brainstorm.world')],['chars', t('brainstorm.chars')],['outline', t('brainstorm.outlineTab')]].map(([key, label]) => (
                 <button key={key} onClick={() => setLoreSection(key)} style={{
                   padding: '4px 10px', borderRadius: 4, fontSize: 11, border: 'none', cursor: 'pointer',
                   background: loreSection === key ? 'var(--accent)' : 'var(--bg-subtle)',
@@ -163,19 +164,19 @@ export function BrainstormPanel({ addToast, currentBook, onDataChanged }) {
             {loreSection === 'meta' && (
               <>
                 <div className="field">
-                  <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Settings size={12}/> 书名</label>
+                  <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Settings size={12}/> {t('brainstorm.bookTitle')}</label>
                   <input className="input" value={lore.title} onChange={e => setLore(prev => ({ ...prev, title: e.target.value }))} />
                 </div>
                 <div className="field">
-                  <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><User size={12}/> 主角设定</label>
+                  <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><User size={12}/> {t('brainstorm.protagonist')}</label>
                   <textarea className="textarea" rows={3} value={lore.protagonist} onChange={e => setLore(prev => ({ ...prev, protagonist: e.target.value }))} />
                 </div>
                 <div className="field">
-                  <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Globe size={12}/> 世界观</label>
+                  <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Globe size={12}/> {t('brainstorm.worldSetting')}</label>
                   <textarea className="textarea" rows={3} value={lore.worldSetting} onChange={e => setLore(prev => ({ ...prev, worldSetting: e.target.value }))} />
                 </div>
                 <div className="field">
-                  <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><FileText size={12}/> 核心梗概</label>
+                  <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><FileText size={12}/> {t('brainstorm.synopsis')}</label>
                   <textarea className="textarea" rows={3} value={lore.synopsis} onChange={e => setLore(prev => ({ ...prev, synopsis: e.target.value }))} />
                 </div>
               </>
@@ -187,7 +188,7 @@ export function BrainstormPanel({ addToast, currentBook, onDataChanged }) {
                 {loreFiles.world_setting ? (
                   <LoreJsonViewer data={loreFiles.world_setting} />
                 ) : (
-                  <div style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 20 }}>暂无世界观设定数据<br/>Agent讨论后会自动生成</div>
+                  <div style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 20 }}>{t('brainstorm.noLore')}<br/>{t('brainstorm.willAutoGen')}</div>
                 )}
               </div>
             )}
@@ -198,7 +199,7 @@ export function BrainstormPanel({ addToast, currentBook, onDataChanged }) {
                 {loreFiles.characters ? (
                   <LoreJsonViewer data={loreFiles.characters} />
                 ) : (
-                  <div style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 20 }}>暂无角色设定数据<br/>Agent讨论后会自动生成</div>
+                  <div style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 20 }}>{t('brainstorm.noChars')}<br/>{t('brainstorm.willAutoGen')}</div>
                 )}
               </div>
             )}
@@ -209,7 +210,7 @@ export function BrainstormPanel({ addToast, currentBook, onDataChanged }) {
                 {loreFiles.outline ? (
                   <LoreJsonViewer data={loreFiles.outline} />
                 ) : (
-                  <div style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 20 }}>暂无大纲数据<br/>Agent讨论后会自动生成</div>
+                  <div style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 20 }}>{t('brainstorm.noOutline')}<br/>{t('brainstorm.willAutoGen')}</div>
                 )}
               </div>
             )}
