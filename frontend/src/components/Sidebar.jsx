@@ -15,10 +15,10 @@ export function Sidebar({ activePanel, addToast, onSelect, onBookSelect, onNewBo
       const resp = await fetch('/api/v1/books/explorer')
       if (resp.ok) {
         const data = await resp.json()
-        setTreeData(data)
+        const tree = Array.isArray(data) ? data : (data.tree || [])
+        setTreeData(tree)
         if (showFeedback) addToast?.('已刷新', 'success')
-        // Return the book ids so callers can check if currentBook still exists
-        return data.filter(n => n.type === 'book').map(n => n.id)
+        return tree.filter(n => n.type === 'book').map(n => n.id)
       }
     } catch (e) {
       console.error(e)

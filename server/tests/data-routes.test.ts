@@ -7,6 +7,7 @@ import {
   readPlotTree,
   listChapters,
   getChapterDetail,
+  writeOutline,
 } from '../src/routes/data.js'
 
 const TEST_DIR = path.join(process.cwd(), '__test_data__')
@@ -88,5 +89,41 @@ describe('Data read endpoints', () => {
   it('listChapters returns empty when no outline', () => {
     const result = listChapters(TEST_DIR, 'no-outline-book')
     expect(result).toEqual([])
+  })
+
+  it('writeOutline creates file and readOutline reads it back', () => {
+    const outline = {
+      id: 'write-test',
+      label: 'Written Novel',
+      type: 'book',
+      children: [
+        { id: 'v1', label: 'Volume 1', type: 'volume', children: [] },
+      ],
+    }
+    writeOutline(TEST_DIR, 'write-test', outline)
+
+    // Verify file exists
+    const filePath = path.join(TEST_DIR, 'write-test', '02_Outlines', 'outline.json')
+    expect(fs.existsSync(filePath)).toBe(true)
+
+    // Read back
+    const result = readOutline(TEST_DIR, 'write-test')
+    expect(result.label).toBe('Written Novel')
+    expect(result.children).toHaveLength(1)
+  })
+
+  it('writeOutline overwrites existing outline', () => {
+    const bookDir = path.join(TEST_DIR, 'overwrite-book', '02_Outlines')
+    fs.mkdirSync(bookDir, { recursive: true })
+    fs.writeFileSync(
+      path.join(bookDir, 'outline.json'),
+      JSON.stringify({ id: 'old', label: 'Old Title', type: 'book', children: [] }),
+      'utf-8'
+    )
+
+    writeOutline(TEST_DIR, 'overwrite-book', { id: 'new', label: 'New Title', type: 'book', children: [] })
+
+    const result = readOutline(TEST_DIR, 'overwrite-book')
+    expect(result.label).toBe('New Title')
   })
 })

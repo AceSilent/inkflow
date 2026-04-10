@@ -117,15 +117,14 @@ describe('Books CRUD', () => {
     const tree = explorerTree(TEST_DIR)
     expect(tree).toHaveLength(2)
 
-    // Each entry should have id, title, and children for standard dirs
+    // Each entry should have id, label, type='book', and children
     const ids = tree.map((t: { id: string }) => t.id).sort()
     expect(ids).toEqual(['book-a', 'book-b'])
 
     const bookA = tree.find((t: { id: string }) => t.id === 'book-a')!
-    expect(bookA.title).toBe('小说A')
+    expect(bookA.label).toBe('小说A')
+    expect(bookA.type).toBe('book')
     expect(bookA.children).toBeDefined()
-    const childNames = (bookA.children as { name: string }[]).map((c) => c.name).sort()
-    expect(childNames).toEqual(['00_Config', '01_Global_Settings', '02_Outlines', 'memory'])
   })
 
   it('should reject duplicate book_id', () => {

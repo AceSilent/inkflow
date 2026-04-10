@@ -164,6 +164,21 @@ export function getChapterDetail(
   }
 }
 
+/**
+ * Write outline.json to 02_Outlines/. Creates directory if needed.
+ */
+export function writeOutline(dataDir: string, bookId: string, outline: any): void {
+  const outlinesDir = path.join(dataDir, bookId, '02_Outlines')
+  if (!fs.existsSync(outlinesDir)) {
+    fs.mkdirSync(outlinesDir, { recursive: true })
+  }
+  fs.writeFileSync(
+    path.join(outlinesDir, 'outline.json'),
+    JSON.stringify(outline, null, 2),
+    'utf-8'
+  )
+}
+
 // ── Fastify route registration ──
 
 export async function dataRoutes(app: FastifyInstance): Promise<void> {
@@ -174,6 +189,15 @@ export async function dataRoutes(app: FastifyInstance): Promise<void> {
     '/api/v1/books/:bookId/outline',
     async (request) => {
       return readOutline(dataDir(), request.params.bookId)
+    }
+  )
+
+  // PUT /api/v1/books/:bookId/outline
+  app.put<{ Params: { bookId: string } }>(
+    '/api/v1/books/:bookId/outline',
+    async (request) => {
+      writeOutline(dataDir(), request.params.bookId, request.body)
+      return { status: 'ok' }
     }
   )
 

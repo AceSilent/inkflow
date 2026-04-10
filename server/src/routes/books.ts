@@ -23,6 +23,15 @@ export interface BookMeta {
   created_at?: string
 }
 
+export interface TreeNode {
+  id: string
+  label: string
+  type: 'book' | 'volume' | 'chapter' | 'scene'
+  status?: string
+  summary?: string
+  children?: TreeNode[]
+}
+
 // ── Helper functions (exported for direct testing) ──
 
 export function listBooks(dataDir: string): BookMeta[] {
@@ -93,10 +102,15 @@ export function deleteBook(dataDir: string, bookId: string): void {
   fs.rmSync(bookDir, { recursive: true, force: true })
 }
 
-interface TreeNode {
-  id: string
-  title: string
-  children: { name: string; path: string }[]
+function scanOutlineNode(node: any): TreeNode {
+  return {
+    id: node.id || String(Math.random()),
+    label: node.label || '',
+    type: node.type || 'scene',
+    status: node.status,
+    summary: node.summary,
+    children: node.children?.map(scanOutlineNode),
+  }
 }
 
 export function explorerTree(dataDir: string): TreeNode[] {
@@ -104,19 +118,25 @@ export function explorerTree(dataDir: string): TreeNode[] {
 
   return books.map((book) => {
     const bookDir = path.join(dataDir, book.book_id)
-    const children: { name: string; path: string }[] = []
+    const children: TreeNode[] = []
 
-    const standardDirs = ['00_Config', '01_Global_Settings', '02_Outlines', 'memory']
-    for (const dirName of standardDirs) {
-      const dirPath = path.join(bookDir, dirName)
-      if (fs.existsSync(dirPath)) {
-        children.push({ name: dirName, path: `${book.book_id}/${dirName}` })
-      }
+    // Scan outlines for chapters
+    const outlinePath = path.join(bookDir, '02_Outlines', 'outline.json')
+    if (fs.existsSync(outlinePath)) {
+      try {
+        const outline = JSON.parse(fs.readFileSync(outlinePath, 'utf-8'))
+        if (outline.children) {
+          for (const vol of outline.children) {
+            children.push(scanOutlineNode(vol))
+          }
+        }
+      } catch { /* ignore parse errors */ }
     }
 
     return {
       id: book.book_id,
-      title: book.title,
+      label: book.title,
+      type: 'book',
       children,
     }
   })
@@ -132,9 +152,9 @@ export async function booksRoutes(app: FastifyInstance): Promise<void> {
     return { books: listBooks(dataDir()) }
   })
 
-  // GET /api/v1/books/explorer — tree structure for sidebar
+  // GET /api/v1/books/explorer — tree structure for sidebar navigation
   app.get('/api/v1/books/explorer', async () => {
-    return { tree: explorerTree(dataDir()) }
+    return explorerTree(dataDir())
   })
 
   // GET /api/v1/books/:bookId — get single book metadata
