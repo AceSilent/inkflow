@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Moon, Sun, Save, Languages, Plus, Trash2, Key, Globe, Box } from 'lucide-react'
+import { Moon, Sun, Save, Languages, Plus, Trash2, Key, Globe } from 'lucide-react'
 import { useI18n } from '../i18n/index.jsx'
 
 export function SettingsPanel({ addToast, theme, toggleTheme }) {

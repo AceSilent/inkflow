@@ -57,9 +57,9 @@ async function runReviewer(
   if (!fs.existsSync(templatePath)) {
     return {
       reviewer: reviewerName,
-      pass_status: true,
-      issues: [],
-      quick_comment: `Template not found: ${templateFile}`,
+      pass_status: false,
+      issues: [{ type: 'Template_Missing', severity: 5, fix_instruction: `Review template ${templateFile} not found` }],
+      quick_comment: `Template not found: ${templateFile} — review skipped`,
     }
   }
 
@@ -89,16 +89,16 @@ async function runReviewer(
     } catch {
       return {
         reviewer: reviewerName,
-        pass_status: true,
-        issues: [],
+        pass_status: false,
+        issues: [{ type: 'Parse_Error', severity: 3, fix_instruction: 'Review response could not be parsed' }],
         quick_comment: `[Parse error] Raw: ${text.slice(0, 200)}`,
       }
     }
   } catch (err) {
     return {
       reviewer: reviewerName,
-      pass_status: true,
-      issues: [],
+      pass_status: false,
+      issues: [{ type: 'LLM_Error', severity: 5, fix_instruction: 'Reviewer LLM call failed' }],
       quick_comment: `[LLM error] ${String(err).slice(0, 200)}`,
     }
   }

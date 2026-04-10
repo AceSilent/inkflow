@@ -68,7 +68,7 @@ export default function App() {
 
   const renderEditor = () => {
     switch (activeTab) {
-      case 'brainstorm': return <BrainstormPanel addToast={addToast} currentBook={currentBook} />;
+      case 'brainstorm': return <BrainstormPanel addToast={addToast} currentBook={currentBook} onDataChanged={refreshData} />;
       case 'author-chat': return <AuthorChatPanel currentBook={currentBook} addToast={addToast} onLoreUpdated={refreshData} />;
       case 'outline': return <OutlineTreeEditor addToast={addToast} currentBook={currentBook} dataVersion={dataVersion} />;
       case 'settings': return <SettingsPanel addToast={addToast} theme={theme} toggleTheme={toggleTheme} />;
@@ -76,7 +76,7 @@ export default function App() {
         if (activeTab.startsWith('chapter-') && activeChapter) {
           return <ChapterEditor bookId={currentBook?.book_id} chapterId={activeChapter.id} chapterLabel={activeChapter.label} addToast={addToast} dataVersion={dataVersion} />;
         }
-        return <BrainstormPanel addToast={addToast} currentBook={currentBook} />;
+        return <BrainstormPanel addToast={addToast} currentBook={currentBook} onDataChanged={refreshData} />;
     }
   }
 
