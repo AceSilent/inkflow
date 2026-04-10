@@ -179,6 +179,34 @@ export function writeOutline(dataDir: string, bookId: string, outline: any): voi
   )
 }
 
+/**
+ * Read review results for a chapter. Reviews are stored as JSON in 04_Drafts/.
+ */
+export function readReview(dataDir: string, bookId: string, chapterId: string): any {
+  const reviewPath = path.join(dataDir, bookId, '04_Drafts', `review_${chapterId}.json`)
+  if (!fs.existsSync(reviewPath)) return null
+  try {
+    return JSON.parse(fs.readFileSync(reviewPath, 'utf-8'))
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Write review results for a chapter.
+ */
+export function writeReview(dataDir: string, bookId: string, chapterId: string, review: any): void {
+  const draftsDir = path.join(dataDir, bookId, '04_Drafts')
+  if (!fs.existsSync(draftsDir)) {
+    fs.mkdirSync(draftsDir, { recursive: true })
+  }
+  fs.writeFileSync(
+    path.join(draftsDir, `review_${chapterId}.json`),
+    JSON.stringify(review, null, 2),
+    'utf-8'
+  )
+}
+
 // ── Fastify route registration ──
 
 export async function dataRoutes(app: FastifyInstance): Promise<void> {
@@ -239,6 +267,15 @@ export async function dataRoutes(app: FastifyInstance): Promise<void> {
         return { error: 'Chapter not found' }
       }
       return detail
+    }
+  )
+
+  // GET /api/v1/books/:bookId/chapters/:chapterId/reviews
+  app.get<{ Params: { bookId: string; chapterId: string } }>(
+    '/api/v1/books/:bookId/chapters/:chapterId/reviews',
+    async (request) => {
+      const review = readReview(dataDir(), request.params.bookId, request.params.chapterId)
+      return review ?? { feedbacks: [] }
     }
   )
 }

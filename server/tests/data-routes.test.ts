@@ -8,6 +8,8 @@ import {
   listChapters,
   getChapterDetail,
   writeOutline,
+  readReview,
+  writeReview,
 } from '../src/routes/data.js'
 
 const TEST_DIR = path.join(process.cwd(), '__test_data__')
@@ -125,5 +127,28 @@ describe('Data read endpoints', () => {
 
     const result = readOutline(TEST_DIR, 'overwrite-book')
     expect(result.label).toBe('New Title')
+  })
+
+  it('readReview returns null when no review exists', () => {
+    const result = readReview(TEST_DIR, 'no-review-book', 'ch1')
+    expect(result).toBeNull()
+  })
+
+  it('writeReview creates file and readReview reads it back', () => {
+    const review = {
+      overall_pass: false,
+      feedbacks: [
+        { reviewer: 'ai_tone', pass_status: false, issues: [{ type: 'Dash_Abuse', severity: 4 }], quick_comment: '破折号过多' },
+      ],
+    }
+    writeReview(TEST_DIR, 'review-book', 'ch1', review)
+
+    const filePath = path.join(TEST_DIR, 'review-book', '04_Drafts', 'review_ch1.json')
+    expect(fs.existsSync(filePath)).toBe(true)
+
+    const result = readReview(TEST_DIR, 'review-book', 'ch1')
+    expect(result.overall_pass).toBe(false)
+    expect(result.feedbacks).toHaveLength(1)
+    expect(result.feedbacks[0].reviewer).toBe('ai_tone')
   })
 })
