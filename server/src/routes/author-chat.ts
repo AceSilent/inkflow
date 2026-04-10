@@ -12,6 +12,7 @@ import { runAgentStream } from '../agent/agent-loop.js'
 import { createAllTools } from '../tools/index.js'
 import { type LLMConfig } from '../llm/provider.js'
 import { sanitizePathSegment } from '../utils/path-sanitizer.js'
+import { sendChatBody } from './schemas.js'
 
 function loadConfig(): { llmConfig: LLMConfig; dataDir: string } {
   return {
@@ -104,6 +105,11 @@ export async function authorChatRoutes(app: FastifyInstance) {
         return { error: err.message }
       }
       const { message, mode } = request.body
+      const parsed = sendChatBody.safeParse(request.body)
+      if (!parsed.success) {
+        reply.code(400)
+        return { error: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ') }
+      }
       const { llmConfig, dataDir } = loadConfig()
 
       reply.raw.writeHead(200, {

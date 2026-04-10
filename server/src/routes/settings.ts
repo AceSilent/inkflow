@@ -8,6 +8,7 @@
 import { type FastifyInstance } from 'fastify'
 import fs from 'fs'
 import path from 'path'
+import { saveSettingsBody } from './schemas.js'
 
 // ── Types ──
 
@@ -98,7 +99,12 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
     '/api/v1/settings',
     async (request, reply) => {
       try {
-        saveSettings(dataDir(), request.body)
+        const parsed = saveSettingsBody.safeParse(request.body)
+        if (!parsed.success) {
+          reply.code(400)
+          return { error: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ') }
+        }
+        saveSettings(dataDir(), parsed.data as AppSettings)
         return { status: 'ok' }
       } catch (err: any) {
         reply.code(500)

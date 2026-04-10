@@ -12,6 +12,7 @@ import { type FastifyInstance } from 'fastify'
 import fs from 'fs'
 import path from 'path'
 import { sanitizePathSegment } from '../utils/path-sanitizer.js'
+import { createBookBody, bookIdParam } from './schemas.js'
 
 // ── Types ──
 
@@ -177,7 +178,12 @@ export async function booksRoutes(app: FastifyInstance): Promise<void> {
     '/api/v1/books',
     async (request, reply) => {
       try {
-        const body = request.body as BookMeta
+        const parsed = createBookBody.safeParse(request.body)
+        if (!parsed.success) {
+          reply.code(400)
+          return { error: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ') }
+        }
+        const body = parsed.data as BookMeta
         sanitizePathSegment(body.book_id, 'book_id')
         const book = createBook(dataDir(), body)
         reply.code(201)

@@ -12,6 +12,7 @@ import { type FastifyInstance } from 'fastify'
 import fs from 'fs'
 import path from 'path'
 import { sanitizePathSegment } from '../utils/path-sanitizer.js'
+import { outlineBody } from './schemas.js'
 
 // ── Helper functions (exported for direct testing) ──
 
@@ -228,7 +229,12 @@ export async function dataRoutes(app: FastifyInstance): Promise<void> {
     async (request, reply) => {
       try {
         const bookId = sanitizePathSegment(request.params.bookId, 'bookId')
-        writeOutline(dataDir(), bookId, request.body)
+        const parsed = outlineBody.safeParse(request.body)
+        if (!parsed.success) {
+          reply.code(400)
+          return { error: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ') }
+        }
+        writeOutline(dataDir(), bookId, parsed.data)
         return { status: 'ok' }
       } catch (err: any) {
         reply.code(400)
