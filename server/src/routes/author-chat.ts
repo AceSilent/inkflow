@@ -11,6 +11,7 @@ import { type CoreMessage } from 'ai'
 import { runAgentStream } from '../agent/agent-loop.js'
 import { createAllTools } from '../tools/index.js'
 import { type LLMConfig } from '../llm/provider.js'
+import { sanitizePathSegment } from '../utils/path-sanitizer.js'
 
 function loadConfig(): { llmConfig: LLMConfig; dataDir: string } {
   return {
@@ -61,21 +62,33 @@ export async function authorChatRoutes(app: FastifyInstance) {
   // GET history
   app.get<{ Params: { bookId: string } }>(
     '/api/v1/author-chat/:bookId/history',
-    async (request) => {
-      const { dataDir } = loadConfig()
-      const history = loadHistory(dataDir, request.params.bookId)
-      const display = history.filter(m => m.role === 'user' || m.role === 'assistant')
-      return { messages: display }
+    async (request, reply) => {
+      try {
+        const bookId = sanitizePathSegment(request.params.bookId, 'bookId')
+        const { dataDir } = loadConfig()
+        const history = loadHistory(dataDir, bookId)
+        const display = history.filter(m => m.role === 'user' || m.role === 'assistant')
+        return { messages: display }
+      } catch (err: any) {
+        reply.code(400)
+        return { error: err.message }
+      }
     }
   )
 
   // DELETE history
   app.delete<{ Params: { bookId: string } }>(
     '/api/v1/author-chat/:bookId/history',
-    async (request) => {
-      const { dataDir } = loadConfig()
-      saveHistory(dataDir, request.params.bookId, [])
-      return { status: 'ok' }
+    async (request, reply) => {
+      try {
+        const bookId = sanitizePathSegment(request.params.bookId, 'bookId')
+        const { dataDir } = loadConfig()
+        saveHistory(dataDir, bookId, [])
+        return { status: 'ok' }
+      } catch (err: any) {
+        reply.code(400)
+        return { error: err.message }
+      }
     }
   )
 
@@ -83,7 +96,13 @@ export async function authorChatRoutes(app: FastifyInstance) {
   app.post<{ Params: { bookId: string }; Body: { message: string; mode?: string } }>(
     '/api/v1/author-chat/:bookId/send',
     async (request, reply) => {
-      const { bookId } = request.params
+      let bookId: string
+      try {
+        bookId = sanitizePathSegment(request.params.bookId, 'bookId')
+      } catch (err: any) {
+        reply.code(400)
+        return { error: err.message }
+      }
       const { message, mode } = request.body
       const { llmConfig, dataDir } = loadConfig()
 

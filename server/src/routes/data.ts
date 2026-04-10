@@ -11,6 +11,7 @@
 import { type FastifyInstance } from 'fastify'
 import fs from 'fs'
 import path from 'path'
+import { sanitizePathSegment } from '../utils/path-sanitizer.js'
 
 // ── Helper functions (exported for direct testing) ──
 
@@ -216,16 +217,23 @@ export async function dataRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Params: { bookId: string } }>(
     '/api/v1/books/:bookId/outline',
     async (request) => {
-      return readOutline(dataDir(), request.params.bookId)
+      const bookId = sanitizePathSegment(request.params.bookId, 'bookId')
+      return readOutline(dataDir(), bookId)
     }
   )
 
   // PUT /api/v1/books/:bookId/outline
   app.put<{ Params: { bookId: string } }>(
     '/api/v1/books/:bookId/outline',
-    async (request) => {
-      writeOutline(dataDir(), request.params.bookId, request.body)
-      return { status: 'ok' }
+    async (request, reply) => {
+      try {
+        const bookId = sanitizePathSegment(request.params.bookId, 'bookId')
+        writeOutline(dataDir(), bookId, request.body)
+        return { status: 'ok' }
+      } catch (err: any) {
+        reply.code(400)
+        return { error: err.message }
+      }
     }
   )
 
@@ -233,7 +241,8 @@ export async function dataRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Params: { bookId: string } }>(
     '/api/v1/books/:bookId/lore',
     async (request) => {
-      return readLore(dataDir(), request.params.bookId)
+      const bookId = sanitizePathSegment(request.params.bookId, 'bookId')
+      return readLore(dataDir(), bookId)
     }
   )
 
@@ -241,7 +250,8 @@ export async function dataRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Params: { bookId: string } }>(
     '/api/v1/books/:bookId/plot-tree',
     async (request) => {
-      return readPlotTree(dataDir(), request.params.bookId)
+      const bookId = sanitizePathSegment(request.params.bookId, 'bookId')
+      return readPlotTree(dataDir(), bookId)
     }
   )
 
@@ -249,7 +259,8 @@ export async function dataRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Params: { bookId: string } }>(
     '/api/v1/books/:bookId/chapters',
     async (request) => {
-      return { chapters: listChapters(dataDir(), request.params.bookId) }
+      const bookId = sanitizePathSegment(request.params.bookId, 'bookId')
+      return { chapters: listChapters(dataDir(), bookId) }
     }
   )
 
@@ -257,11 +268,9 @@ export async function dataRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Params: { bookId: string; chapterId: string } }>(
     '/api/v1/books/:bookId/chapters/:chapterId',
     async (request, reply) => {
-      const detail = getChapterDetail(
-        dataDir(),
-        request.params.bookId,
-        request.params.chapterId
-      )
+      const bookId = sanitizePathSegment(request.params.bookId, 'bookId')
+      const chapterId = sanitizePathSegment(request.params.chapterId, 'chapterId')
+      const detail = getChapterDetail(dataDir(), bookId, chapterId)
       if (!detail) {
         reply.code(404)
         return { error: 'Chapter not found' }
@@ -274,7 +283,9 @@ export async function dataRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Params: { bookId: string; chapterId: string } }>(
     '/api/v1/books/:bookId/chapters/:chapterId/reviews',
     async (request) => {
-      const review = readReview(dataDir(), request.params.bookId, request.params.chapterId)
+      const bookId = sanitizePathSegment(request.params.bookId, 'bookId')
+      const chapterId = sanitizePathSegment(request.params.chapterId, 'chapterId')
+      const review = readReview(dataDir(), bookId, chapterId)
       return review ?? { feedbacks: [] }
     }
   )

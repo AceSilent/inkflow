@@ -11,6 +11,7 @@
 import { type FastifyInstance } from 'fastify'
 import fs from 'fs'
 import path from 'path'
+import { sanitizePathSegment } from '../utils/path-sanitizer.js'
 
 // ── Types ──
 
@@ -161,7 +162,8 @@ export async function booksRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Params: { bookId: string } }>(
     '/api/v1/books/:bookId',
     async (request, reply) => {
-      const book = getBook(dataDir(), request.params.bookId)
+      const bookId = sanitizePathSegment(request.params.bookId, 'bookId')
+      const book = getBook(dataDir(), bookId)
       if (!book) {
         reply.code(404)
         return { error: 'Book not found' }
@@ -175,11 +177,13 @@ export async function booksRoutes(app: FastifyInstance): Promise<void> {
     '/api/v1/books',
     async (request, reply) => {
       try {
-        const book = createBook(dataDir(), request.body)
+        const body = request.body as BookMeta
+        sanitizePathSegment(body.book_id, 'book_id')
+        const book = createBook(dataDir(), body)
         reply.code(201)
         return book
       } catch (err: any) {
-        reply.code(409)
+        reply.code(err.message.includes('already exists') ? 409 : 400)
         return { error: err.message }
       }
     }
@@ -190,7 +194,8 @@ export async function booksRoutes(app: FastifyInstance): Promise<void> {
     '/api/v1/books/:bookId',
     async (request, reply) => {
       try {
-        deleteBook(dataDir(), request.params.bookId)
+        const bookId = sanitizePathSegment(request.params.bookId, 'bookId')
+        deleteBook(dataDir(), bookId)
         return { status: 'ok' }
       } catch (err: any) {
         reply.code(404)
