@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-AutoNovel-Studio is an AI-powered novel generation system using a **single-agent architecture**: one Author Agent (powered by LLM) operates autonomously with a toolbox of 17 tools via Vercel AI SDK's `streamText({ maxSteps: 20 })`. When quality review is needed, the Agent invokes `submit_to_editorial` which triggers 3 parallel specialized reviewers (lore/pacing/AI-tone). The system is migrating from Python to TypeScript.
+AutoNovel-Studio is an AI-powered novel generation system using a **single-agent architecture**: one Author Agent (powered by LLM) operates autonomously with a toolbox of 17 tools via Vercel AI SDK's `streamText({ maxSteps: 20 })`. When quality review is needed, the Agent invokes `submit_to_editorial` which triggers 3 parallel specialized reviewers (lore/pacing/AI-tone) and auto-persists results. The system is migrated from Python to TypeScript with **207 tests** across 18 test files.
 
 ## Commands
 
@@ -37,13 +37,13 @@ cd frontend && npm run lint       # ESLint
 
 ### Agent Loop (Core Runtime)
 
-`server/src/agent/agent-loop.ts` — The entire Python while-loop + `_dispatch_tool` chain is replaced by a single `streamText()` call with `maxSteps: 20`. The Vercel AI SDK handles the tool-call cycle automatically: LLM → tool_call → execute → inject result → LLM → ... → final text.
+`server/src/agent/agent-loop.ts` — The entire Python while-loop + `_dispatch_tool` chain is replaced by a single `streamText()` call with `maxSteps: 20`. Supports `AbortSignal` for client disconnect, mode-aware `ToolContext`, and tool summary injection. The Vercel AI SDK handles the tool-call cycle automatically: LLM → tool_call → execute → inject result → LLM → ... → final text.
 
-`server/src/agent/prompt-builder.ts` — Modular `PromptSection` assembly that builds the system prompt, injecting memory context dynamically.
+`server/src/agent/prompt-builder.ts` — Modular `PromptSection` assembly that builds the system prompt, injecting memory context and tool summary dynamically.
 
 ### Tool System
 
-`server/src/tools/base-tool.ts` defines `ToolDefinition<T>` interface + `ToolRegistry`. Every tool implements this interface — never add raw functions. `ToolRegistry.toVercelTools(ctx)` converts all tools to Vercel AI SDK format at runtime.
+`server/src/tools/base-tool.ts` defines `ToolDefinition<T>` interface + `ToolRegistry`. Every tool implements this interface — never add raw functions. `ToolRegistry.toVercelTools(ctx)` converts all tools to Vercel AI SDK format at runtime. `ToolRegistry.getToolSummary()` generates categorized tool inventory for prompt injection. `ToolContext` carries `bookId`, `dataDir`, and `mode`.
 
 Path alias: `@/*` → `./src/*` (configured in both `tsconfig.json` and `vitest.config.ts`).
 
@@ -73,7 +73,7 @@ Path alias: `@/*` → `./src/*` (configured in both `tsconfig.json` and `vitest.
 2. **节奏审稿** (`reader_scene_pacing.j2`) — rhythm and pacing
 3. **文风审稿** (`reader_scene_ai_tone.j2`) — AI tone detection
 
-No Editor arbitration layer — Author receives raw feedback and self-revises. Uses a separate `EDITORIAL_MODEL` (can be cheaper).
+No Editor arbitration layer — Author receives raw feedback and self-revises. Uses a separate `EDITORIAL_MODEL` (can be cheaper). Results auto-persist to `04_Drafts/review_{chapterId}.json`.
 
 ### Memory System (`server/src/memory/`)
 
@@ -87,7 +87,7 @@ Two-tier memory architecture:
 Three endpoints:
 - `GET /api/author-chat/:bookId/history` — load chat history
 - `DELETE /api/author-chat/:bookId/history` — clear history
-- `POST /api/author-chat/:bookId/send` — SSE stream (events: `status`, `content`, `tool_start`, `tool_done`, `done`, `error`)
+- `POST /api/author-chat/:bookId/send` — SSE stream (events: `status`, `content`, `tool_start`, `tool_done`, `done`, `error`, `aborted`). Supports `AbortController` for client disconnect.
 
 ## Prompt Templates (`prompts/`)
 
@@ -104,6 +104,7 @@ books/{book_id}/
 ├── 00_Config/               # book_meta.json
 ├── 01_Global_Settings/      # characters.json, world_lore.json
 ├── 02_Outlines/             # outline.json
+├── 04_Drafts/               # chapter drafts + review_{chapterId}.json
 ├── memory/                  # decided_facts.json, plot_progress.json
 ├── plot_tree.json           # plot tree
 ├── author_chat_history.json # chat history (last 50 messages)
@@ -117,6 +118,9 @@ books/{book_id}/
 - **Prompts as files**: never hardcode prompts in code. Skills use `.md`, reviewers use `.j2`
 - **Test policy**: never modify tests to make them pass — fix the implementation
 - **ESM**: server package is `"type": "module"` — use `.js` extensions in imports
+- **Input validation**: all route POST/PUT bodies validated via Zod schemas in `server/src/routes/schemas.ts`
+- **Path sanitization**: all `bookId`/`chapterId` params sanitized via `server/src/utils/path-sanitizer.ts`
+- **Error types**: use custom `AgentError` hierarchy from `server/src/utils/errors.ts`
 
 ## Configuration
 
