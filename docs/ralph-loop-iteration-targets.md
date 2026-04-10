@@ -86,10 +86,10 @@
 **目标**: 消除 path traversal 漏洞
 
 **验收标准**:
-- [ ] 所有路由的 `bookId` / `chapterId` 参数经过路径清洗
-- [ ] 拒绝含 `..`、绝对路径、空值的请求
-- [ ] 添加 `sanitizePath()` 工具函数 + 对应测试
-- [ ] 77+ tests passing
+- [x] 所有路由的 `bookId` / `chapterId` 参数经过路径清洗
+- [x] 拒绝含 `..`、绝对路径、空值的请求
+- [x] 添加 `sanitizePath()` 工具函数 + 对应测试
+- [x] 77+ tests passing
 
 **预计改动**:
 - 新增 `server/src/utils/path-sanitizer.ts`
@@ -101,11 +101,11 @@
 **目标**: 修复已知功能缺陷
 
 **验收标准**:
-- [ ] App.jsx 传递 `onDataChanged={refreshData}` 和 `dataVersion` 给 BrainstormPanel
-- [ ] Editorial pipeline 模板缺失时返回 `pass_status: false`（而不是 true）
-- [ ] Editorial pipeline LLM 错误时返回 `pass_status: false`
-- [ ] 清理 SettingsPanel unused import
-- [ ] 前端 build 通过
+- [x] App.jsx 传递 `onDataChanged={refreshData}` 和 `dataVersion` 给 BrainstormPanel
+- [x] Editorial pipeline 模板缺失时返回 `pass_status: false`（而不是 true）
+- [x] Editorial pipeline LLM 错误时返回 `pass_status: false`
+- [x] 清理 SettingsPanel unused import
+- [x] 前端 build 通过
 
 **预计改动**:
 - 修改 `frontend/src/App.jsx`（2 处）
@@ -117,12 +117,12 @@
 **目标**: 给所有路由添加 Zod schema 验证
 
 **验收标准**:
-- [ ] books 路由 POST body 有 Zod schema（book_id 非空、target_words 正整数）
-- [ ] settings 路由 PUT body 有 Zod schema（providers 数组）
-- [ ] author-chat 路由 POST body 有 Zod schema（message 非空）
-- [ ] outline PUT body 基本校验（type='book', children 数组）
-- [ ] 无效请求返回 400 + 清晰错误信息
-- [ ] 80+ tests passing
+- [x] books 路由 POST body 有 Zod schema（book_id 非空、target_words 正整数）
+- [x] settings 路由 PUT body 有 Zod schema（providers 数组）
+- [x] author-chat 路由 POST body 有 Zod schema（message 非空）
+- [x] outline PUT body 基本校验（type='book', children 数组）
+- [x] 无效请求返回 400 + 清晰错误信息
+- [x] 80+ tests passing（当前 135 tests）
 
 **预计改动**:
 - 新增 `server/src/routes/schemas.ts`（集中存放 Zod schema）
