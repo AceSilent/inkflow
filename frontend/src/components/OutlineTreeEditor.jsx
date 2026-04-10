@@ -50,7 +50,7 @@ export function OutlineTreeEditor({ addToast, currentBook, dataVersion }) {
         body: JSON.stringify(tree)
       })
       if (resp.ok) {
-        addToast?.(t('outline.saved') || '大纲已保存', 'success')
+        addToast?.(t('outline.saved'), 'success')
       } else {
         throw new Error('Save failed')
       }
@@ -66,7 +66,7 @@ export function OutlineTreeEditor({ addToast, currentBook, dataVersion }) {
     return (
       <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
         <BookOpen size={32} style={{ margin: '0 auto 16px', opacity: 0.2 }} />
-        <p>{t('outline.noBook') || '请先在左侧资源管理器中选择或创建一本小说'}</p>
+        <p>{t('outline.noBook')}</p>
       </div>
     )
   }
@@ -90,13 +90,13 @@ export function OutlineTreeEditor({ addToast, currentBook, dataVersion }) {
             background: mode === 'outline' ? 'var(--accent)' : 'var(--bg-subtle)',
             color: mode === 'outline' ? '#fff' : 'var(--text-secondary)',
             fontWeight: mode === 'outline' ? 600 : 400, display: 'flex', alignItems: 'center', gap: 4,
-          }}><ListTree size={12} /> 大纲</button>
+          }}><ListTree size={12} /> {t('outline.tabOutline')}</button>
           <button onClick={() => setMode('plot-tree')} style={{
             padding: '4px 10px', borderRadius: 4, fontSize: 11, border: 'none', cursor: 'pointer',
             background: mode === 'plot-tree' ? 'var(--accent)' : 'var(--bg-subtle)',
             color: mode === 'plot-tree' ? '#fff' : 'var(--text-secondary)',
             fontWeight: mode === 'plot-tree' ? 600 : 400, display: 'flex', alignItems: 'center', gap: 4,
-          }}><GitBranch size={12} /> 剧情树</button>
+          }}><GitBranch size={12} /> {t('outline.tabPlotTree')}</button>
         </div>
         {mode === 'outline' && (
           <button className="btn btn-sm" onClick={handleSave}>
@@ -203,8 +203,8 @@ function PlotTreeView({ data }) {
     return (
       <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
         <GitBranch size={32} style={{ margin: '0 auto 16px', opacity: 0.2 }} />
-        <p>暂无剧情树数据</p>
-        <p style={{ fontSize: 11 }}>Agent 使用 plot tree 工具时会自动生成</p>
+        <p>{t('outline.noPlotTree')}</p>
+        <p style={{ fontSize: 11 }}>{t('outline.plotTreeHint')}</p>
       </div>
     )
   }
