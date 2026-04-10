@@ -60,7 +60,7 @@ export async function authorChatRoutes(app: FastifyInstance) {
 
   // GET history
   app.get<{ Params: { bookId: string } }>(
-    '/api/author-chat/:bookId/history',
+    '/api/v1/author-chat/:bookId/history',
     async (request) => {
       const { dataDir } = loadConfig()
       const history = loadHistory(dataDir, request.params.bookId)
@@ -71,7 +71,7 @@ export async function authorChatRoutes(app: FastifyInstance) {
 
   // DELETE history
   app.delete<{ Params: { bookId: string } }>(
-    '/api/author-chat/:bookId/history',
+    '/api/v1/author-chat/:bookId/history',
     async (request) => {
       const { dataDir } = loadConfig()
       saveHistory(dataDir, request.params.bookId, [])
@@ -81,7 +81,7 @@ export async function authorChatRoutes(app: FastifyInstance) {
 
   // POST send — SSE streaming
   app.post<{ Params: { bookId: string }; Body: { message: string } }>(
-    '/api/author-chat/:bookId/send',
+    '/api/v1/author-chat/:bookId/send',
     async (request, reply) => {
       const { bookId } = request.params
       const { message } = request.body

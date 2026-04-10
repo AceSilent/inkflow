@@ -4,11 +4,15 @@
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import { authorChatRoutes } from './routes/author-chat.js'
+import { booksRoutes } from './routes/books.js'
+import { settingsRoutes } from './routes/settings.js'
 
 const app = Fastify({ logger: true })
 
 await app.register(cors, { origin: true })
 await app.register(authorChatRoutes)
+await app.register(booksRoutes)
+await app.register(settingsRoutes)
 
 app.get('/health', async () => ({ status: 'ok', engine: 'autonovel-ts' }))
 
