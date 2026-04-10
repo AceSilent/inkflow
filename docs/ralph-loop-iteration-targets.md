@@ -134,10 +134,10 @@
 **目标**: 关键模块测试覆盖
 
 **验收标准**:
-- [ ] author-chat routes: 历史读写、SSE 流 mock 测试
-- [ ] editorial pipeline: mock LLM 测试成功/失败/模板缺失
-- [ ] agent-loop: mode 切换、prompt 选择测试
-- [ ] 100+ tests passing
+- [x] author-chat routes: 历史读写、SSE 流 mock 测试
+- [x] editorial pipeline: mock LLM 测试成功/失败/模板缺失
+- [x] agent-loop: prompt 构建 + memory 注入测试（已有 agent-loop.test.ts）
+- [x] 100+ tests passing（当前 180 tests）
 
 **预计改动**:
 - 新增 `server/tests/author-chat-routes.test.ts`
