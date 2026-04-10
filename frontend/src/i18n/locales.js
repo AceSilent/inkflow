@@ -225,11 +225,15 @@ const zh = {
   'director.cancel': '取消',
   'director.pushRetry': '下发批示 · 重新生成',
 
+  'nav.authorChat': '作者对话',
+  'nav.chapter': '章节',
+
   // Nav additions
   'nav.inbox': '收件箱',
   'nav.outline': '大纲编辑',
   'tab.inbox': '收件箱',
   'tab.outline': '大纲编辑',
+  'tab.authorChat': '作者对话',
 
   // New Book Modal
   'newBook.title': '创建新书',
@@ -473,11 +477,15 @@ const en = {
   'director.cancel': 'Cancel',
   'director.pushRetry': 'Push Note & Retry',
 
+  'nav.authorChat': 'Author Chat',
+  'nav.chapter': 'Chapter',
+
   // Nav additions
   'nav.inbox': 'Inbox',
   'nav.outline': 'Outline Editor',
   'tab.inbox': 'Inbox',
   'tab.outline': 'Outline Editor',
+  'tab.authorChat': 'Author Chat',
 
   // New Book Modal
   'newBook.title': 'Create New Book',

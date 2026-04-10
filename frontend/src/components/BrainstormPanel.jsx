@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Send, Upload, Sparkles, BookOpen, User, Globe, FileText, Check, Settings, MessageSquare, Trash2, RotateCcw, Wrench, ChevronRight, ChevronDown } from 'lucide-react'
 import { useI18n } from '../i18n/index.jsx'
-import { TaskBoardPanel } from './TaskBoardPanel.jsx'
 import { AuthorChatPanel } from './AuthorChatPanel.jsx'
 
 // Recursive JSON viewer for lore files
@@ -98,7 +97,6 @@ export function BrainstormPanel({ addToast, onNext, currentBook }) {
   const [loreFiles, setLoreFiles] = useState({ world_setting: null, characters: null, outline: null })
   const [saving, setSaving] = useState(false)
   const [loreSection, setLoreSection] = useState('meta') // 'meta' | 'world' | 'chars' | 'outline'
-  const [leftTab, setLeftTab] = useState('chat') // 'chat' | 'tasks'
 
   // Load lore from backend (full lore endpoint)
   const fetchLore = () => {
@@ -334,38 +332,9 @@ export function BrainstormPanel({ addToast, onNext, currentBook }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(400px, 1fr) 400px', gap: 24, height: '100%', flex: 1, minHeight: 0 }}>
       
-      {/* LEFT PANE: Chat + Task Board (Tab Switch) */}
+      {/* LEFT PANE: Chat */}
       <div style={{ display: 'flex', flexDirection: 'column', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-        {/* Tab Switcher */}
-        <div style={{ display: 'flex', borderBottom: '1px solid var(--border-subtle)', flexShrink: 0 }}>
-          <button
-            onClick={() => setLeftTab('chat')}
-            style={{
-              flex: 1, padding: '10px 0', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-              background: leftTab === 'chat' ? 'var(--bg-surface)' : 'transparent',
-              color: leftTab === 'chat' ? 'var(--accent)' : 'var(--text-muted)',
-              borderBottom: leftTab === 'chat' ? '2px solid var(--accent)' : '2px solid transparent',
-              border: 'none', borderRadius: 0, transition: 'all 0.2s'
-            }}
-          ><MessageSquare size={13} style={{ display: 'inline', verticalAlign: -2 }} /> 对话</button>
-          <button
-            onClick={() => setLeftTab('tasks')}
-            style={{
-              flex: 1, padding: '10px 0', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-              background: leftTab === 'tasks' ? 'var(--bg-surface)' : 'transparent',
-              color: leftTab === 'tasks' ? 'var(--accent)' : 'var(--text-muted)',
-              borderBottom: leftTab === 'tasks' ? '2px solid var(--accent)' : '2px solid transparent',
-              border: 'none', borderRadius: 0, transition: 'all 0.2s'
-            }}
-          ><FileText size={13} style={{ display: 'inline', verticalAlign: -2 }} /> 任务看板</button>
-        </div>
-        {/* Tab Content */}
-        <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
-          {leftTab === 'chat'
-            ? <AuthorChatPanel currentBook={currentBook} addToast={addToast} onLoreUpdated={fetchLore} />
-            : <TaskBoardPanel bookId={currentBook?.book_id} />
-          }
-        </div>
+        <AuthorChatPanel currentBook={currentBook} addToast={addToast} onLoreUpdated={fetchLore} />
       </div>
 
 
