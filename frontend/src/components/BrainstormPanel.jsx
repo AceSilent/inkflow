@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from 'react'
-import { Send, Upload, Sparkles, BookOpen, User, Globe, FileText, Check, Settings, MessageSquare, Trash2, RotateCcw, Wrench, ChevronRight, ChevronDown } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { BookOpen, User, Globe, FileText, Settings, ChevronRight, ChevronDown } from 'lucide-react'
 import { useI18n } from '../i18n/index.jsx'
 import { AuthorChatPanel } from './AuthorChatPanel.jsx'
 
@@ -78,15 +78,8 @@ function LoreEntry({ label, value, isComplex, depth }) {
   )
 }
 
-export function BrainstormPanel({ addToast, onNext, currentBook }) {
+export function BrainstormPanel({ addToast, currentBook, onDataChanged }) {
   const { t } = useI18n()
-  const [messages, setMessages] = useState([])
-  const [input, setInput] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [historyLoaded, setHistoryLoaded] = useState(false)
-  const chatEndRef = useRef(null)
-  const fileInputRef = useRef(null)
-  const [hoveredMsg, setHoveredMsg] = useState(null)
 
   // Lore Book State — now includes all lore files
   const [lore, setLore] = useState({
@@ -95,7 +88,6 @@ export function BrainstormPanel({ addToast, onNext, currentBook }) {
     targetWords: 500000,
   })
   const [loreFiles, setLoreFiles] = useState({ world_setting: null, characters: null, outline: null })
-  const [saving, setSaving] = useState(false)
   const [loreSection, setLoreSection] = useState('meta') // 'meta' | 'world' | 'chars' | 'outline'
 
   // Load lore from backend (full lore endpoint)
@@ -125,219 +117,25 @@ export function BrainstormPanel({ addToast, onNext, currentBook }) {
       .catch(() => {})
   }
 
-  // Load chat history + lore from backend on book change
+  // Reset lore state and reload on book change
   useEffect(() => {
     if (!currentBook?.book_id) {
-      // No book selected — clear all state
       setLore({ title: '', genre: '', tone: '', protagonist: '', worldSetting: '', synopsis: '', targetWords: 500000 })
-      setMessages([])
-      setHistoryLoaded(false)
       return
     }
-    setHistoryLoaded(false)
-    
+
     // Reset state for clean book switch
     setLore({ title: '', genre: '', tone: '', protagonist: '', worldSetting: '', synopsis: '', targetWords: 500000 })
-    setMessages([])
-    
-    // Load book meta
     fetchLore()
-    
-    // Load chat history
-    fetch(`/api/v1/brainstorm/${currentBook.book_id}/history`)
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (data && data.messages && data.messages.length > 0) {
-          setMessages(data.messages)
-          // Merge persisted lore
-          if (data.lore && Object.keys(data.lore).length > 0) {
-            setLore(prev => ({ ...prev, ...data.lore }))
-          }
-        } else {
-          // Show welcome message for new sessions
-          setMessages([{ id: 'welcome', role: 'assistant', content: t('brainstorm.welcomeMsg') }])
-        }
-        setHistoryLoaded(true)
-      })
-      .catch(() => {
-        setMessages([{ id: 'welcome', role: 'assistant', content: t('brainstorm.welcomeMsg') }])
-        setHistoryLoaded(true)
-      })
   }, [currentBook])
-
-  // Scroll to bottom
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
-
-  const setLoreField = (key, val) => setLore(prev => ({ ...prev, [key]: val }))
-
-  // ── Send message ──
-  const handleSend = async () => {
-    if (!input.trim() || loading) return
-    const userMsg = input
-    setInput('')
-    
-    // Optimistic UI update
-    const tempUserId = `tmp_${Date.now()}`
-    setMessages(prev => [...prev, { id: tempUserId, role: 'user', content: userMsg }])
-    
-    setLoading(true)
-    try {
-      const res = await fetch('/api/v1/brainstorm/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          book_id: currentBook?.book_id || 'default',
-          message: userMsg,
-          current_lore: lore
-        })
-      })
-      
-      if (res.ok) {
-        const data = await res.json()
-        // Replace temp message with server-persisted version and add AI reply
-        // Reload full history to get server-assigned IDs
-        const histRes = await fetch(`/api/v1/brainstorm/${currentBook.book_id}/history`)
-        if (histRes.ok) {
-          const hist = await histRes.json()
-          setMessages(hist.messages)
-        } else {
-          // Fallback: just append the reply
-          setMessages(prev => [...prev, { id: `ai_${Date.now()}`, role: 'assistant', content: data.reply }])
-        }
-        
-        if (data.extracted_lore) {
-          setLore(prev => ({ ...prev, ...data.extracted_lore }))
-          addToast(t('brainstorm.loreExtracted'), 'info')
-        }
-      } else {
-        throw new Error('Chat failed')
-      }
-    } catch (e) {
-      console.error(e)
-      setMessages(prev => [...prev, { id: `err_${Date.now()}`, role: 'assistant', content: "抱歉，出错了，请检查网络和 API 配置。" }])
-    }
-    setLoading(false)
-  }
-
-  // ── File upload ──
-  const handleFileUpload = async (e) => {
-    const files = Array.from(e.target.files || [])
-    if (files.length === 0) return
-    e.target.value = ''
-    
-    const fileNames = files.map(f => f.name).join('、')
-    const uploadMsg = `[已上传 ${files.length} 份文件：${fileNames}] 请参考这些资料，分析其中的设定和剧情要素。`
-    setMessages(prev => [...prev, { id: `tmp_${Date.now()}`, role: 'user', content: uploadMsg }])
-    setLoading(true)
-    
-    try {
-      if (currentBook?.book_id) {
-        const formData = new FormData()
-        files.forEach(file => formData.append('files', file))
-        await fetch(`/api/v1/books/${currentBook.book_id}/materials`, {
-          method: 'POST', body: formData,
-        })
-      }
-      
-      const fileContents = await Promise.all(
-        files.map(file => file.text().catch(() => `[无法读取: ${file.name}]`))
-      )
-      const contextMsg = files.map((f, i) => `--- ${f.name} ---\n${fileContents[i].slice(0, 3000)}`).join('\n\n')
-      
-      const res = await fetch('/api/v1/brainstorm/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          book_id: currentBook?.book_id || 'default',
-          message: `用户上传了以下文件，请仔细阅读并提取关键设定信息：\n\n${contextMsg}`,
-          current_lore: lore
-        })
-      })
-      
-      if (res.ok) {
-        const data = await res.json()
-        // Reload history
-        const histRes = await fetch(`/api/v1/brainstorm/${currentBook.book_id}/history`)
-        if (histRes.ok) {
-          const hist = await histRes.json()
-          setMessages(hist.messages)
-        }
-        if (data.extracted_lore) {
-          setLore(prev => ({ ...prev, ...data.extracted_lore }))
-          addToast(t('brainstorm.loreExtracted'), 'info')
-        }
-      } else {
-        throw new Error('AI analysis failed')
-      }
-    } catch (err) {
-      console.error(err)
-      setMessages(prev => [...prev, { id: `err_${Date.now()}`, role: 'assistant', content: "抱歉，文件分析失败。请检查 API 配置后重试。" }])
-    }
-    setLoading(false)
-  }
-
-  // ── Delete message (pair-delete: user + following assistant) ──
-  const handleDeleteMessage = async (msg, idx) => {
-    const idsToDelete = [msg.id]
-    
-    // If it's a user message, also delete the next assistant reply
-    if (msg.role === 'user' && idx + 1 < messages.length && messages[idx + 1].role === 'assistant') {
-      idsToDelete.push(messages[idx + 1].id)
-    }
-    // If it's an assistant message, also delete the preceding user message
-    if (msg.role === 'assistant' && idx - 1 >= 0 && messages[idx - 1].role === 'user') {
-      idsToDelete.push(messages[idx - 1].id)
-    }
-    
-    // Optimistic removal
-    const idSet = new Set(idsToDelete)
-    setMessages(prev => prev.filter(m => !idSet.has(m.id)))
-    
-    // Sync to backend
-    try {
-      await fetch(`/api/v1/brainstorm/${currentBook.book_id}/history/delete`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: idsToDelete })
-      })
-    } catch (e) {
-      console.warn('Failed to delete on server:', e)
-    }
-  }
-
-  // ── Rollback to message ──
-  const handleRollback = async (msg) => {
-    if (!currentBook?.book_id) return
-    try {
-      const res = await fetch(`/api/v1/brainstorm/${currentBook.book_id}/history/truncate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message_id: msg.id })
-      })
-      if (res.ok) {
-        const data = await res.json()
-        setMessages(data.messages || [])
-        if (data.truncated_content) {
-          setInput(data.truncated_content)
-        }
-        addToast?.('已回退到此消息', 'info')
-      }
-    } catch (e) {
-      console.warn('Rollback failed:', e)
-    }
-  }
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(400px, 1fr) 400px', gap: 24, height: '100%', flex: 1, minHeight: 0 }}>
-      
+
       {/* LEFT PANE: Chat */}
       <div style={{ display: 'flex', flexDirection: 'column', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-        <AuthorChatPanel currentBook={currentBook} addToast={addToast} onLoreUpdated={fetchLore} />
+        <AuthorChatPanel currentBook={currentBook} addToast={addToast} onLoreUpdated={() => { fetchLore(); onDataChanged?.() }} />
       </div>
-
-
 
       {/* RIGHT PANE: Lore Book */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -347,7 +145,7 @@ export function BrainstormPanel({ addToast, onNext, currentBook }) {
             <span style={{ fontSize: 13, fontWeight: 600 }}>{t('brainstorm.loreTitle')}</span>
             <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted)' }}>{t('brainstorm.loreAutoUpdate')}</span>
           </div>
-          
+
           <div style={{ flex: 1, padding: '12px 16px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
             {/* Section Tabs */}
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
@@ -366,19 +164,19 @@ export function BrainstormPanel({ addToast, onNext, currentBook }) {
               <>
                 <div className="field">
                   <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Settings size={12}/> 书名</label>
-                  <input className="input" value={lore.title} onChange={e => setLoreField('title', e.target.value)} />
+                  <input className="input" value={lore.title} onChange={e => setLore(prev => ({ ...prev, title: e.target.value }))} />
                 </div>
                 <div className="field">
                   <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><User size={12}/> 主角设定</label>
-                  <textarea className="textarea" rows={3} value={lore.protagonist} onChange={e => setLoreField('protagonist', e.target.value)} />
+                  <textarea className="textarea" rows={3} value={lore.protagonist} onChange={e => setLore(prev => ({ ...prev, protagonist: e.target.value }))} />
                 </div>
                 <div className="field">
                   <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Globe size={12}/> 世界观</label>
-                  <textarea className="textarea" rows={3} value={lore.worldSetting} onChange={e => setLoreField('worldSetting', e.target.value)} />
+                  <textarea className="textarea" rows={3} value={lore.worldSetting} onChange={e => setLore(prev => ({ ...prev, worldSetting: e.target.value }))} />
                 </div>
                 <div className="field">
                   <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><FileText size={12}/> 核心梗概</label>
-                  <textarea className="textarea" rows={3} value={lore.synopsis} onChange={e => setLoreField('synopsis', e.target.value)} />
+                  <textarea className="textarea" rows={3} value={lore.synopsis} onChange={e => setLore(prev => ({ ...prev, synopsis: e.target.value }))} />
                 </div>
               </>
             )}

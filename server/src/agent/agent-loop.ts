@@ -7,7 +7,7 @@
  */
 import { streamText, type CoreMessage } from 'ai'
 import { type ToolRegistry } from '../tools/base-tool.js'
-import { buildAuthorPrompt } from './prompt-builder.js'
+import { buildAuthorPrompt, buildBrainstormPrompt } from './prompt-builder.js'
 import { type LLMConfig, createProvider } from '../llm/provider.js'
 
 export interface AgentRunOptions {
@@ -19,6 +19,7 @@ export interface AgentRunOptions {
   toolRegistry: ToolRegistry
   memoryContext?: string
   maxSteps?: number
+  mode?: string
 }
 
 /**
@@ -31,9 +32,12 @@ export function runAgentStream(options: AgentRunOptions) {
     bookId, dataDir, userMessage, history,
     llmConfig, toolRegistry, memoryContext,
     maxSteps = 20,
+    mode,
   } = options
 
-  const systemPrompt = buildAuthorPrompt({ memory: memoryContext })
+  const systemPrompt = mode === 'brainstorm'
+    ? buildBrainstormPrompt({ memory: memoryContext })
+    : buildAuthorPrompt({ memory: memoryContext })
   const model = createProvider(llmConfig)
   const ctx = { bookId, dataDir }
 

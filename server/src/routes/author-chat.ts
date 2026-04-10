@@ -80,11 +80,11 @@ export async function authorChatRoutes(app: FastifyInstance) {
   )
 
   // POST send — SSE streaming
-  app.post<{ Params: { bookId: string }; Body: { message: string } }>(
+  app.post<{ Params: { bookId: string }; Body: { message: string; mode?: string } }>(
     '/api/v1/author-chat/:bookId/send',
     async (request, reply) => {
       const { bookId } = request.params
-      const { message } = request.body
+      const { message, mode } = request.body
       const { llmConfig, dataDir } = loadConfig()
 
       reply.raw.writeHead(200, {
@@ -111,6 +111,7 @@ export async function authorChatRoutes(app: FastifyInstance) {
           history,
           llmConfig,
           toolRegistry,
+          mode,
         })
 
         let fullText = ''

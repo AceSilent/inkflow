@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { type PromptSection, buildSystemPrompt, buildAuthorPrompt } from '../src/agent/prompt-builder.js'
+import { type PromptSection, buildSystemPrompt, buildAuthorPrompt, buildBrainstormPrompt } from '../src/agent/prompt-builder.js'
 
 describe('buildSystemPrompt', () => {
   it('should concatenate sections', () => {
@@ -57,5 +57,19 @@ describe('buildAuthorPrompt', () => {
   it('should exclude memory when empty', () => {
     const prompt = buildAuthorPrompt({})
     expect(prompt).not.toContain('# 记忆')
+  })
+})
+
+describe('Brainstorm Prompt', () => {
+  it('should build brainstorm prompt with correct sections', () => {
+    const prompt = buildBrainstormPrompt({})
+    expect(prompt).toContain('头脑风暴伙伴')
+    expect(prompt).toContain('save_lore')
+    expect(prompt).not.toContain('铁律')
+  })
+
+  it('should include memory section when provided', () => {
+    const prompt = buildBrainstormPrompt({ memory: '之前的设定内容' })
+    expect(prompt).toContain('之前的设定内容')
   })
 })
