@@ -13,15 +13,43 @@ import { createAllTools } from '../tools/index.js'
 import { type LLMConfig } from '../llm/provider.js'
 import { sanitizePathSegment } from '../utils/path-sanitizer.js'
 import { sendChatBody } from './schemas.js'
+import { getSettings } from './settings.js'
 
+/**
+ * Resolve LLM config from settings.json (provider/model selector).
+ * Falls back to environment variables if settings not configured.
+ */
 function loadConfig(): { llmConfig: LLMConfig; dataDir: string } {
+  const dataDir = process.env.AUTONOVEL_DATA_DIR || 'books'
+
+  // Try settings.json first
+  const settings = getSettings(dataDir)
+  const modelSelector = settings.authorModel || ''
+
+  if (modelSelector.includes('/')) {
+    const [providerId, ...modelParts] = modelSelector.split('/')
+    const model = modelParts.join('/')
+    const provider = settings.providers.find(p => p.id === providerId)
+    if (provider) {
+      return {
+        llmConfig: {
+          apiKey: provider.apiKey,
+          baseURL: provider.baseUrl,
+          model,
+        },
+        dataDir,
+      }
+    }
+  }
+
+  // Fallback to environment variables
   return {
     llmConfig: {
       apiKey: process.env.LLM_API_KEY || '',
       baseURL: process.env.LLM_BASE_URL,
       model: process.env.LLM_MODEL || 'gpt-4o',
     },
-    dataDir: process.env.AUTONOVEL_DATA_DIR || 'books',
+    dataDir,
   }
 }
 
@@ -125,9 +153,17 @@ export async function authorChatRoutes(app: FastifyInstance) {
       const toolsUsed: string[] = []
 
       // AbortController for client disconnect
+      // Listen on the response socket, not the request —
+      // request.raw 'close' fires when the POST body is consumed,
+      // not when the client actually disconnects.
       const abortController = new AbortController()
-      const onClose = () => { abortController.abort() }
-      request.raw.on('close', onClose)
+      let streamDone = false
+      const onSocketClose = () => {
+        if (!streamDone) {
+          abortController.abort()
+        }
+      }
+      request.socket.on('close', onSocketClose)
 
       try {
         const history = loadHistory(dataDir, bookId)
@@ -150,8 +186,9 @@ export async function authorChatRoutes(app: FastifyInstance) {
         for await (const part of (await result).fullStream) {
           switch (part.type) {
             case 'text-delta':
-              sse({ type: 'content', token: part.textDelta })
-              fullText += part.textDelta
+              // AI SDK v6 uses part.text (was part.textDelta in v5)
+              sse({ type: 'content', token: part.text })
+              fullText += part.text
               break
             case 'tool-call':
               toolsUsed.push(part.toolName)
@@ -171,6 +208,8 @@ export async function authorChatRoutes(app: FastifyInstance) {
           }
         }
 
+        streamDone = true
+
         // Save to history
         const updatedHistory: CoreMessage[] = [
           ...history,
@@ -187,7 +226,8 @@ export async function authorChatRoutes(app: FastifyInstance) {
           sse({ type: 'error', message: String(err) })
         }
       } finally {
-        request.raw.off('close', onClose)
+        streamDone = true
+        request.socket.off('close', onSocketClose)
       }
 
       reply.raw.end()

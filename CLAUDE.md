@@ -87,7 +87,14 @@ Two-tier memory architecture:
 Three endpoints:
 - `GET /api/author-chat/:bookId/history` — load chat history
 - `DELETE /api/author-chat/:bookId/history` — clear history
-- `POST /api/author-chat/:bookId/send` — SSE stream (events: `status`, `content`, `tool_start`, `tool_done`, `done`, `error`, `aborted`). Supports `AbortController` for client disconnect.
+- `POST /api/author-chat/:bookId/send` — SSE stream (events: `status`, `content`, `tool_start`, `tool_done`, `done`, `error`, `aborted`). Client disconnect detected via `request.socket.on('close')` with `streamDone` guard to avoid false aborts from POST body consumption.
+
+### LLM Provider (`server/src/llm/provider.ts`)
+
+Creates a Vercel AI SDK model from `LLMConfig`. Key considerations:
+- **Uses `provider.chat(model)`**, not `provider(model)` — the default in `@ai-sdk/openai` v3 calls the OpenAI Responses API (`/responses`), which non-OpenAI providers don't support
+- **GLM-5.x reasoning mode**: ZhipuAI GLM-5 models default to "thinking" mode, sending output in `delta.reasoning_content` instead of `delta.content`. A custom fetch wrapper injects `thinking: { type: "disabled" }` into request bodies for these models
+- **AI SDK v6 breaking change**: `fullStream` text-delta parts use `part.text` (was `part.textDelta` in v5)
 
 ## Prompt Templates (`prompts/`)
 
