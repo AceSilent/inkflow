@@ -5,8 +5,6 @@
  * Uses Vercel AI SDK's fullStream for SSE events (text-delta, tool-call, tool-result).
  */
 import { type FastifyInstance } from 'fastify'
-import fs from 'fs'
-import path from 'path'
 import { type CoreMessage } from 'ai'
 import { runAgentStream } from '../agent/agent-loop.js'
 import { createAllTools } from '../tools/index.js'
@@ -14,6 +12,7 @@ import { type LLMConfig } from '../llm/provider.js'
 import { sanitizePathSegment } from '../utils/path-sanitizer.js'
 import { sendChatBody } from './schemas.js'
 import { getSettings } from './settings.js'
+import { loadHistory, saveHistory } from './chat-history.js'
 
 /**
  * Resolve LLM config from settings.json (provider/model selector).
@@ -51,38 +50,6 @@ function loadConfig(): { llmConfig: LLMConfig; dataDir: string } {
     },
     dataDir,
   }
-}
-
-// ── Chat history (JSON file per book, same format as Python) ──
-
-function historyPath(dataDir: string, bookId: string): string {
-  const dir = path.join(dataDir, bookId)
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-  return path.join(dir, 'author_chat_history.json')
-}
-
-function loadHistory(dataDir: string, bookId: string): CoreMessage[] {
-  const p = historyPath(dataDir, bookId)
-  if (!fs.existsSync(p)) return []
-  try {
-    const raw = JSON.parse(fs.readFileSync(p, 'utf-8'))
-    // Only keep user/assistant messages for LLM context
-    return raw
-      .filter((m: { role: string }) => m.role === 'user' || m.role === 'assistant')
-      .map((m: { role: string; content: string }) => ({
-        role: m.role as 'user' | 'assistant',
-        content: m.content || '',
-      }))
-      .slice(-20)
-  } catch {
-    return []
-  }
-}
-
-function saveHistory(dataDir: string, bookId: string, messages: CoreMessage[]): void {
-  const p = historyPath(dataDir, bookId)
-  const trimmed = messages.slice(-50)
-  fs.writeFileSync(p, JSON.stringify(trimmed, null, 2), 'utf-8')
 }
 
 export async function authorChatRoutes(app: FastifyInstance) {

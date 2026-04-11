@@ -96,6 +96,22 @@ Creates a Vercel AI SDK model from `LLMConfig`. Key considerations:
 - **GLM-5.x reasoning mode**: ZhipuAI GLM-5 models default to "thinking" mode, sending output in `delta.reasoning_content` instead of `delta.content`. A custom fetch wrapper injects `thinking: { type: "disabled" }` into request bodies for these models
 - **AI SDK v6 breaking change**: `fullStream` text-delta parts use `part.text` (was `part.textDelta` in v5)
 
+## Feishu Bot Integration (`server/src/feishu/`)
+
+Optional Feishu (Lark) bot that mirrors all frontend features, sharing the same session and book data:
+
+- **WebSocket mode** (default) — no public URL needed for development
+- **Webhook mode** — HTTP callback for production deployments
+- **CardKit streaming** — creates card entity, updates during Agent streaming (throttled 500ms)
+- **Session sharing** — same `author_chat_history.json` and `books/` directory as web frontend
+- **Session mapping** — `feishu_sessions.json` maps `open_id`/`chat_id` to `bookId`
+
+Commands: `/help /list /create /select /current /outline /lore /chapters /review /clear /history`. Free text = Agent chat.
+
+Environment variables: `FEISHU_APP_ID`, `FEISHU_APP_SECRET`, `FEISHU_MODE=ws`, `FEISHU_ENCRYPT_KEY`, `FEISHU_VERIFICATION_TOKEN`, `FEISHU_DOMAIN`
+
+Shared chat history module: `server/src/routes/chat-history.ts` (used by both SSE route and Feishu bot).
+
 ## Prompt Templates (`prompts/`)
 
 **Never hardcode prompts in code.** Skills use `.md` with YAML frontmatter, reviewers use `.j2` Jinja2 templates.
