@@ -81,3 +81,17 @@ server/dist/
 *.tmp
 *.bak
 temp/
+
+# Top-level node_modules (for repo-level smoke test deps)
+/node_modules/
+
+# Local Claude config / book data
+/.claude/
+/server/books/
+
+# Local scratch & smoke artifacts
+/*.png
+/smoke-*.mjs
+/full-novel-test.mjs
+/browser-ws.txt
+/test-book-id.txt
