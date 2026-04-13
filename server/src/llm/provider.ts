@@ -44,22 +44,28 @@ function createReasoningFetch(): typeof globalThis.fetch {
     let inReasoning = false
     let buffer = ''
 
+    // Build a synthetic SSE event that injects a CLOSE marker as a content delta.
+    const closeEvent = () =>
+      'data: ' + JSON.stringify({
+        choices: [{ index: 0, delta: { content: REASONING_CLOSE } }],
+      })
+
     const processEvent = (evt: string): string => {
       if (!evt.startsWith('data: ')) return evt
       const payload = evt.slice(6)
       if (payload === '[DONE]') {
+        // Safety net: if the stream ends mid-reasoning (no tool_calls / finish_reason
+        // event ever closed it), prepend a CLOSE so the consumer state stays balanced.
         if (inReasoning) {
           inReasoning = false
-          const close = 'data: ' + JSON.stringify({
-            choices: [{ index: 0, delta: { content: REASONING_CLOSE } }],
-          })
-          return close + '\n\n' + evt
+          return closeEvent() + '\n\n' + evt
         }
         return evt
       }
       try {
         const obj = JSON.parse(payload)
-        const delta = obj.choices?.[0]?.delta
+        const choice = obj.choices?.[0]
+        const delta = choice?.delta
         if (!delta) return evt
 
         if (typeof delta.reasoning_content === 'string' && delta.reasoning_content.length > 0) {
@@ -73,6 +79,16 @@ function createReasoningFetch(): typeof globalThis.fetch {
           delta.content = REASONING_CLOSE + delta.content
           inReasoning = false
           return 'data: ' + JSON.stringify(obj)
+        }
+        // If reasoning is still open and this event is a tool_calls delta or carries
+        // a finish_reason, close the marker BEFORE the original event. This keeps
+        // the synthetic CLOSE inside the assistant turn (rather than after [DONE],
+        // which can confuse multi-step tool-call continuation in AI SDK v6).
+        const hasToolCalls = Array.isArray(delta.tool_calls) && delta.tool_calls.length > 0
+        const hasFinishReason = typeof choice?.finish_reason === 'string' && choice.finish_reason
+        if (inReasoning && (hasToolCalls || hasFinishReason)) {
+          inReasoning = false
+          return closeEvent() + '\n\n' + evt
         }
         return evt
       } catch {
