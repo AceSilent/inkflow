@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Send, Trash2, Wrench, Paperclip, X, FileText, ChevronDown, ChevronRight, Brain, PenTool, User, Loader, Check } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
-import { useI18n } from '../i18n/index.jsx'
+import { useI18n } from '../hooks/useI18n'
 
 export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
   const { t } = useI18n()
@@ -181,7 +181,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
                 onLoreUpdated()
               }
             }
-          } catch {}
+          } catch { /* SSE parse error — skip malformed event */ }
         }
       }
 

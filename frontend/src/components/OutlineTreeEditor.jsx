@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { ChevronRight, ChevronDown, Plus, Trash2, GripVertical, BookOpen, Folder, FileText, ScrollText, Edit3, Check, GitBranch, ListTree, RefreshCw } from 'lucide-react'
-import { useI18n } from '../i18n/index.jsx'
+import { useI18n } from '../hooks/useI18n'
 
 const defaultOutline = {
   id: 'book_1',
@@ -199,6 +199,7 @@ const typeIcons = {
 }
 
 function PlotTreeView({ data }) {
+  const { t } = useI18n()
   if (!data || !data.nodes || Object.keys(data.nodes).length === 0) {
     return (
       <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>
@@ -227,7 +228,6 @@ function PlotTreeView({ data }) {
   if (rootId && nodes[rootId]) {
     rootNodes = [rootId]
   } else {
-    const allIds = new Set(Object.keys(nodes))
     const childIds = new Set(Object.values(nodes).map(n => n.parent).filter(Boolean))
     rootNodes = Object.keys(nodes).filter(id => !childIds.has(id))
   }

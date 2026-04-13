@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { BookOpen, X, Sparkles } from 'lucide-react'
-import { useI18n } from '../i18n/index.jsx'
+import { useI18n } from '../hooks/useI18n'
 
 const genreOptions = [
   { value: 'xianxia', zh: '仙侠', en: 'Xianxia' },

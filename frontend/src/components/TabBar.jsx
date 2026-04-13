@@ -1,5 +1,5 @@
 import { Home, Lightbulb, PenTool, Search, Settings, X } from 'lucide-react'
-import { useI18n } from '../i18n/index.jsx'
+import { useI18n } from '../hooks/useI18n'
 
 const tabIcons = { welcome: Home, brainstorm: Lightbulb, iceberg: PenTool, review: Search, settings: Settings }
 

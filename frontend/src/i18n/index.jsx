@@ -1,7 +1,6 @@
-import { createContext, useContext, useState, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { locales, defaultLocale } from './locales'
-
-const I18nContext = createContext()
+import { I18nContext } from './context'
 
 export function I18nProvider({ children }) {
   const [lang, setLang] = useState(() => localStorage.getItem('autonovel-lang') || defaultLocale)
@@ -23,10 +22,4 @@ export function I18nProvider({ children }) {
       {children}
     </I18nContext.Provider>
   )
-}
-
-export function useI18n() {
-  const ctx = useContext(I18nContext)
-  if (!ctx) throw new Error('useI18n must be used within I18nProvider')
-  return ctx
 }

@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { BookOpen, User, Globe, FileText, Settings, ChevronRight, ChevronDown } from 'lucide-react'
-import { useI18n } from '../i18n/index.jsx'
+import { useI18n } from '../hooks/useI18n'
 import { AuthorChatPanel } from './AuthorChatPanel.jsx'
 
 // Recursive JSON viewer for lore files
@@ -79,28 +79,35 @@ function LoreEntry({ label, value, isComplex, depth }) {
   )
 }
 
+const emptyLore = { title: '', genre: '', tone: '', protagonist: '', worldSetting: '', synopsis: '', targetWords: 500000 }
+const emptyLoreFiles = { world_setting: null, characters: null, outline: null }
+
 export function BrainstormPanel({ addToast, currentBook, onDataChanged }) {
   const { t } = useI18n()
 
   // Lore Book State — now includes all lore files
-  const [lore, setLore] = useState({
-    title: '', genre: '', tone: '',
-    protagonist: '', worldSetting: '', synopsis: '',
-    targetWords: 500000,
-  })
-  const [loreFiles, setLoreFiles] = useState({ world_setting: null, characters: null, outline: null })
+  const [lore, setLore] = useState(emptyLore)
+  const [loreFiles, setLoreFiles] = useState(emptyLoreFiles)
   const [loreSection, setLoreSection] = useState('meta') // 'meta' | 'world' | 'chars' | 'outline'
+  const [prevBookId, setPrevBookId] = useState(undefined)
+
+  // Reset lore state on book change (during render, avoids useEffect cascading renders)
+  const bookId = currentBook?.book_id
+  if (bookId !== prevBookId) {
+    setPrevBookId(bookId)
+    setLore(emptyLore)
+    setLoreFiles(emptyLoreFiles)
+  }
 
   // Load lore from backend (full lore endpoint)
-  const fetchLore = () => {
+  const fetchLore = useCallback(() => {
     if (!currentBook?.book_id) return
     fetch(`/api/v1/books/${currentBook.book_id}/lore`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (!data) return
         const m = data.meta || {}
-        setLore(prev => ({
-          ...prev,
+        setLore({
           title: m.title || '',
           genre: m.genre || '',
           tone: m.tone || '',
@@ -108,7 +115,7 @@ export function BrainstormPanel({ addToast, currentBook, onDataChanged }) {
           worldSetting: m.world_setting || '',
           synopsis: m.synopsis || '',
           targetWords: m.target_words || 500000,
-        }))
+        })
         setLoreFiles({
           world_setting: data.world_setting || null,
           characters: data.characters || null,
@@ -116,19 +123,12 @@ export function BrainstormPanel({ addToast, currentBook, onDataChanged }) {
         })
       })
       .catch(() => {})
-  }
-
-  // Reset lore state and reload on book change
-  useEffect(() => {
-    if (!currentBook?.book_id) {
-      setLore({ title: '', genre: '', tone: '', protagonist: '', worldSetting: '', synopsis: '', targetWords: 500000 })
-      return
-    }
-
-    // Reset state for clean book switch
-    setLore({ title: '', genre: '', tone: '', protagonist: '', worldSetting: '', synopsis: '', targetWords: 500000 })
-    fetchLore()
   }, [currentBook])
+
+  // Fetch lore when book changes
+  useEffect(() => {
+    fetchLore()
+  }, [fetchLore])
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(400px, 1fr) 400px', gap: 24, height: '100%', flex: 1, minHeight: 0 }}>

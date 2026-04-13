@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Moon, Sun, Save, Languages, Plus, Trash2, Key, Globe } from 'lucide-react'
-import { useI18n } from '../i18n/index.jsx'
+import { Moon, Sun, Save, Languages, Plus, Trash2, Key, Globe, Box } from 'lucide-react'
+import { useI18n } from '../hooks/useI18n'
 
 export function SettingsPanel({ addToast, theme, toggleTheme }) {
   const { t, lang, switchLang } = useI18n()
@@ -20,6 +20,7 @@ export function SettingsPanel({ addToast, theme, toggleTheme }) {
         addToast?.('Failed to load settings', 'error')
         setLoading(false)
       })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const handleSave = async () => {
@@ -34,7 +35,7 @@ export function SettingsPanel({ addToast, theme, toggleTheme }) {
       } else {
         throw new Error('Save failed')
       }
-    } catch (e) {
+    } catch {
       addToast?.('Save failed', 'error')
     }
   }

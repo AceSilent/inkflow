@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import { Moon, Sun, Settings, BookOpen, Languages } from 'lucide-react'
-import { useI18n } from './i18n/index.jsx'
+import { useI18n } from './hooks/useI18n'
 import { ActivityBar } from './components/ActivityBar'
 import { Sidebar } from './components/Sidebar'
 import { TabBar } from './components/TabBar'
@@ -10,13 +10,14 @@ import { OutlineTreeEditor } from './components/OutlineTreeEditor'
 import { ChapterEditor } from './components/ChapterEditor'
 import { SettingsPanel } from './components/SettingsPanel'
 import { NewBookModal } from './components/NewBookModal'
-import { ToastContainer, useToast } from './components/Toast'
+import { ToastContainer } from './components/Toast'
+import { useToast } from './hooks/useToast'
 import { useTheme } from './hooks/useTheme'
 
 export default function App() {
   const [theme, toggleTheme] = useTheme()
   const { t, lang, switchLang } = useI18n()
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarOpen] = useState(true)
   const [activePanel, setActivePanel] = useState('explorer')
   const [tabs, setTabs] = useState([{ id: 'brainstorm', label: 'tab.brainstorm' }])
   const [activeTab, setActiveTab] = useState('brainstorm')
@@ -102,7 +103,7 @@ export default function App() {
       </header>
 
       <ActivityBar active={activePanel} onClick={handleActivityClick} />
-      <Sidebar activePanel={activePanel} addToast={addToast} onSelect={handleSceneSelect} onBookSelect={(book) => setCurrentBook(book)} onNewBook={() => setShowNewBook(true)} />
+      <Sidebar activePanel={activePanel} addToast={addToast} onSelect={handleSceneSelect} onBookSelect={(book) => setCurrentBook(book)} onNewBook={() => setShowNewBook(true)} dataVersion={dataVersion} />
 
       <main className="main-area">
         <div className="editor-section">
@@ -138,6 +139,7 @@ export default function App() {
           onCreated={(book) => {
             setShowNewBook(false)
             setCurrentBook(book)
+            setDataVersion(v => v + 1)
             handleActivityClick('brainstorm')
           }}
           addToast={addToast}

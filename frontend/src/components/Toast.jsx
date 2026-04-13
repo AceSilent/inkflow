@@ -1,24 +1,6 @@
-import { useState, useCallback, useEffect } from 'react'
 import { CheckCircle, AlertTriangle, XCircle, Info, X } from 'lucide-react'
 
 const iconMap = { success: CheckCircle, warning: AlertTriangle, error: XCircle, info: Info }
-
-export function useToast() {
-  const [toasts, setToasts] = useState([])
-  let idCounter = 0
-
-  const addToast = useCallback((msg, type = 'info') => {
-    const id = Date.now() + (idCounter++)
-    setToasts(prev => [...prev, { id, msg, type }])
-    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000)
-  }, [])
-
-  const removeToast = useCallback((id) => {
-    setToasts(prev => prev.filter(t => t.id !== id))
-  }, [])
-
-  return { toasts, addToast, removeToast }
-}
 
 export function ToastContainer({ toasts, onRemove }) {
   return (

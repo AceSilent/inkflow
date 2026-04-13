@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import { ChevronRight, FilePlus, RefreshCw, BookOpen, FileText, ScrollText, Folder, Trash2 } from 'lucide-react'
-import { useI18n } from '../i18n/index.jsx'
+import { useI18n } from '../hooks/useI18n'
 
-export function Sidebar({ activePanel, addToast, onSelect, onBookSelect, onNewBook }) {
+export function Sidebar({ activePanel, addToast, onSelect, onBookSelect, onNewBook, dataVersion }) {
   const { t } = useI18n()
   const [selectedId, setSelectedId] = useState(null)
 
@@ -31,7 +31,8 @@ export function Sidebar({ activePanel, addToast, onSelect, onBookSelect, onNewBo
 
   useEffect(() => {
     fetchTree()
-  }, [])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataVersion])
 
   const navLabels = {
     explorer: t('nav.explorer'), brainstorm: t('nav.brainstorm'), write: t('nav.write'),

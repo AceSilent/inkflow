@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { FileText, BookOpen, Copy, ChevronDown, ChevronRight, Shield, Zap, Eye, CheckCircle2, XCircle, RefreshCw } from 'lucide-react'
-import { useI18n } from '../i18n/index.jsx'
+import { useI18n } from '../hooks/useI18n'
 
 export function ChapterEditor({ bookId, chapterId, chapterLabel, addToast, dataVersion }) {
   const { t } = useI18n()

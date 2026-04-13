@@ -1,5 +1,5 @@
 import { FolderOpen, Lightbulb, PenTool, ListTree, BookOpen, Settings } from 'lucide-react'
-import { useI18n } from '../i18n/index.jsx'
+import { useI18n } from '../hooks/useI18n'
 
 const items = [
   { id: 'explorer', icon: FolderOpen, labelKey: 'nav.explorer' },
