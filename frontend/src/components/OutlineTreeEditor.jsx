@@ -114,7 +114,9 @@ export function OutlineTreeEditor({ addToast, currentBook, dataVersion }) {
         <>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 12, flexShrink: 0 }}>{t('outline.hint')}</div>
           <div style={{ flex: 1, overflowY: 'auto' }}>
-            <OutlineNode node={tree} level={0} t={t} onLabelChange={updateNodeLabel} />
+            {tree?.children?.length > 0
+              ? <OutlineNode node={tree} level={0} t={t} onLabelChange={updateNodeLabel} />
+              : <FreeformOutlineFallback data={tree} />}
           </div>
         </>
       )}
@@ -177,6 +179,51 @@ function OutlineNode({ node, level, t, onLabelChange }) {
       {hasChildren && open && (
         <div>{node.children.map(c => <OutlineNode key={c.id} node={c} level={level + 1} t={t} onLabelChange={onLabelChange} />)}</div>
       )}
+    </div>
+  )
+}
+
+// ── Freeform outline fallback ──
+// When the agent saves outline as a free-form JSON object (title/intro/
+// volume_1_outline/etc.) instead of the canonical {children: [...]} tree,
+// render the keys we know about so the user still sees their data.
+
+function FreeformOutlineFallback({ data }) {
+  if (!data || typeof data !== 'object') {
+    return <div style={{ padding: 12, color: 'var(--text-muted)', fontSize: 12 }}>大纲为空</div>
+  }
+  const knownTextKeys = ['title', 'intro', 'genre', 'setting', 'tone', 'synopsis']
+  const entries = Object.entries(data).filter(([k]) =>
+    !['id', 'label', 'type', 'children'].includes(k)
+  )
+  if (entries.length === 0) {
+    return <div style={{ padding: 12, color: 'var(--text-muted)', fontSize: 12 }}>大纲为空</div>
+  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '4px 4px 16px' }}>
+      <div style={{
+        padding: '6px 10px', background: 'rgba(245,158,11,0.08)',
+        border: '1px solid rgba(245,158,11,0.25)', borderRadius: 6,
+        fontSize: 11, color: 'var(--text-secondary)',
+      }}>
+        ⚠️ 大纲存的是 free-form JSON，没有标准 children 树结构。下面按字段渲染原始内容。
+      </div>
+      {entries.map(([key, val]) => (
+        <div key={key} style={{
+          padding: '8px 10px', background: 'var(--bg-elevated)',
+          borderRadius: 6, border: '1px solid var(--border-subtle)',
+        }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent)', marginBottom: 4 }}>{key}</div>
+          {knownTextKeys.includes(key) && typeof val === 'string'
+            ? <div style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>{val}</div>
+            : <pre style={{
+                fontSize: 11, lineHeight: 1.5, color: 'var(--text-secondary)',
+                whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0,
+                maxHeight: 320, overflowY: 'auto',
+              }}>{JSON.stringify(val, null, 2)}</pre>
+          }
+        </div>
+      ))}
     </div>
   )
 }
@@ -255,9 +302,8 @@ function PlotTreeNode({ nodeId, nodes, childrenMap, level }) {
   const icon = typeIcons[node.type] || '📝'
 
   return (
-    <div>
+    <div style={{ position: 'relative' }}>
       <div style={{
-        paddingLeft: 8 + level * 20,
         display: 'flex', alignItems: 'center', gap: 6,
         padding: '4px 0',
         opacity: status === 'pruned' ? 0.45 : 1,
@@ -266,7 +312,7 @@ function PlotTreeNode({ nodeId, nodes, childrenMap, level }) {
           style={{ cursor: hasChildren ? 'pointer' : 'default', color: 'var(--text-muted)', width: 14, textAlign: 'center' }}
           onClick={() => hasChildren && setOpen(!open)}
         >
-          {hasChildren ? (open ? <ChevronDown size={12} /> : <ChevronRight size={12} />) : ''}
+          {hasChildren ? (open ? <ChevronDown size={12} /> : <ChevronRight size={12} />) : <span style={{ display: 'inline-block', width: 8, borderTop: '1px dashed var(--border-subtle)' }} />}
         </span>
         <span style={{ fontSize: 13 }}>{icon}</span>
         <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>{node.title || nodeId}</span>
@@ -277,13 +323,21 @@ function PlotTreeNode({ nodeId, nodes, childrenMap, level }) {
         {node.type && <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>{node.type}</span>}
       </div>
       {node.description && open && (
-        <div style={{ paddingLeft: 34 + level * 20, fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.4, marginBottom: 2 }}>
+        <div style={{ paddingLeft: 26, fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.4, marginBottom: 4 }}>
           {node.description}
         </div>
       )}
-      {hasChildren && open && children.map(childId => (
-        <PlotTreeNode key={childId} nodeId={childId} nodes={nodes} childrenMap={childrenMap} level={level + 1} />
-      ))}
+      {hasChildren && open && (
+        <div style={{
+          marginLeft: 9,
+          paddingLeft: 14,
+          borderLeft: '1px solid var(--border-subtle)',
+        }}>
+          {children.map(childId => (
+            <PlotTreeNode key={childId} nodeId={childId} nodes={nodes} childrenMap={childrenMap} level={level + 1} />
+          ))}
+        </div>
+      )}
     </div>
   )
 }

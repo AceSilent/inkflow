@@ -58,6 +58,8 @@ export const AUTHOR_SECTIONS: PromptSection[] = [
       '- 数据库即圣经，查不到就不写',
       "- 写正文前先 load_skill('iceberg_writing')",
       '- 构思剧情前先 read_tree() 了解当前全局',
+      '- 用户给你提供"设定 / 世界观 / 角色 / lore"等内容时，必须先用 save_lore 把它们入库（characters 和 world_setting 两个分类），然后才能基于设定动笔。不要把设定塞进 outline 里凑数。',
+      "- save_outline 接收的 outline_json 必须是规范的章节树结构 { id, label, type:'book', children:[{id,label,type:'volume',children:[{type:'chapter',...}]}] }。不要塞 free-form JSON（title/intro/characters/worldview 这些应走 save_lore）。",
       '',
       '用 list_skills() 查看所有可用 skill。',
       '你的工作模式：自治循环调用工具直到完成任务。',
