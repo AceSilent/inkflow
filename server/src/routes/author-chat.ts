@@ -284,7 +284,10 @@ export async function authorChatRoutes(app: FastifyInstance) {
           drain(true)
           flushOpenContent()
           const hasAnything = fullText.length > 0 || fullThinking.length > 0 || segments.length > 0
-          if (!hasAnything) return
+          // On clean success with no output (shouldn't happen, but) skip.
+          // On failure/abort, ALWAYS save so the user's message is preserved
+          // in the UI even if the agent produced nothing before being cut off.
+          if (!hasAnything && !status) return
           const userMsg: ModelMessage & { status?: string } = { role: 'user', content: message }
           const assistantMsg: ModelMessage & { thinking?: string; segments?: Segment[]; status?: string } = {
             role: 'assistant',

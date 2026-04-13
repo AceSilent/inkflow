@@ -17,6 +17,11 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
   const inputRef = useRef(null)
   const fileInputRef = useRef(null)
   const abortRef = useRef(null)
+  // Up/Down arrow history navigation. histIdx is the offset back from the
+  // newest sent message; null means "currently editing fresh input".
+  const sentHistory = useRef([])  // newest last
+  const [histIdx, setHistIdx] = useState(null)
+  const draftBeforeNav = useRef('')
 
   const bookId = currentBook?.book_id
 
@@ -59,6 +64,14 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
         })
         setMessages(restored)
         setExpandedThinking(prev => ({ ...prev, ...thinkingState }))
+        // Seed sent-history from the user messages we just loaded so the
+        // arrow-key recall works across sessions / refreshes.
+        sentHistory.current = restored
+          .filter(m => m.role === 'user' && m.content)
+          .map(m => m.hasAttachments
+            ? (m.content.split('\n\n--- 附件:')[0] || '')
+            : m.content)
+        setHistIdx(null)
       })
       .catch(() => {})
   }, [bookId])
@@ -139,6 +152,10 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
     }
 
     const attachmentNames = useAttachments ? attachments.map(a => a.name) : []
+    // Push to in-memory recall ring (keep raw user text, not the attachment-suffixed version).
+    if (baseInput) sentHistory.current.push(baseInput)
+    setHistIdx(null)
+    draftBeforeNav.current = ''
     if (!fromOverride) setInput('')
     if (useAttachments) setAttachments([])
     setMessages(prev => [...prev, {
@@ -289,6 +306,32 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSend()
+      return
+    }
+    // Up/Down recall, only when the input is single-line empty OR we are
+    // already navigating history (so multi-line edits aren't disrupted).
+    const hist = sentHistory.current
+    const navigating = histIdx !== null
+    const empty = !input
+    if ((e.key === 'ArrowUp') && (empty || navigating) && hist.length > 0) {
+      e.preventDefault()
+      const next = histIdx === null ? hist.length - 1 : Math.max(0, histIdx - 1)
+      if (histIdx === null) draftBeforeNav.current = input
+      setHistIdx(next)
+      setInput(hist[next])
+      return
+    }
+    if ((e.key === 'ArrowDown') && navigating) {
+      e.preventDefault()
+      const next = histIdx + 1
+      if (next >= hist.length) {
+        setHistIdx(null)
+        setInput(draftBeforeNav.current)
+      } else {
+        setHistIdx(next)
+        setInput(hist[next])
+      }
+      return
     }
   }
 
@@ -321,10 +364,16 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, position: 'relative' }}>
           <button
             onClick={() => { fetchSnapshots(); setSnapsOpen(s => !s) }}
-            title="快照 / 回滚"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4, borderRadius: 4 }}
+            title="快照 / 回滚到任意一条历史消息发送之前的状态"
+            style={{
+              background: snapsOpen ? 'var(--bg-elevated)' : 'none',
+              border: '1px solid var(--border-subtle)',
+              cursor: 'pointer', color: 'var(--text-secondary)',
+              padding: '3px 8px', borderRadius: 6,
+              display: 'flex', alignItems: 'center', gap: 4, fontSize: 11,
+            }}
           >
-            <History size={14} />
+            <History size={12} /> 快照
           </button>
           {snapsOpen && (
             <div style={{
