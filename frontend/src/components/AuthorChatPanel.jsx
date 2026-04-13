@@ -644,11 +644,11 @@ function StreamingToolCard({ segment }) {
 // ── Thinking Card (one per step, collapsible) ──
 
 function ThinkingCard({ segment, t }) {
-  // Default expanded — the user explicitly asked that thinking stay visible
-  // after refresh so they can see what the agent was reasoning about.
-  // Click the header to collapse if it's too noisy.
-  const [expanded, setExpanded] = useState(true)
+  // Streaming → expanded so the user can watch tokens land live.
+  // Committed → collapsed so the conversation log stays scannable; the purple
+  // left rail + header chip make the card obvious even when shut.
   const live = !!segment.streaming
+  const [expanded, setExpanded] = useState(live)
   const len = segment.text?.length ?? 0
   return (
     <div style={{

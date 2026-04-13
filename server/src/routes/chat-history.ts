@@ -17,13 +17,13 @@ export function loadHistory(dataDir: string, bookId: string): ModelMessage[] {
   if (!fs.existsSync(p)) return []
   try {
     const raw = JSON.parse(fs.readFileSync(p, 'utf-8'))
+    // Preserve every field on each message — UI metadata (thinking,
+    // segments, status, attachments) is needed by the history endpoint for
+    // replay rendering. The author-chat send route does its own stripping
+    // before feeding messages back to the LLM, so we don't strip here.
     return raw
       .filter((m: { role: string }) => m.role === 'user' || m.role === 'assistant')
-      .map((m: { role: string; content: string }) => ({
-        role: m.role as 'user' | 'assistant',
-        content: m.content || '',
-      }))
-      .slice(-20)
+      .slice(-20) as ModelMessage[]
   } catch {
     return []
   }
