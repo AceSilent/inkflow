@@ -8,7 +8,7 @@ import { type FastifyInstance } from 'fastify'
 import { type ModelMessage } from 'ai'
 import { runAgentStream } from '../agent/agent-loop.js'
 import { createAllTools } from '../tools/index.js'
-import { type LLMConfig } from '../llm/provider.js'
+import { type LLMConfig, REASONING_OPEN, REASONING_CLOSE } from '../llm/provider.js'
 import { sanitizePathSegment } from '../utils/path-sanitizer.js'
 import { sendChatBody } from './schemas.js'
 import { getSettings } from './settings.js'
@@ -133,7 +133,12 @@ export async function authorChatRoutes(app: FastifyInstance) {
       request.socket.on('close', onSocketClose)
 
       try {
-        const history = loadHistory(dataDir, bookId)
+        const rawHistory = loadHistory(dataDir, bookId)
+        // Strip persisted `thinking` field — it's UI metadata, not part of the LLM context.
+        const history: ModelMessage[] = rawHistory.map((m) => {
+          const { thinking: _t, ...rest } = m as ModelMessage & { thinking?: string }
+          return rest as ModelMessage
+        })
 
         sse({ type: 'status', phase: 'agent_loop' })
 
@@ -149,13 +154,53 @@ export async function authorChatRoutes(app: FastifyInstance) {
         })
 
         let fullText = ''
+        let fullThinking = ''
+        let pending = ''
+        let segmentMode: 'content' | 'thinking' = 'content'
 
-        for await (const part of (await result).fullStream) {
+        // Drain `pending`, splitting on REASONING_OPEN/CLOSE markers, emitting
+        // SSE events for each side and accumulating into fullText / fullThinking.
+        // Holds back up to (markerLen-1) chars to avoid splitting a partial marker.
+        const drain = (final: boolean) => {
+          while (pending.length > 0) {
+            const marker = segmentMode === 'content' ? REASONING_OPEN : REASONING_CLOSE
+            const idx = pending.indexOf(marker)
+            if (idx === -1) {
+              const keep = final ? 0 : marker.length - 1
+              const flushLen = pending.length - keep
+              if (flushLen <= 0) return
+              const chunk = pending.slice(0, flushLen)
+              pending = pending.slice(flushLen)
+              if (segmentMode === 'content') {
+                sse({ type: 'content', token: chunk })
+                fullText += chunk
+              } else {
+                sse({ type: 'thinking', token: chunk })
+                fullThinking += chunk
+              }
+              return
+            }
+            if (idx > 0) {
+              const chunk = pending.slice(0, idx)
+              if (segmentMode === 'content') {
+                sse({ type: 'content', token: chunk })
+                fullText += chunk
+              } else {
+                sse({ type: 'thinking', token: chunk })
+                fullThinking += chunk
+              }
+            }
+            pending = pending.slice(idx + marker.length)
+            segmentMode = segmentMode === 'content' ? 'thinking' : 'content'
+          }
+        }
+
+        for await (const part of result.fullStream) {
           switch (part.type) {
             case 'text-delta':
               // AI SDK v6 uses part.text (was part.textDelta in v5)
-              sse({ type: 'content', token: part.text })
-              fullText += part.text
+              pending += part.text
+              drain(false)
               break
             case 'tool-call':
               toolsUsed.push(part.toolName)
@@ -174,18 +219,26 @@ export async function authorChatRoutes(app: FastifyInstance) {
               break
           }
         }
+        drain(true)
 
         streamDone = true
 
-        // Save to history
+        // Save to history — assistant entry carries an extra `thinking` field
+        // for UI replay; the LLM-bound history above strips it out.
+        const assistantMsg: ModelMessage & { thinking?: string } = {
+          role: 'assistant',
+          content: fullText || '(Author Agent 没有生成回复)',
+        }
+        if (fullThinking) assistantMsg.thinking = fullThinking
+
         const updatedHistory: ModelMessage[] = [
           ...history,
           { role: 'user' as const, content: message },
-          { role: 'assistant' as const, content: fullText || '(Author Agent 没有生成回复)' },
+          assistantMsg,
         ]
         saveHistory(dataDir, bookId, updatedHistory)
 
-        sse({ type: 'done', tools_used: toolsUsed, has_thinking: false })
+        sse({ type: 'done', tools_used: toolsUsed, has_thinking: fullThinking.length > 0 })
       } catch (err: any) {
         if (abortController.signal.aborted) {
           sse({ type: 'aborted', message: 'Stream cancelled by client' })

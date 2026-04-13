@@ -16,8 +16,7 @@ import { getSettings } from '../routes/settings.js'
 
 // LLM config for editorial reviewers — reads from settings.json first, falls back to env vars.
 // Uses editorModel (or readerModel) from settings, which can be a cheaper/faster model.
-function editorialLLMConfig(): LLMConfig {
-  const dataDir = process.env.AUTONOVEL_DATA_DIR || 'books'
+function editorialLLMConfig(dataDir: string): LLMConfig {
   const settings = getSettings(dataDir)
   const modelSelector = settings.editorModel || settings.readerModel || settings.authorModel || ''
 
@@ -78,7 +77,7 @@ export const submitToEditorialTool: ToolDefinition = {
       '../../../prompts'
     )
 
-    const llmConfig = editorialLLMConfig()
+    const llmConfig = editorialLLMConfig(ctx.dataDir)
 
     try {
       const result: EditorialResult = await runEditorialPipeline(

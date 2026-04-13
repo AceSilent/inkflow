@@ -223,13 +223,15 @@ function PlotTreeView({ data }) {
     }
   }
 
-  // Find root nodes: nodes with no parent, or the root_id
+  // Find root nodes: explicit root_id, or any node whose parent doesn't resolve to a real node
+  // (parent missing, null, or pointing to a sentinel like "root")
   let rootNodes = []
   if (rootId && nodes[rootId]) {
     rootNodes = [rootId]
   } else {
-    const childIds = new Set(Object.values(nodes).map(n => n.parent).filter(Boolean))
-    rootNodes = Object.keys(nodes).filter(id => !childIds.has(id))
+    rootNodes = Object.entries(nodes)
+      .filter(([, n]) => !n.parent || !nodes[n.parent])
+      .map(([id]) => id)
   }
 
   return (
