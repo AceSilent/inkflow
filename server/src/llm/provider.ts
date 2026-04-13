@@ -97,17 +97,17 @@ function createReasoningFetch(model: string, onProgress?: ProviderProgressCallba
   const customFetch: typeof globalThis.fetch = async (url, init) => {
     // DashScope Qwen3 opt-in to thinking mode: add enable_thinking at the top
     // level of the JSON body (mirrors the Python SDK's extra_body mechanic).
-    // Cap the thinking budget so the model can't loop forever in self-questioning
+    // Cap thinking_budget so the model can't loop forever in self-questioning
     // (Qwen3 in thinking mode loves to ping-pong "should I X? no. okay, I'll
-    // output... wait, should I Y? no. okay..."). 4096 thinking tokens is enough
-    // for real reasoning on big contexts but forces a decision before too long.
+    // output... wait, should I Y? no. okay..."). 81920 tokens is the max
+    // headroom we hand it; explicit caller overrides win.
     // Only do this for streaming requests.
     if (needsEnableThinking && init?.body && typeof init.body === 'string') {
       try {
         const body = JSON.parse(init.body)
         if (body && body.stream === true) {
           body.enable_thinking = true
-          if (body.thinking_budget == null) body.thinking_budget = 4096
+          if (body.thinking_budget == null) body.thinking_budget = 81920
           init = { ...init, body: JSON.stringify(body) }
         }
       } catch { /* non-JSON body — leave alone */ }
