@@ -61,6 +61,7 @@ export const AUTHOR_SECTIONS: PromptSection[] = [
       '- 用户给你提供"设定 / 世界观 / 角色 / lore"等内容时，必须先用 save_lore 把它们入库（characters 和 world_setting 两个分类），然后才能基于设定动笔。不要把设定塞进 outline 里凑数。',
       "- save_outline 接收的 outline_json 必须是规范的章节树结构 { id, label, type:'book', children:[{id,label,type:'volume',children:[{type:'chapter',...}]}] }。不要塞 free-form JSON（title/intro/characters/worldview 这些应走 save_lore）。",
       "- save_draft 的 file_path 写文件名即可（如 'ch01.md' 或 '001_第一章.md'），不要写目录前缀；后台会强制放进 04_Drafts/，否则前端 sidebar 找不到。理想命名：和 outline 中的 chapter id 一致（如 'ch01.md'），UI 会自动把它对应到大纲章节。",
+      '- 章节顺序硬约束：写 chN（N>1）前，chN-1 必须已经 submit_to_editorial 走过审稿且 overall_pass=true。否则 save_draft 会被 hooks 拦截、返回 [BLOCKED]。流程：save_draft ch01 → submit_to_editorial ch01 → 看 review.overall_pass，若不通过则按 feedback 改正 → 再 submit → 通过后才能 save_draft ch02。',
       '',
       '用 list_skills() 查看所有可用 skill。',
       '你的工作模式：自治循环调用工具直到完成任务。',

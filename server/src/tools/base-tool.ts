@@ -29,12 +29,26 @@ export interface ToolDefinition<T extends z.ZodType = z.ZodType> {
 }
 
 /**
- * Observation hooks fired around each tool invocation. Hooks are fire-and-forget:
- * thrown errors are swallowed so a misbehaving observer can never break the agent
- * loop. They are NOT a place to enforce policy — use the tool's own logic for that.
+ * Hook return type for blocking interceptors. When `interceptToolCall` returns
+ * a `BlockedToolCall`, the actual tool is NOT executed; the `message` is
+ * returned to the LLM as if it were the tool's output. Use this for hard
+ * policy gates (e.g. "must review previous chapter before writing next").
+ */
+export type BlockedToolCall = { block: true; message: string }
+export type InterceptResult = BlockedToolCall | undefined | null | void
+
+/**
+ * Hooks fired around each tool invocation.
+ *
+ *  - beforeToolCall / afterToolCall / onToolError: fire-and-forget observers;
+ *    thrown errors are swallowed so a misbehaving observer can't break the loop.
+ *  - interceptToolCall: a gate. If any composed interceptor returns
+ *    { block: true, message }, the tool is skipped and the message is fed back
+ *    to the LLM as the tool result. First block wins.
  */
 export interface ToolHooks {
   beforeToolCall?(name: string, args: any, ctx: ToolContext): void | Promise<void>
+  interceptToolCall?(name: string, args: any, ctx: ToolContext): InterceptResult | Promise<InterceptResult>
   afterToolCall?(name: string, args: any, result: string, durationMs: number, ctx: ToolContext): void | Promise<void>
   onToolError?(name: string, args: any, err: unknown, durationMs: number, ctx: ToolContext): void | Promise<void>
 }
@@ -48,6 +62,14 @@ export function composeHooks(...all: (ToolHooks | undefined | null)[]): ToolHook
   return {
     beforeToolCall: async (name, args, ctx) => {
       for (const h of live) await h.beforeToolCall?.(name, args, ctx)
+    },
+    // First interceptor that returns { block: true } wins; later ones are skipped.
+    interceptToolCall: async (name, args, ctx) => {
+      for (const h of live) {
+        const res = await h.interceptToolCall?.(name, args, ctx)
+        if (res && (res as BlockedToolCall).block) return res
+      }
+      return undefined
     },
     afterToolCall: async (name, args, result, durationMs, ctx) => {
       for (const h of live) await h.afterToolCall?.(name, args, result, durationMs, ctx)
@@ -113,6 +135,20 @@ export class ToolRegistry {
         inputSchema: asSchema(def.parameters),
         execute: async (args: any) => {
           await fire(() => hooks?.beforeToolCall?.(name, args, ctx))
+          // Policy gate. If any interceptor returns { block: true, message },
+          // skip execution and feed the message back to the LLM as the result.
+          let blocked: BlockedToolCall | null = null
+          try {
+            const intercepted = await hooks?.interceptToolCall?.(name, args, ctx)
+            if (intercepted && (intercepted as BlockedToolCall).block) {
+              blocked = intercepted as BlockedToolCall
+            }
+          } catch { /* interceptor failure shouldn't break the tool */ }
+          if (blocked) {
+            const blockedResult = `[BLOCKED] ${blocked.message}`
+            await fire(() => hooks?.afterToolCall?.(name, args, blockedResult, 0, ctx))
+            return blockedResult
+          }
           const start = Date.now()
           try {
             const out = await def.execute(args, ctx)
