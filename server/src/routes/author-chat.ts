@@ -133,6 +133,9 @@ export async function authorChatRoutes(app: FastifyInstance) {
       }
       request.socket.on('close', onSocketClose)
       let heartbeat: NodeJS.Timeout | null = null
+      // Persistence closure — set inside try after accumulators are wired up,
+      // invoked from finally so partial state survives errors / cancellations.
+      let persistAssistant: (() => void) | null = null
 
       try {
         const rawHistory = loadHistory(dataDir, bookId)
@@ -250,6 +253,26 @@ export async function authorChatRoutes(app: FastifyInstance) {
           }
         }
 
+        // Wire up the persister now that all accumulators + helpers exist.
+        persistAssistant = () => {
+          drain(true)
+          flushOpenContent()
+          const hasAnything = fullText.length > 0 || fullThinking.length > 0 || segments.length > 0
+          if (!hasAnything) return
+          const assistantMsg: ModelMessage & { thinking?: string; segments?: Segment[] } = {
+            role: 'assistant',
+            content: fullText || '(Author Agent 没有生成回复)',
+          }
+          if (fullThinking) assistantMsg.thinking = fullThinking
+          if (segments.length > 0) assistantMsg.segments = segments
+          const updatedHistory: ModelMessage[] = [
+            ...history,
+            { role: 'user' as const, content: message },
+            assistantMsg,
+          ]
+          saveHistory(dataDir, bookId, updatedHistory)
+        }
+
         let streamError: unknown = null
         for await (const part of result.fullStream) {
           lastPartAt = Date.now()
@@ -261,6 +284,10 @@ export async function authorChatRoutes(app: FastifyInstance) {
               break
             case 'tool-call': {
               toolsUsed.push(part.toolName)
+              // Tool boundary — flush the marker-tail buffer so any content
+              // held back to avoid splitting a partial REASONING marker is
+              // emitted into the current content segment before we move on.
+              drain(true)
               flushOpenContent()
               if (part.toolName === 'present_options') {
                 // Special-case: render as interactive option cards instead of a
@@ -323,24 +350,6 @@ export async function authorChatRoutes(app: FastifyInstance) {
         }
 
         streamDone = true
-
-        // Save to history — assistant entry carries extra `thinking` and
-        // `segments` fields for UI replay; the LLM-bound history (above) strips
-        // them out so they never round-trip back to the model.
-        const assistantMsg: ModelMessage & { thinking?: string; segments?: Segment[] } = {
-          role: 'assistant',
-          content: fullText || '(Author Agent 没有生成回复)',
-        }
-        if (fullThinking) assistantMsg.thinking = fullThinking
-        if (segments.length > 0) assistantMsg.segments = segments
-
-        const updatedHistory: ModelMessage[] = [
-          ...history,
-          { role: 'user' as const, content: message },
-          assistantMsg,
-        ]
-        saveHistory(dataDir, bookId, updatedHistory)
-
         sse({ type: 'done', tools_used: toolsUsed, has_thinking: fullThinking.length > 0 })
       } catch (err: any) {
         if (abortController.signal.aborted) {
@@ -352,6 +361,17 @@ export async function authorChatRoutes(app: FastifyInstance) {
         streamDone = true
         if (heartbeat) clearInterval(heartbeat)
         request.socket.off('close', onSocketClose)
+        // Persist whatever the assistant produced — even on error, abort, or
+        // network failure mid-stream. Losing partial thinking + content +
+        // tool-call segments because something blew up late is worse than a
+        // slightly truncated entry.
+        if (persistAssistant) {
+          try {
+            persistAssistant()
+          } catch (saveErr) {
+            app.log.error({ err: saveErr, bookId }, '[author-chat] failed to persist partial history')
+          }
+        }
       }
 
       reply.raw.end()

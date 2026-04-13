@@ -66,6 +66,16 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, streamingMsg])
 
+  // Tick once a second while a retry banner or heartbeat banner is showing, so
+  // the displayed countdown / elapsed time stays live without a server push.
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    if (!streamingMsg) return
+    if (!streamingMsg.retry && !(streamingMsg.idleMs >= 15000)) return
+    const id = setInterval(() => setTick((t) => t + 1), 500)
+    return () => clearInterval(id)
+  }, [streamingMsg])
+
   // File handling
   const handleFileSelect = (e) => {
     const files = Array.from(e.target.files || [])
@@ -148,9 +158,11 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
             if (evt.type === 'status') {
               setStreamingMsg(prev => ({ ...prev, phase: evt.phase }))
             } else if (evt.type === 'retry') {
+              // Stamp `retryStartedAt` so the UI can tick down delayMs in real time
+              // (the server only emits one retry event per attempt).
               setStreamingMsg(prev => ({
                 ...prev,
-                retry: { attempt: evt.attempt, delayMs: evt.delay_ms, status: evt.status, reason: evt.reason },
+                retry: { attempt: evt.attempt, delayMs: evt.delay_ms, status: evt.status, reason: evt.reason, startedAt: Date.now() },
                 idleMs: 0,
               }))
             } else if (evt.type === 'heartbeat') {
@@ -321,7 +333,11 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
                 <Loader size={11} style={{ animation: 'spin 1.5s linear infinite', color: '#f59e0b' }} />
                 <span>
                   服务繁忙（{streamingMsg.retry.status}），第 {streamingMsg.retry.attempt} 次重试中…{' '}
-                  {Math.round(streamingMsg.retry.delayMs / 1000)}s 后再试
+                  {(() => {
+                    const elapsed = Date.now() - (streamingMsg.retry.startedAt ?? Date.now())
+                    const remaining = Math.max(0, streamingMsg.retry.delayMs - elapsed)
+                    return remaining > 0 ? `${(remaining / 1000).toFixed(1)}s 后再试` : '正在重试…'
+                  })()}
                 </span>
               </div>
             )}
