@@ -92,10 +92,14 @@ export const submitToEditorialTool: ToolDefinition = {
         persistReview(ctx.dataDir, ctx.bookId, chapter_id, result)
       }
 
+      // Inline tool result for Author — strip `thinking` from each feedback to
+      // keep the agent's context lean. Full thinking traces stay in the
+      // persisted review_{chapterId}.json file for human inspection.
+      const leanFeedbacks = result.feedbacks.map(({ thinking: _t, ...rest }) => rest)
       return JSON.stringify({
         overall_pass: result.overall_pass,
         summary: result.merged_summary,
-        feedbacks: result.feedbacks,
+        feedbacks: leanFeedbacks,
       }, null, 2)
     } catch (err) {
       return `编辑部审核出错: ${String(err)}`

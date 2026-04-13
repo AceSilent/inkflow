@@ -25,6 +25,50 @@ export interface EditorialFeedback {
     fix_instruction?: string
   }>
   quick_comment: string
+  /** Captured `reasoning_content` from the reviewer's LLM call, if any. */
+  thinking?: string
+}
+
+/**
+ * For models that return `message.reasoning_content` (GLM-5.x), bypass the AI SDK
+ * to capture both the final answer and the thinking trace. Returns null on any
+ * non-2xx so callers can fall back to generateText().
+ */
+async function rawChatCompletion(
+  llmConfig: LLMConfig,
+  prompt: string,
+): Promise<{ content: string; thinking: string } | null> {
+  const url = `${(llmConfig.baseURL || '').replace(/\/$/, '')}/chat/completions`
+  try {
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${llmConfig.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: llmConfig.model,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.3,
+        stream: false,
+      }),
+    })
+    if (!resp.ok) return null
+    const data: any = await resp.json()
+    const msg = data?.choices?.[0]?.message
+    if (!msg) return null
+    return {
+      content: typeof msg.content === 'string' ? msg.content : '',
+      thinking: typeof msg.reasoning_content === 'string' ? msg.reasoning_content : '',
+    }
+  } catch {
+    return null
+  }
+}
+
+function isReasoningModel(model: string): boolean {
+  const m = (model || '').toLowerCase()
+  return m.includes('glm-5') || m.includes('glm5')
 }
 
 export interface EditorialResult {
@@ -64,35 +108,53 @@ async function runReviewer(
   }
 
   const prompt = renderTemplate(templatePath, vars)
-  const model = createProvider(llmConfig)
+
+  let answerText = ''
+  let thinking = ''
 
   try {
-    const result = await generateText({
-      model,
-      prompt,
-      temperature: 0.3,
-    })
+    if (isReasoningModel(llmConfig.model)) {
+      // Bypass AI SDK so we can capture `message.reasoning_content` alongside content.
+      const raw = await rawChatCompletion(llmConfig, prompt)
+      if (raw) {
+        answerText = raw.content
+        thinking = raw.thinking
+      } else {
+        // Raw call failed — fall back to AI SDK so we still get a result (no thinking).
+        const model = createProvider(llmConfig)
+        const result = await generateText({ model, prompt, temperature: 0.3 })
+        answerText = result.text
+      }
+    } else {
+      const model = createProvider(llmConfig)
+      const result = await generateText({ model, prompt, temperature: 0.3 })
+      answerText = result.text
+    }
 
     // Parse JSON from response (strip markdown fences if present)
-    let text = result.text.trim()
+    let text = answerText.trim()
     const jsonMatch = text.match(/```json?\s*\n?([\s\S]*?)\n?```/)
     if (jsonMatch) text = jsonMatch[1].trim()
 
     try {
       const parsed = JSON.parse(text)
-      return {
+      const fb: EditorialFeedback = {
         reviewer: reviewerName,
         pass_status: parsed.pass_status ?? true,
         issues: parsed.ai_tone_issues ?? parsed.issues ?? parsed.lore_issues ?? parsed.pacing_issues ?? [],
         quick_comment: parsed.quick_comment ?? parsed.comment ?? '',
       }
+      if (thinking) fb.thinking = thinking
+      return fb
     } catch {
-      return {
+      const fb: EditorialFeedback = {
         reviewer: reviewerName,
         pass_status: false,
         issues: [{ type: 'Parse_Error', severity: 3, fix_instruction: 'Review response could not be parsed' }],
         quick_comment: `[Parse error] Raw: ${text.slice(0, 200)}`,
       }
+      if (thinking) fb.thinking = thinking
+      return fb
     }
   } catch (err) {
     return {
