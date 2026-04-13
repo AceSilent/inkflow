@@ -51,9 +51,9 @@ export class FeishuClient {
     try {
       const resp = await this.client.cardkit.v1.card.create({
         data: {
-          type: 1, // card entity
+          type: 1 as any,
           elements,
-        },
+        } as any,
       })
       return resp.data?.card_id || null
     } catch (e: any) {
@@ -70,7 +70,7 @@ export class FeishuClient {
         data: {
           elements,
           sequence: this.nextSeq(cardId),
-        },
+        } as any,
       })
       return true
     } catch (e: any) {

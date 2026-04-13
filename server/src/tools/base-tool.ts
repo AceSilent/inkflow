@@ -5,7 +5,7 @@
  * The key integration point is `toVercelTools()` which converts all tools to Vercel AI SDK format.
  */
 import { z } from 'zod'
-import { tool } from 'ai'
+import { tool, asSchema } from 'ai'
 
 export type PermissionLevel = 'read' | 'write' | 'destructive'
 
@@ -22,7 +22,10 @@ export interface ToolDefinition<T extends z.ZodType = z.ZodType> {
   parameters: T
   permissionLevel: PermissionLevel
   isTerminal?: boolean
-  execute: (args: z.infer<T>, ctx: ToolContext) => Promise<string>
+  // Args are validated at runtime by Vercel AI SDK via the Zod schema.
+  // Using `any` because z.infer<z.ZodType> resolves to `unknown` in Zod v4,
+  // which breaks destructured parameter patterns in tool implementations.
+  execute: (args: any, ctx: ToolContext) => Promise<string>
 }
 
 export class ToolRegistry {
@@ -63,14 +66,16 @@ export class ToolRegistry {
    * Convert all registered tools to Vercel AI SDK format.
    * This is the key integration point — replaces AUTHOR_TOOLS dict + while loop.
    */
-  toVercelTools(ctx: ToolContext): Record<string, ReturnType<typeof tool>> {
-    const result: Record<string, ReturnType<typeof tool>> = {}
+  toVercelTools(ctx: ToolContext): Record<string, any> {
+    const result: Record<string, any> = {}
     for (const [name, def] of this.tools) {
-      result[name] = tool({
+      // AI SDK v6 requires `inputSchema` (FlexibleSchema), not raw Zod `parameters`.
+      // `asSchema()` converts Zod → FlexibleSchema with jsonSchema + validate.
+      result[name] = {
         description: def.description,
-        parameters: def.parameters,
-        execute: async (args) => def.execute(args, ctx),
-      })
+        inputSchema: asSchema(def.parameters),
+        execute: async (args: any) => def.execute(args, ctx),
+      }
     }
     return result
   }

@@ -4,7 +4,7 @@
  */
 import fs from 'fs'
 import path from 'path'
-import { type CoreMessage } from 'ai'
+import { type ModelMessage } from 'ai'
 
 export function historyPath(dataDir: string, bookId: string): string {
   const dir = path.join(dataDir, bookId)
@@ -12,7 +12,7 @@ export function historyPath(dataDir: string, bookId: string): string {
   return path.join(dir, 'author_chat_history.json')
 }
 
-export function loadHistory(dataDir: string, bookId: string): CoreMessage[] {
+export function loadHistory(dataDir: string, bookId: string): ModelMessage[] {
   const p = historyPath(dataDir, bookId)
   if (!fs.existsSync(p)) return []
   try {
@@ -29,7 +29,7 @@ export function loadHistory(dataDir: string, bookId: string): CoreMessage[] {
   }
 }
 
-export function saveHistory(dataDir: string, bookId: string, messages: CoreMessage[]): void {
+export function saveHistory(dataDir: string, bookId: string, messages: ModelMessage[]): void {
   const p = historyPath(dataDir, bookId)
   const trimmed = messages.slice(-50)
   fs.writeFileSync(p, JSON.stringify(trimmed, null, 2), 'utf-8')

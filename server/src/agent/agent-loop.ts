@@ -11,16 +11,23 @@
  *   - Mode-aware prompt selection
  *   - Rich ToolContext propagation
  */
-import { streamText, type CoreMessage } from 'ai'
+import { streamText, stepCountIs, type ModelMessage } from 'ai'
 import { type ToolRegistry, type ToolContext } from '../tools/base-tool.js'
 import { buildAuthorPrompt, buildBrainstormPrompt } from './prompt-builder.js'
 import { type LLMConfig, createProvider } from '../llm/provider.js'
+
+/** Minimal shape of the streamText result used by callers (SSE route + Feishu bridge). */
+export interface AgentStreamResult {
+  fullStream: AsyncIterable<any>
+  text: PromiseLike<string>
+  usage: PromiseLike<any>
+}
 
 export interface AgentRunOptions {
   bookId: string
   dataDir: string
   userMessage: string
-  history: CoreMessage[]
+  history: ModelMessage[]
   llmConfig: LLMConfig
   toolRegistry: ToolRegistry
   memoryContext?: string
@@ -28,12 +35,6 @@ export interface AgentRunOptions {
   mode?: string
   /** AbortSignal for cancelling the stream */
   abortSignal?: AbortSignal
-}
-
-export interface AgentRunResult {
-  fullStream: AsyncIterable<any>
-  text: Promise<string>
-  usage: Promise<{ promptTokens: number; completionTokens: number }>
 }
 
 /**
@@ -52,7 +53,7 @@ function selectPrompt(mode: string | undefined, memoryContext?: string, toolSumm
  * Returns a Vercel AI SDK StreamTextResult with fullStream, text, etc.
  * Supports AbortSignal for user cancellation.
  */
-export function runAgentStream(options: AgentRunOptions): Promise<AgentRunResult> {
+export function runAgentStream(options: AgentRunOptions): AgentStreamResult {
   const {
     bookId, dataDir, userMessage, history,
     llmConfig, toolRegistry, memoryContext,
@@ -66,20 +67,18 @@ export function runAgentStream(options: AgentRunOptions): Promise<AgentRunResult
   const model = createProvider(llmConfig)
   const ctx: ToolContext = { bookId, dataDir, mode }
 
-  const messages: CoreMessage[] = [
+  const messages: ModelMessage[] = [
     ...history,
     { role: 'user' as const, content: userMessage },
   ]
 
-  const result = streamText({
+  return streamText({
     model,
     system: systemPrompt,
     messages,
     tools: toolRegistry.toVercelTools(ctx),
-    maxSteps,
+    stopWhen: stepCountIs(maxSteps),
     temperature: 0.7,
     abortSignal,
   })
-
-  return result
 }

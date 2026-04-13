@@ -5,7 +5,7 @@
  * Uses Vercel AI SDK's fullStream for SSE events (text-delta, tool-call, tool-result).
  */
 import { type FastifyInstance } from 'fastify'
-import { type CoreMessage } from 'ai'
+import { type ModelMessage } from 'ai'
 import { runAgentStream } from '../agent/agent-loop.js'
 import { createAllTools } from '../tools/index.js'
 import { type LLMConfig } from '../llm/provider.js'
@@ -162,14 +162,14 @@ export async function authorChatRoutes(app: FastifyInstance) {
               sse({
                 type: 'tool_start',
                 name: part.toolName,
-                args_preview: JSON.stringify(part.args).slice(0, 200),
+                args_preview: JSON.stringify(part.input).slice(0, 200),
               })
               break
             case 'tool-result':
               sse({
                 type: 'tool_done',
                 name: part.toolName,
-                result_preview: String(part.result).slice(0, 200),
+                result_preview: String(part.output).slice(0, 200),
               })
               break
           }
@@ -178,7 +178,7 @@ export async function authorChatRoutes(app: FastifyInstance) {
         streamDone = true
 
         // Save to history
-        const updatedHistory: CoreMessage[] = [
+        const updatedHistory: ModelMessage[] = [
           ...history,
           { role: 'user' as const, content: message },
           { role: 'assistant' as const, content: fullText || '(Author Agent 没有生成回复)' },

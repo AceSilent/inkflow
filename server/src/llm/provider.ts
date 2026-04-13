@@ -24,8 +24,8 @@ function isReasoningModel(model: string): boolean {
  * Create a fetch wrapper that injects `thinking: { type: "disabled" }` into
  * request bodies for models that default to reasoning mode.
  */
-function createThinkingDisabledFetch(): typeof globalThis.fetch {
-  return async (url: RequestInfo | URL, init?: RequestInit) => {
+function createThinkingDisabledFetch() {
+  const customFetch: typeof globalThis.fetch = async (url, init) => {
     if (init?.body) {
       try {
         let rawBody: string
@@ -57,8 +57,9 @@ function createThinkingDisabledFetch(): typeof globalThis.fetch {
         // If body isn't parseable, pass through unchanged
       }
     }
-    return globalThis.fetch(url as any, init)
+    return globalThis.fetch(url, init)
   }
+  return customFetch
 }
 
 export function createProvider(config: LLMConfig) {

@@ -12,9 +12,25 @@ import path from 'path'
 import { type ToolDefinition, type ToolContext } from '../tools/base-tool.js'
 import { runEditorialPipeline, type EditorialResult } from './pipeline.js'
 import { type LLMConfig } from '../llm/provider.js'
+import { getSettings } from '../routes/settings.js'
 
-// LLM config for editorial reviewers (can use cheaper/faster model)
+// LLM config for editorial reviewers — reads from settings.json first, falls back to env vars.
+// Uses editorModel (or readerModel) from settings, which can be a cheaper/faster model.
 function editorialLLMConfig(): LLMConfig {
+  const dataDir = process.env.AUTONOVEL_DATA_DIR || 'books'
+  const settings = getSettings(dataDir)
+  const modelSelector = settings.editorModel || settings.readerModel || settings.authorModel || ''
+
+  if (modelSelector.includes('/')) {
+    const [providerId, ...modelParts] = modelSelector.split('/')
+    const model = modelParts.join('/')
+    const provider = settings.providers.find(p => p.id === providerId)
+    if (provider) {
+      return { apiKey: provider.apiKey, baseURL: provider.baseUrl, model }
+    }
+  }
+
+  // Fallback to environment variables
   return {
     apiKey: process.env.LLM_API_KEY || '',
     baseURL: process.env.LLM_BASE_URL,

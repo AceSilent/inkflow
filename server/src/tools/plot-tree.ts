@@ -65,7 +65,7 @@ export const addPlotNodeTool: ToolDefinition = {
     const nodes = (tree.nodes ?? {}) as Record<string, unknown>
 
     const nodeId = `${node_type}_${Date.now()}`
-    const charList = characters ? characters.split(',').map(c => c.trim()).filter(Boolean) : []
+    const charList = characters ? characters.split(',').map((c: string) => c.trim()).filter(Boolean) : []
 
     nodes[nodeId] = {
       id: nodeId,
@@ -136,7 +136,7 @@ export const mergeBranchesTool: ToolDefinition = {
     const bookDir = path.join(ctx.dataDir, ctx.bookId)
     const tree = loadTree(bookDir)
     if (!tree) return 'Error: No plot tree exists.'
-    const ids = branch_ids.split(',').map(s => s.trim())
+    const ids = branch_ids.split(',').map((s: string) => s.trim())
     if (ids.length < 2) return 'Error: Need at least 2 branch IDs to merge.'
     const nodes = (tree.nodes ?? {}) as Record<string, Record<string, unknown>>
     const convId = `convergence_${Date.now()}`

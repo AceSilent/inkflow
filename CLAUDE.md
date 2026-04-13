@@ -26,12 +26,10 @@ python -m pytest tests/test_specific.py -k "test_name"  # single test
 
 ### Frontend (`frontend/`)
 ```bash
-cd frontend && npm run dev        # Vite on :5173
+cd frontend && npm run dev        # Vite on :5173, proxies /api to :3001
 cd frontend && npm run build      # production build
 cd frontend && npm run lint       # ESLint
 ```
-
-**Note**: Frontend proxy currently targets Python backend (:9864). To use TS backend, change `target` in `frontend/vite.config.js` to `http://localhost:3001`.
 
 ## Architecture
 
@@ -82,12 +80,34 @@ Two-tier memory architecture:
 - `project-memory.ts` — Per-book project memory (plot progress, character arcs)
 - `context-builder.ts` — Assembles memory into system prompt injection
 
-### SSE Streaming Route (`server/src/routes/author-chat.ts`)
+### API Routes (`server/src/routes/`)
 
-Three endpoints:
-- `GET /api/author-chat/:bookId/history` — load chat history
-- `DELETE /api/author-chat/:bookId/history` — clear history
-- `POST /api/author-chat/:bookId/send` — SSE stream (events: `status`, `content`, `tool_start`, `tool_done`, `done`, `error`, `aborted`). Client disconnect detected via `request.socket.on('close')` with `streamDone` guard to avoid false aborts from POST body consumption.
+Fastify is configured with `ignoreTrailingSlash: true`. All POST/PUT bodies validated via Zod schemas in `schemas.ts`. Route modules:
+
+**author-chat.ts** — SSE streaming for Agent interaction:
+- `GET /api/v1/author-chat/:bookId/history` — load chat history
+- `DELETE /api/v1/author-chat/:bookId/history` — clear history
+- `POST /api/v1/author-chat/:bookId/send` — SSE stream (events: `status`, `content`, `tool_start`, `tool_done`, `done`, `error`, `aborted`). Client disconnect detected via `request.socket.on('close')` with `streamDone` guard to avoid false aborts from POST body consumption.
+
+**books.ts** — Book CRUD:
+- `GET /api/v1/books` — list all books
+- `GET /api/v1/books/explorer` — tree structure for sidebar navigation
+- `GET /api/v1/books/:bookId` — single book metadata
+- `POST /api/v1/books` — create book with directory structure
+- `DELETE /api/v1/books/:bookId` — delete book directory
+
+**data.ts** — Read-only book data:
+- `GET /api/v1/books/:bookId/outline` — read outline.json
+- `GET /api/v1/books/:bookId/lore` — combined lore (meta + world_setting + characters + outline)
+- `GET /api/v1/books/:bookId/plot-tree` — read plot_tree.json
+- `GET /api/v1/books/:bookId/chapters` — list chapter nodes from outline
+- `GET /api/v1/books/:bookId/chapters/:chapterId` — chapter detail with draft content
+
+**settings.ts** — LLM provider configuration (persisted to `settings.json` in dataDir):
+- `GET /api/v1/settings` — return settings with masked API keys
+- `PUT /api/v1/settings` — save provider configs and model assignments
+
+**chat-history.ts** — Shared chat history module (used by both SSE route and Feishu bot).
 
 ### LLM Provider (`server/src/llm/provider.ts`)
 
@@ -117,8 +137,8 @@ Shared chat history module: `server/src/routes/chat-history.ts` (used by both SS
 **Never hardcode prompts in code.** Skills use `.md` with YAML frontmatter, reviewers use `.j2` Jinja2 templates.
 
 - **9 writing skills**: `skill_*.md` with YAML frontmatter (`name`, `category`, `description`, `when_to_use`). Discovered dynamically via `discoverSkills()` — no static registry.
-- **7 reader templates**: `reader_*.j2` — 3 scene-level + 4 chapter-level reviewers
-- **4 summary templates**: `summary_*.j2` + `summarizer_*.j2`
+- **7 reader templates**: `reader_*.j2` — 3 scene-level (`reader_scene_*.j2`) + 4 chapter-level (`reader_*.j2`)
+- **4 summary templates**: `summarizer_brief.j2`, `summarizer_full.j2`, `summary_chapter.j2`, `summary_scene.j2`
 
 ## Book Data Layout
 
@@ -141,18 +161,29 @@ books/{book_id}/
 - **Prompts as files**: never hardcode prompts in code. Skills use `.md`, reviewers use `.j2`
 - **Test policy**: never modify tests to make them pass — fix the implementation
 - **ESM**: server package is `"type": "module"` — use `.js` extensions in imports
-- **Input validation**: all route POST/PUT bodies validated via Zod schemas in `server/src/routes/schemas.ts`
+- **Input validation**: all route POST/PUT bodies validated via Zod schemas in `schemas.ts` (see Routes section)
 - **Path sanitization**: all `bookId`/`chapterId` params sanitized via `server/src/utils/path-sanitizer.ts`
 - **Error types**: use custom `AgentError` hierarchy from `server/src/utils/errors.ts`
 
 ## Configuration
 
-Environment variables (used by TS backend in `.env`):
+**Runtime settings** (`settings.json` in dataDir): LLM provider configs (base URL, API key, models) managed via the Settings UI/API. This is the primary way users configure LLM providers — the settings route reads/writes this file.
+
+**Environment variables** (`.env`, fallback/override):
 - `LLM_API_KEY` — API key for LLM provider
 - `LLM_BASE_URL` — custom base URL (DeepSeek, DashScope, etc.)
 - `LLM_MODEL` — default model name
 - `EDITORIAL_MODEL` — model for editorial reviewers (can be cheaper)
 - `AUTONOVEL_DATA_DIR` — book data directory (default: `books`)
+
+## Global Core Memory (`global/core_memory/`)
+
+Cross-book persistent memory stored as JSON files: `writing_principles.json`, `craft_skills.json`, `anti_patterns.json`, `user_preferences.json`, `reflection_log.json`. Read/written by `server/src/memory/core-memory.ts`.
+
+## Stale Files
+
+- **README.md** describes the old Python multi-agent GAN architecture — do not trust it for current architecture. CLAUDE.md is authoritative.
+- **PROJECT_STRUCTURE.md** is partially outdated (test counts, some structural details).
 
 ## Language Context
 
