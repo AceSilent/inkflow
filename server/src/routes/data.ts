@@ -118,8 +118,11 @@ export function getChapterDetail(
   // Orphan draft path
   if (chapterId.startsWith('draft:')) {
     const fname = chapterId.slice('draft:'.length)
-    const draftPath = path.join(draftsDir, fname)
-    if (!draftPath.startsWith(path.resolve(draftsDir)) || !fs.existsSync(draftPath)) {
+    // Resolve both sides before comparing, otherwise path.join returns a
+    // relative string that never startsWith the absolute draftsDir.
+    const draftPath = path.resolve(draftsDir, fname)
+    const draftsRoot = path.resolve(draftsDir)
+    if (!draftPath.startsWith(draftsRoot + path.sep) || !fs.existsSync(draftPath)) {
       return null
     }
     const content = fs.readFileSync(draftPath, 'utf-8')
