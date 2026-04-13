@@ -644,34 +644,39 @@ function StreamingToolCard({ segment }) {
 // ── Thinking Card (one per step, collapsible) ──
 
 function ThinkingCard({ segment, t }) {
-  // Default expanded while streaming so the user sees thinking arrive live;
-  // collapse once the step is done so the conversation stays scannable.
-  const [expanded, setExpanded] = useState(!!segment.streaming)
+  // Default expanded — the user explicitly asked that thinking stay visible
+  // after refresh so they can see what the agent was reasoning about.
+  // Click the header to collapse if it's too noisy.
+  const [expanded, setExpanded] = useState(true)
   const live = !!segment.streaming
   const len = segment.text?.length ?? 0
   return (
-    <div style={{ width: '100%' }}>
+    <div style={{
+      width: '100%',
+      borderLeft: '3px solid rgba(139,92,246,0.55)',
+      paddingLeft: 8,
+    }}>
       <button
         onClick={() => setExpanded(v => !v)}
         style={{
           background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0',
-          display: 'flex', alignItems: 'center', gap: 4, fontSize: 10,
-          color: live ? 'rgba(139,92,246,0.95)' : 'rgba(139,92,246,0.7)', fontWeight: 600,
+          display: 'flex', alignItems: 'center', gap: 4, fontSize: 11,
+          color: live ? 'rgba(139,92,246,1)' : 'rgba(139,92,246,0.85)', fontWeight: 600,
         }}
       >
-        {expanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
-        <Brain size={10} />
+        {expanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+        <Brain size={11} />
         {t('authorChat.thinkingProcess')} ({len} {t('authorChat.chars')}){live ? ' · 思考中…' : ''}
       </button>
       {expanded && (
         <div style={{
-          padding: '8px 12px', borderRadius: 10, marginTop: 2,
+          padding: '8px 12px', borderRadius: 8, marginTop: 4,
           background: 'linear-gradient(135deg, rgba(139,92,246,0.08), rgba(59,130,246,0.08))',
           border: '1px solid rgba(139,92,246,0.15)', fontSize: 11, lineHeight: 1.6,
           color: 'var(--text-muted)', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
           maxHeight: 300, overflowY: 'auto',
         }}>
-          {segment.text}
+          {segment.text || '(空)'}
           {live && <span style={{ animation: 'pulse 1s infinite' }}>▍</span>}
         </div>
       )}
