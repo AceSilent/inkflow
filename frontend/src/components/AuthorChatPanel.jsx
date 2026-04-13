@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Trash2, Wrench, Paperclip, X, FileText, ChevronDown, ChevronRight, Brain, PenTool, User, Loader, Check, History } from 'lucide-react'
+import { Send, Trash2, Wrench, Paperclip, X, FileText, ChevronDown, ChevronRight, Brain, PenTool, User, Loader, Check, History, Square } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { useI18n } from '../hooks/useI18n'
 
@@ -16,6 +16,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
   const chatEndRef = useRef(null)
   const inputRef = useRef(null)
   const fileInputRef = useRef(null)
+  const abortRef = useRef(null)
 
   const bookId = currentBook?.book_id
 
@@ -147,11 +148,13 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
     setLoading(true)
     setStreamingMsg({ thinking: '', segments: [], thinkingDone: false, phase: 'init', retry: null })
 
+    abortRef.current = new AbortController()
     try {
       const resp = await fetch(`/api/v1/author-chat/${bookId}/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMsg })
+        body: JSON.stringify({ message: userMsg }),
+        signal: abortRef.current.signal,
       })
 
       const reader = resp.body.getReader()
@@ -193,6 +196,8 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
               }))
             } else if (evt.type === 'heartbeat') {
               setStreamingMsg(prev => ({ ...prev, idleMs: evt.idle_ms }))
+            } else if (evt.type === 'tip') {
+              addToast?.(`💡 ${evt.title}：${evt.message}`, evt.severity === 'warning' ? 'warning' : 'info')
             } else if (evt.type === 'thinking') {
               finalThinking += evt.token
               // First successful chunk after a retry — clear the retry banner.
@@ -255,12 +260,22 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
       }
 
     } catch (e) {
-      addToast?.(t('authorChat.sendFailed') + ': ' + e.message, 'error')
+      if (e.name === 'AbortError') {
+        addToast?.('已取消，已生成的内容已保存', 'info')
+        loadChatHistory()  // pick up the server-side aborted message
+      } else {
+        addToast?.(t('authorChat.sendFailed') + ': ' + e.message, 'error')
+      }
     } finally {
+      abortRef.current = null
       setLoading(false)
       setStreamingMsg(null)
       inputRef.current?.focus()
     }
+  }
+
+  const handleStop = () => {
+    abortRef.current?.abort()
   }
 
   const handleClear = async () => {
@@ -519,16 +534,28 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
             color: 'var(--text-primary)', fontSize: 13, outline: 'none', fontFamily: 'inherit', lineHeight: 1.5,
           }}
         />
-        <button onClick={handleSend}
-          disabled={(!input.trim() && attachments.length === 0) || loading}
-          style={{
-            padding: '8px 16px', borderRadius: 8, border: 'none', cursor: 'pointer',
-            background: (input.trim() || attachments.length > 0) && !loading ? 'var(--accent)' : 'var(--bg-elevated)',
-            color: (input.trim() || attachments.length > 0) && !loading ? 'white' : 'var(--text-muted)',
-            display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 600, transition: 'all 0.2s'
-          }}>
-          <Send size={14} /> {t('authorChat.send')}
-        </button>
+        {loading ? (
+          <button onClick={handleStop}
+            title="停止生成（已生成的内容会保存）"
+            style={{
+              padding: '8px 16px', borderRadius: 8, border: 'none', cursor: 'pointer',
+              background: '#ef4444', color: 'white',
+              display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 600,
+            }}>
+            <Square size={12} fill="white" /> 停止
+          </button>
+        ) : (
+          <button onClick={handleSend}
+            disabled={!input.trim() && attachments.length === 0}
+            style={{
+              padding: '8px 16px', borderRadius: 8, border: 'none', cursor: 'pointer',
+              background: (input.trim() || attachments.length > 0) ? 'var(--accent)' : 'var(--bg-elevated)',
+              color: (input.trim() || attachments.length > 0) ? 'white' : 'var(--text-muted)',
+              display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 600, transition: 'all 0.2s'
+            }}>
+            <Send size={14} /> {t('authorChat.send')}
+          </button>
+        )}
       </div>
     </div>
   )

@@ -39,6 +39,25 @@ export interface ToolHooks {
   onToolError?(name: string, args: any, err: unknown, durationMs: number, ctx: ToolContext): void | Promise<void>
 }
 
+/**
+ * Compose multiple ToolHooks into one. Each registered callback runs in order;
+ * the inner toVercelTools wrapper still swallows errors per-invocation.
+ */
+export function composeHooks(...all: (ToolHooks | undefined | null)[]): ToolHooks {
+  const live = all.filter(Boolean) as ToolHooks[]
+  return {
+    beforeToolCall: async (name, args, ctx) => {
+      for (const h of live) await h.beforeToolCall?.(name, args, ctx)
+    },
+    afterToolCall: async (name, args, result, durationMs, ctx) => {
+      for (const h of live) await h.afterToolCall?.(name, args, result, durationMs, ctx)
+    },
+    onToolError: async (name, args, err, durationMs, ctx) => {
+      for (const h of live) await h.onToolError?.(name, args, err, durationMs, ctx)
+    },
+  }
+}
+
 export class ToolRegistry {
   private tools = new Map<string, ToolDefinition>()
 

@@ -14,6 +14,8 @@ import { sendChatBody } from './schemas.js'
 import { getSettings } from './settings.js'
 import { loadHistory, saveHistory } from './chat-history.js'
 import { createStatsHooks } from '../stats/tool-stats.js'
+import { createTipHooks } from '../stats/tip-hooks.js'
+import { composeHooks } from '../tools/base-tool.js'
 import { createSnapshot } from '../snapshots/snapshots.js'
 
 /**
@@ -175,7 +177,10 @@ export async function authorChatRoutes(app: FastifyInstance) {
           toolRegistry,
           mode,
           abortSignal: abortController.signal,
-          hooks: createStatsHooks(dataDir, bookId),
+          hooks: composeHooks(
+            createStatsHooks(dataDir, bookId),
+            createTipHooks(dataDir, bookId, (evt) => sse(evt)),
+          ),
           onProgress: (evt) => {
             if (evt.type === 'retry') {
               app.log.warn(
