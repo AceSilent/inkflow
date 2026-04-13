@@ -87,20 +87,23 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
     setAttachments(prev => prev.filter((_, i) => i !== idx))
   }
 
-  const handleSend = async () => {
-    if ((!input.trim() && attachments.length === 0) || loading || !bookId) return
+  const handleSend = async (overrideMsg) => {
+    const fromOverride = typeof overrideMsg === 'string' && overrideMsg.length > 0
+    const baseInput = fromOverride ? overrideMsg : input.trim()
+    const useAttachments = !fromOverride && attachments.length > 0
+    if ((!baseInput && !useAttachments) || loading || !bookId) return
 
-    let userMsg = input.trim()
-    if (attachments.length > 0) {
+    let userMsg = baseInput
+    if (useAttachments) {
       const fileParts = attachments.map(a =>
         `\n\n--- ${t('authorChat.attachment')}: ${a.name} (${(a.size / 1024).toFixed(1)}KB) ---\n${a.content}`
       ).join('')
       userMsg = userMsg + fileParts
     }
 
-    const attachmentNames = attachments.map(a => a.name)
-    setInput('')
-    setAttachments([])
+    const attachmentNames = useAttachments ? attachments.map(a => a.name) : []
+    if (!fromOverride) setInput('')
+    if (useAttachments) setAttachments([])
     setMessages(prev => [...prev, {
       role: 'user', content: userMsg,
       hasAttachments: attachmentNames.length > 0, attachmentNames
@@ -160,6 +163,10 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
               setStreamingMsg(prev => ({
                 ...prev, segments: liveSegments, retry: null
               }))
+            } else if (evt.type === 'options') {
+              flushContent()
+              segments.push({ type: 'options', description: evt.description || '', options: evt.options || [] })
+              setStreamingMsg(prev => ({ ...prev, segments: [...segments] }))
             } else if (evt.type === 'tool_start') {
               flushContent()
               segments.push({
@@ -279,6 +286,8 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
             msg={msg}
             isExpanded={expandedThinking[msg.id]}
             onToggleThinking={() => toggleThinking(msg.id)}
+            onOptionSelect={(opt) => handleSend(opt)}
+            optionsDisabled={loading}
           />
         ))}
 
@@ -334,6 +343,8 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
                     </div>
                   ) : seg.type === 'tool_call' ? (
                     <StreamingToolCard key={j} segment={seg} />
+                  ) : seg.type === 'options' ? (
+                    <OptionsCard key={j} segment={seg} disabled={loading} onSelect={(opt) => handleSend(opt)} />
                   ) : null
                 ))}
               </div>
@@ -437,6 +448,59 @@ function StreamingToolCard({ segment }) {
   )
 }
 
+// ── Options Card (terminal tool: present_options) ──
+
+function OptionsCard({ segment, disabled, onSelect }) {
+  return (
+    <div style={{
+      borderLeft: '3px solid #8b5cf6',
+      background: 'linear-gradient(135deg, rgba(139,92,246,0.06), rgba(59,130,246,0.04))',
+      borderRadius: '0 8px 8px 0',
+      padding: '8px 12px',
+      display: 'flex', flexDirection: 'column', gap: 6,
+    }}>
+      {segment.description && (
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+          {segment.description}
+        </div>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        {segment.options.map((opt, i) => (
+          <button
+            key={i}
+            disabled={disabled}
+            onClick={() => onSelect?.(opt)}
+            style={{
+              textAlign: 'left',
+              padding: '6px 10px',
+              borderRadius: 6,
+              border: '1px solid var(--border-subtle)',
+              background: 'var(--bg-elevated)',
+              color: 'var(--text-primary)',
+              cursor: disabled ? 'default' : 'pointer',
+              opacity: disabled ? 0.55 : 1,
+              fontSize: 12,
+              lineHeight: 1.5,
+              transition: 'background 0.15s, border-color 0.15s',
+            }}
+            onMouseEnter={(e) => {
+              if (disabled) return
+              e.currentTarget.style.borderColor = '#8b5cf6'
+              e.currentTarget.style.background = 'rgba(139,92,246,0.08)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'var(--border-subtle)'
+              e.currentTarget.style.background = 'var(--bg-elevated)'
+            }}
+          >
+            {opt}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ── Tool Call Card (committed, expandable) ──
 
 function ToolCallCard({ segment }) {
@@ -482,7 +546,7 @@ function ToolCallCard({ segment }) {
 
 // ── Message Bubble Component ──
 
-function MessageBubble({ msg, isExpanded, onToggleThinking }) {
+function MessageBubble({ msg, isExpanded, onToggleThinking, onOptionSelect, optionsDisabled }) {
   const { t } = useI18n()
   const isUser = msg.role === 'user'
 
@@ -551,6 +615,8 @@ function MessageBubble({ msg, isExpanded, onToggleThinking }) {
               </div>
             ) : seg.type === 'tool_call' ? (
               <ToolCallCard key={i} segment={seg} />
+            ) : seg.type === 'options' ? (
+              <OptionsCard key={i} segment={seg} disabled={optionsDisabled} onSelect={onOptionSelect} />
             ) : null
           ))}
         </div>

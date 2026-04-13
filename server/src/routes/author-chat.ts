@@ -180,6 +180,7 @@ export async function authorChatRoutes(app: FastifyInstance) {
         type Segment =
           | { type: 'content'; text: string }
           | { type: 'tool_call'; name: string; argsPreview?: string; result?: string; status: 'running' | 'done' }
+          | { type: 'options'; description: string; options: string[] }
         const segments: Segment[] = []
         let openContent: { type: 'content'; text: string } | null = null
         const flushOpenContent = () => {
@@ -242,13 +243,26 @@ export async function authorChatRoutes(app: FastifyInstance) {
               break
             case 'tool-call': {
               toolsUsed.push(part.toolName)
-              const argsPreview = JSON.stringify(part.input).slice(0, 200)
               flushOpenContent()
-              segments.push({ type: 'tool_call', name: part.toolName, argsPreview, status: 'running' })
-              sse({ type: 'tool_start', name: part.toolName, args_preview: argsPreview })
+              if (part.toolName === 'present_options') {
+                // Special-case: render as interactive option cards instead of a
+                // truncated args preview. Pull description + parsed option lines.
+                const input = (part.input ?? {}) as { description?: string; options?: string }
+                const opts = (input.options ?? '').split('\n').map(s => s.trim()).filter(Boolean)
+                const seg: Segment = { type: 'options', description: input.description ?? '', options: opts }
+                segments.push(seg)
+                sse({ type: 'options', description: seg.description, options: seg.options })
+              } else {
+                const argsPreview = JSON.stringify(part.input).slice(0, 200)
+                segments.push({ type: 'tool_call', name: part.toolName, argsPreview, status: 'running' })
+                sse({ type: 'tool_start', name: part.toolName, args_preview: argsPreview })
+              }
               break
             }
             case 'tool-result': {
+              // present_options has its own segment shape; the tool's output is
+              // just the formatted echo back to the LLM, not user-facing.
+              if (part.toolName === 'present_options') break
               const preview = String(part.output).slice(0, 200)
               for (let i = segments.length - 1; i >= 0; i--) {
                 const s = segments[i]
