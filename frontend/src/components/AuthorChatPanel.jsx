@@ -44,21 +44,27 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
             out.hasAttachments = true
             out.attachmentNames = names
           }
-          if (m.thinking) {
-            thinkingState[id] = false
-          }
-          // Convert legacy format to segments if needed
-          if (m.role === 'assistant' && !m.segments) {
-            out.segments = []
-            if (m.tool_calls?.length > 0) {
-              m.tool_calls.forEach(t => {
-                const toolName = typeof t === 'string' ? t : t.name
-                out.segments.push({ type: 'tool_call', name: toolName, status: 'done' })
-              })
+          // Build the unified segments array. Two backward-compat paths:
+          //  (a) old messages with no segments → reconstruct from tool_calls + content
+          //  (b) any message with a top-level `thinking` field but no thinking-type
+          //      segment → prepend a single thinking segment (everything used to
+          //      collapse to one block, that becomes one segment now)
+          if (m.role === 'assistant') {
+            let segs = m.segments
+            if (!segs) {
+              segs = []
+              if (m.tool_calls?.length > 0) {
+                m.tool_calls.forEach(t => {
+                  const toolName = typeof t === 'string' ? t : t.name
+                  segs.push({ type: 'tool_call', name: toolName, status: 'done' })
+                })
+              }
+              if (m.content) segs.push({ type: 'content', text: m.content })
             }
-            if (m.content) {
-              out.segments.push({ type: 'content', text: m.content })
+            if (m.thinking && !segs.some(s => s.type === 'thinking')) {
+              segs = [{ type: 'thinking', text: m.thinking }, ...segs]
             }
+            out.segments = segs
           }
           return out
         })
@@ -177,8 +183,9 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
       const reader = resp.body.getReader()
       const decoder = new TextDecoder()
       let buf = ''
-      let finalThinking = ''
-      // Segment-based accumulation
+      // Segment-based accumulation. Thinking is now segments too — each step
+      // gets its own block (delimited server-side by REASONING_OPEN/CLOSE
+      // markers and announced via thinking_start / thinking_done events).
       let segments = []
       let currentContentBuf = ''
 
@@ -186,6 +193,17 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
         if (currentContentBuf.trim()) {
           segments.push({ type: 'content', text: currentContentBuf })
           currentContentBuf = ''
+        }
+      }
+      const appendToLatestThinking = (text) => {
+        // Append to the last segment if it's a streaming thinking block;
+        // otherwise (e.g., we missed thinking_start) create one.
+        const last = segments[segments.length - 1]
+        if (last && last.type === 'thinking' && last.streaming) {
+          last.text += text
+        } else {
+          flushContent()
+          segments.push({ type: 'thinking', text, streaming: true })
         }
       }
 
@@ -215,10 +233,17 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
               setStreamingMsg(prev => ({ ...prev, idleMs: evt.idle_ms }))
             } else if (evt.type === 'tip') {
               addToast?.(`💡 ${evt.title}：${evt.message}`, evt.severity === 'warning' ? 'warning' : 'info')
+            } else if (evt.type === 'thinking_start') {
+              flushContent()
+              segments.push({ type: 'thinking', text: '', streaming: true })
+              setStreamingMsg(prev => ({ ...prev, segments: [...segments], retry: null, idleMs: 0 }))
+            } else if (evt.type === 'thinking_done') {
+              const last = segments[segments.length - 1]
+              if (last && last.type === 'thinking') last.streaming = false
+              setStreamingMsg(prev => ({ ...prev, segments: [...segments] }))
             } else if (evt.type === 'thinking') {
-              finalThinking += evt.token
-              // First successful chunk after a retry — clear the retry banner.
-              setStreamingMsg(prev => ({ ...prev, thinking: prev.thinking + evt.token, thinkingDone: false, retry: null, idleMs: 0 }))
+              appendToLatestThinking(evt.token)
+              setStreamingMsg(prev => ({ ...prev, segments: [...segments], retry: null, idleMs: 0 }))
             } else if (evt.type === 'content') {
               currentContentBuf += evt.token
               // Update segments for live display
@@ -261,20 +286,18 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
         }
       }
 
-      // Flush remaining content
+      // Flush remaining content + finalize any still-streaming thinking
       flushContent()
+      const tail = segments[segments.length - 1]
+      if (tail && tail.type === 'thinking') tail.streaming = false
 
       // Commit the final message
       const msgId = Date.now()
       setMessages(prev => [...prev, {
         role: 'assistant',
         segments: segments.length > 0 ? segments : [{ type: 'content', text: t('authorChat.noReply') }],
-        thinking: finalThinking,
         id: msgId
       }])
-      if (finalThinking) {
-        setExpandedThinking(prev => ({ ...prev, [msgId]: false }))
-      }
 
     } catch (e) {
       if (e.name === 'AbortError') {
@@ -483,23 +506,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
               </div>
             )}
 
-            {/* Thinking */}
-            {streamingMsg.thinking && (
-              <div style={{
-                maxWidth: '85%', padding: '8px 12px', borderRadius: 10, marginBottom: 4,
-                background: 'linear-gradient(135deg, rgba(139,92,246,0.08), rgba(59,130,246,0.08))',
-                border: '1px solid rgba(139,92,246,0.15)', fontSize: 12, lineHeight: 1.6,
-                color: 'var(--text-muted)', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                maxHeight: 200, overflowY: 'auto'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4, fontSize: 10, fontWeight: 600, color: 'rgba(139,92,246,0.8)' }}>
-                  <Brain size={10} /> {t('authorChat.thinking')}
-                </div>
-                {streamingMsg.thinking}
-              </div>
-            )}
-
-            {/* Segments (interleaved content + tool calls) */}
+            {/* Segments (interleaved thinking + content + tool calls) */}
             {streamingMsg.segments?.length > 0 ? (
               <div style={{ maxWidth: '85%', display: 'flex', flexDirection: 'column', gap: 4, width: '100%' }}>
                 {streamingMsg.segments.map((seg, j) => (
@@ -513,6 +520,8 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
                       <ReactMarkdown>{seg.text}</ReactMarkdown>
                       {seg.streaming && <span style={{ animation: 'pulse 1s infinite' }}>▍</span>}
                     </div>
+                  ) : seg.type === 'thinking' ? (
+                    <ThinkingCard key={j} segment={seg} t={t} />
                   ) : seg.type === 'tool_call' ? (
                     <StreamingToolCard key={j} segment={seg} />
                   ) : seg.type === 'options' ? (
@@ -520,7 +529,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
                   ) : null
                 ))}
               </div>
-            ) : !streamingMsg.thinking && (
+            ) : (
               <div style={{
                 padding: '10px 14px', borderRadius: 12, background: 'var(--bg-elevated)',
                 fontSize: 13, color: 'var(--text-muted)', borderBottomLeftRadius: 4,
@@ -628,6 +637,44 @@ function StreamingToolCard({ segment }) {
         ? <Loader size={10} style={{ animation: 'spin 1.5s linear infinite', color: '#00BCD4' }} />
         : <Check size={10} style={{ color: '#4CAF50' }} />
       }
+    </div>
+  )
+}
+
+// ── Thinking Card (one per step, collapsible) ──
+
+function ThinkingCard({ segment, t }) {
+  // Default expanded while streaming so the user sees thinking arrive live;
+  // collapse once the step is done so the conversation stays scannable.
+  const [expanded, setExpanded] = useState(!!segment.streaming)
+  const live = !!segment.streaming
+  const len = segment.text?.length ?? 0
+  return (
+    <div style={{ width: '100%' }}>
+      <button
+        onClick={() => setExpanded(v => !v)}
+        style={{
+          background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0',
+          display: 'flex', alignItems: 'center', gap: 4, fontSize: 10,
+          color: live ? 'rgba(139,92,246,0.95)' : 'rgba(139,92,246,0.7)', fontWeight: 600,
+        }}
+      >
+        {expanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+        <Brain size={10} />
+        {t('authorChat.thinkingProcess')} ({len} {t('authorChat.chars')}){live ? ' · 思考中…' : ''}
+      </button>
+      {expanded && (
+        <div style={{
+          padding: '8px 12px', borderRadius: 10, marginTop: 2,
+          background: 'linear-gradient(135deg, rgba(139,92,246,0.08), rgba(59,130,246,0.08))',
+          border: '1px solid rgba(139,92,246,0.15)', fontSize: 11, lineHeight: 1.6,
+          color: 'var(--text-muted)', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+          maxHeight: 300, overflowY: 'auto',
+        }}>
+          {segment.text}
+          {live && <span style={{ animation: 'pulse 1s infinite' }}>▍</span>}
+        </div>
+      )}
     </div>
   )
 }
@@ -758,33 +805,8 @@ function MessageBubble({ msg, isExpanded, onToggleThinking, onOptionSelect, opti
         </div>
       )}
 
-      {/* Thinking (collapsible) */}
-      {msg.thinking && (
-        <div style={{ maxWidth: '85%', marginBottom: 4 }}>
-          <button onClick={onToggleThinking} style={{
-            background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0',
-            display: 'flex', alignItems: 'center', gap: 4, fontSize: 10,
-            color: 'rgba(139,92,246,0.7)', fontWeight: 600
-          }}>
-            {isExpanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
-            <Brain size={10} />
-            {t('authorChat.thinkingProcess')} ({msg.thinking.length} {t('authorChat.chars')})
-          </button>
-          {isExpanded && (
-            <div style={{
-              padding: '8px 12px', borderRadius: 10, marginTop: 2,
-              background: 'linear-gradient(135deg, rgba(139,92,246,0.08), rgba(59,130,246,0.08))',
-              border: '1px solid rgba(139,92,246,0.15)', fontSize: 11, lineHeight: 1.6,
-              color: 'var(--text-muted)', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-              maxHeight: 300, overflowY: 'auto'
-            }}>
-              {msg.thinking}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Segment-based rendering for assistant */}
+      {/* Segment-based rendering for assistant — thinking blocks now live
+          inline with content/tool_calls in their natural step order. */}
       {!isUser && msg.segments ? (
         <div style={{ maxWidth: '85%', display: 'flex', flexDirection: 'column', gap: 4, width: '100%' }}>
           {msg.segments.map((seg, i) => (
@@ -797,6 +819,8 @@ function MessageBubble({ msg, isExpanded, onToggleThinking, onOptionSelect, opti
               }}>
                 <ReactMarkdown>{seg.text}</ReactMarkdown>
               </div>
+            ) : seg.type === 'thinking' ? (
+              <ThinkingCard key={i} segment={seg} t={t} />
             ) : seg.type === 'tool_call' ? (
               <ToolCallCard key={i} segment={seg} />
             ) : seg.type === 'options' ? (

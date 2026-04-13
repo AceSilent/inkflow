@@ -221,19 +221,33 @@ export async function authorChatRoutes(app: FastifyInstance) {
         // tool calls and interleaving instead of just collapsing to plain text.
         type Segment =
           | { type: 'content'; text: string }
+          | { type: 'thinking'; text: string }
           | { type: 'tool_call'; name: string; argsPreview?: string; result?: string; status: 'running' | 'done' }
           | { type: 'options'; description: string; options: string[] }
         const segments: Segment[] = []
         let openContent: { type: 'content'; text: string } | null = null
+        let openThinking: { type: 'thinking'; text: string } | null = null
         const flushOpenContent = () => {
           if (openContent && openContent.text.trim()) segments.push(openContent)
           openContent = null
         }
-        const appendContent = (text: string) => {
-          if (!openContent) {
-            openContent = { type: 'content', text: '' }
+        const flushOpenThinking = () => {
+          if (openThinking && openThinking.text.trim()) {
+            segments.push(openThinking)
+            sse({ type: 'thinking_done' })
           }
+          openThinking = null
+        }
+        const appendContent = (text: string) => {
+          if (!openContent) openContent = { type: 'content', text: '' }
           openContent.text += text
+        }
+        const appendThinking = (text: string) => {
+          if (!openThinking) {
+            openThinking = { type: 'thinking', text: '' }
+            sse({ type: 'thinking_start' })
+          }
+          openThinking.text += text
         }
 
         // Drain `pending`, splitting on REASONING_OPEN/CLOSE markers, emitting
@@ -256,6 +270,7 @@ export async function authorChatRoutes(app: FastifyInstance) {
               } else {
                 sse({ type: 'thinking', token: chunk })
                 fullThinking += chunk
+                appendThinking(chunk)
               }
               return
             }
@@ -268,9 +283,15 @@ export async function authorChatRoutes(app: FastifyInstance) {
               } else {
                 sse({ type: 'thinking', token: chunk })
                 fullThinking += chunk
+                appendThinking(chunk)
               }
             }
             pending = pending.slice(idx + marker.length)
+            // Marker = step boundary. Close out the segment we're leaving so
+            // each step's thinking / content gets its own block in the UI
+            // (otherwise multi-step runs collapse all thinking into one wall).
+            if (segmentMode === 'thinking') flushOpenThinking()
+            else flushOpenContent()
             segmentMode = segmentMode === 'content' ? 'thinking' : 'content'
           }
         }
@@ -282,6 +303,7 @@ export async function authorChatRoutes(app: FastifyInstance) {
         // 'incomplete' / 'aborted' pairs are kept for UI but excluded from LLM context.
         persistAssistant = (status?: 'incomplete' | 'aborted') => {
           drain(true)
+          flushOpenThinking()
           flushOpenContent()
           const hasAnything = fullText.length > 0 || fullThinking.length > 0 || segments.length > 0
           // On clean success with no output (shouldn't happen, but) skip.
@@ -316,8 +338,11 @@ export async function authorChatRoutes(app: FastifyInstance) {
               toolsUsed.push(part.toolName)
               // Tool boundary — flush the marker-tail buffer so any content
               // held back to avoid splitting a partial REASONING marker is
-              // emitted into the current content segment before we move on.
+              // emitted into the current segment before we move on; then
+              // close out both open buffers so the tool card renders cleanly
+              // between (rather than after) the step's thinking + content.
               drain(true)
+              flushOpenThinking()
               flushOpenContent()
               if (part.toolName === 'present_options') {
                 // Special-case: render as interactive option cards instead of a
