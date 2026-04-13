@@ -28,6 +28,17 @@ export interface ToolDefinition<T extends z.ZodType = z.ZodType> {
   execute: (args: any, ctx: ToolContext) => Promise<string>
 }
 
+/**
+ * Observation hooks fired around each tool invocation. Hooks are fire-and-forget:
+ * thrown errors are swallowed so a misbehaving observer can never break the agent
+ * loop. They are NOT a place to enforce policy — use the tool's own logic for that.
+ */
+export interface ToolHooks {
+  beforeToolCall?(name: string, args: any, ctx: ToolContext): void | Promise<void>
+  afterToolCall?(name: string, args: any, result: string, durationMs: number, ctx: ToolContext): void | Promise<void>
+  onToolError?(name: string, args: any, err: unknown, durationMs: number, ctx: ToolContext): void | Promise<void>
+}
+
 export class ToolRegistry {
   private tools = new Map<string, ToolDefinition>()
 
@@ -65,16 +76,34 @@ export class ToolRegistry {
   /**
    * Convert all registered tools to Vercel AI SDK format.
    * This is the key integration point — replaces AUTHOR_TOOLS dict + while loop.
+   *
+   * If `hooks` is provided, each execute is wrapped to fire before/after/error
+   * observation callbacks. Hook failures are swallowed.
    */
-  toVercelTools(ctx: ToolContext): Record<string, any> {
+  toVercelTools(ctx: ToolContext, hooks?: ToolHooks): Record<string, any> {
     const result: Record<string, any> = {}
+    const fire = async (fn: (() => void | Promise<void>) | undefined) => {
+      if (!fn) return
+      try { await fn() } catch { /* observer must not break the loop */ }
+    }
     for (const [name, def] of this.tools) {
       // AI SDK v6 requires `inputSchema` (FlexibleSchema), not raw Zod `parameters`.
       // `asSchema()` converts Zod → FlexibleSchema with jsonSchema + validate.
       result[name] = {
         description: def.description,
         inputSchema: asSchema(def.parameters),
-        execute: async (args: any) => def.execute(args, ctx),
+        execute: async (args: any) => {
+          await fire(() => hooks?.beforeToolCall?.(name, args, ctx))
+          const start = Date.now()
+          try {
+            const out = await def.execute(args, ctx)
+            await fire(() => hooks?.afterToolCall?.(name, args, out, Date.now() - start, ctx))
+            return out
+          } catch (err) {
+            await fire(() => hooks?.onToolError?.(name, args, err, Date.now() - start, ctx))
+            throw err
+          }
+        },
       }
     }
     return result

@@ -12,7 +12,7 @@
  *   - Rich ToolContext propagation
  */
 import { streamText, stepCountIs, type ModelMessage } from 'ai'
-import { type ToolRegistry, type ToolContext } from '../tools/base-tool.js'
+import { type ToolRegistry, type ToolContext, type ToolHooks } from '../tools/base-tool.js'
 import { buildAuthorPrompt, buildBrainstormPrompt } from './prompt-builder.js'
 import { type LLMConfig, createProvider } from '../llm/provider.js'
 
@@ -35,6 +35,8 @@ export interface AgentRunOptions {
   mode?: string
   /** AbortSignal for cancelling the stream */
   abortSignal?: AbortSignal
+  /** Observation hooks fired around each tool call (stats, audit, etc.) */
+  hooks?: ToolHooks
 }
 
 /**
@@ -60,6 +62,7 @@ export function runAgentStream(options: AgentRunOptions): AgentStreamResult {
     maxSteps = 20,
     mode,
     abortSignal,
+    hooks,
   } = options
 
   const toolSummary = toolRegistry.getToolSummary()
@@ -76,7 +79,7 @@ export function runAgentStream(options: AgentRunOptions): AgentStreamResult {
     model,
     system: systemPrompt,
     messages,
-    tools: toolRegistry.toVercelTools(ctx),
+    tools: toolRegistry.toVercelTools(ctx, hooks),
     stopWhen: stepCountIs(maxSteps),
     temperature: 0.7,
     abortSignal,

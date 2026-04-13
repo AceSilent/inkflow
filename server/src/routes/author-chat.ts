@@ -13,6 +13,7 @@ import { sanitizePathSegment } from '../utils/path-sanitizer.js'
 import { sendChatBody } from './schemas.js'
 import { getSettings } from './settings.js'
 import { loadHistory, saveHistory } from './chat-history.js'
+import { createStatsHooks } from '../stats/tool-stats.js'
 
 /**
  * Resolve LLM config from settings.json (provider/model selector).
@@ -151,6 +152,7 @@ export async function authorChatRoutes(app: FastifyInstance) {
           toolRegistry,
           mode,
           abortSignal: abortController.signal,
+          hooks: createStatsHooks(dataDir, bookId),
         })
 
         let fullText = ''

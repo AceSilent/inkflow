@@ -13,6 +13,7 @@ import fs from 'fs'
 import path from 'path'
 import { sanitizePathSegment } from '../utils/path-sanitizer.js'
 import { outlineBody } from './schemas.js'
+import { loadStats } from '../stats/tool-stats.js'
 
 // ── Helper functions (exported for direct testing) ──
 
@@ -293,6 +294,15 @@ export async function dataRoutes(app: FastifyInstance): Promise<void> {
       const chapterId = sanitizePathSegment(request.params.chapterId, 'chapterId')
       const review = readReview(dataDir(), bookId, chapterId)
       return review ?? { feedbacks: [] }
+    }
+  )
+
+  // GET /api/v1/books/:bookId/stats — tool/skill invocation stats
+  app.get<{ Params: { bookId: string } }>(
+    '/api/v1/books/:bookId/stats',
+    async (request) => {
+      const bookId = sanitizePathSegment(request.params.bookId, 'bookId')
+      return { stats: loadStats(dataDir(), bookId) }
     }
   )
 }
