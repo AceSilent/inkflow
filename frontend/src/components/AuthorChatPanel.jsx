@@ -814,6 +814,12 @@ function MessageBubble({ msg, isExpanded, onToggleThinking, onOptionSelect, opti
           inline with content/tool_calls in their natural step order. */}
       {!isUser && msg.segments ? (
         <div style={{ maxWidth: '85%', display: 'flex', flexDirection: 'column', gap: 4, width: '100%' }}>
+          {/* Defensive: if loadChatHistory's migration didn't run (e.g. HMR
+              preserved old state), still surface a top-level msg.thinking
+              field as a thinking card here so it never silently disappears. */}
+          {msg.thinking && !msg.segments.some(s => s.type === 'thinking') && (
+            <ThinkingCard segment={{ text: msg.thinking }} t={t} />
+          )}
           {msg.segments.map((seg, i) => (
             seg.type === 'content' ? (
               <div key={i} className="markdown-chat" style={{
