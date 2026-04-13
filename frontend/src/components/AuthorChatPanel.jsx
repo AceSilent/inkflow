@@ -151,17 +151,20 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
               setStreamingMsg(prev => ({
                 ...prev,
                 retry: { attempt: evt.attempt, delayMs: evt.delay_ms, status: evt.status, reason: evt.reason },
+                idleMs: 0,
               }))
+            } else if (evt.type === 'heartbeat') {
+              setStreamingMsg(prev => ({ ...prev, idleMs: evt.idle_ms }))
             } else if (evt.type === 'thinking') {
               finalThinking += evt.token
               // First successful chunk after a retry — clear the retry banner.
-              setStreamingMsg(prev => ({ ...prev, thinking: prev.thinking + evt.token, thinkingDone: false, retry: null }))
+              setStreamingMsg(prev => ({ ...prev, thinking: prev.thinking + evt.token, thinkingDone: false, retry: null, idleMs: 0 }))
             } else if (evt.type === 'content') {
               currentContentBuf += evt.token
               // Update segments for live display
               const liveSegments = [...segments, { type: 'content', text: currentContentBuf, streaming: true }]
               setStreamingMsg(prev => ({
-                ...prev, segments: liveSegments, retry: null
+                ...prev, segments: liveSegments, retry: null, idleMs: 0
               }))
             } else if (evt.type === 'options') {
               flushContent()
@@ -295,6 +298,18 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
         {streamingMsg && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
             <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 3 }}><PenTool size={9} /> {t('authorChat.author')}</div>
+
+            {/* Idle heartbeat banner — server reports no LLM tokens for >15s. Cleared on next chunk. */}
+            {!streamingMsg.retry && streamingMsg.idleMs >= 15000 && (
+              <div style={{
+                maxWidth: '85%', padding: '6px 10px', borderRadius: 8, marginBottom: 4,
+                background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.30)',
+                fontSize: 11, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6,
+              }}>
+                <Loader size={11} style={{ animation: 'spin 1.5s linear infinite', color: '#3b82f6' }} />
+                <span>等待 LLM 响应中… 已 {Math.round(streamingMsg.idleMs / 1000)}s（thinking + 长上下文较慢，请稍候）</span>
+              </div>
+            )}
 
             {/* Retry banner — shown while backing off; auto-cleared on first content/thinking chunk */}
             {streamingMsg.retry && (

@@ -132,6 +132,7 @@ export async function authorChatRoutes(app: FastifyInstance) {
         }
       }
       request.socket.on('close', onSocketClose)
+      let heartbeat: NodeJS.Timeout | null = null
 
       try {
         const rawHistory = loadHistory(dataDir, bookId)
@@ -157,6 +158,10 @@ export async function authorChatRoutes(app: FastifyInstance) {
           hooks: createStatsHooks(dataDir, bookId),
           onProgress: (evt) => {
             if (evt.type === 'retry') {
+              app.log.warn(
+                { bookId, attempt: evt.attempt, delayMs: evt.delayMs, status: evt.status },
+                `[author-chat] LLM retry #${evt.attempt} after ${evt.delayMs}ms (HTTP ${evt.status})`
+              )
               sse({
                 type: 'retry',
                 attempt: evt.attempt,
@@ -167,6 +172,18 @@ export async function authorChatRoutes(app: FastifyInstance) {
             }
           },
         })
+
+        // Heartbeat: emit { type: 'heartbeat', elapsed_ms } every 15s while the
+        // stream produces no parts, so the UI can show "等待 LLM 响应… 45s" instead
+        // of looking dead during slow GLM thinking on long contexts.
+        let lastPartAt = Date.now()
+        heartbeat = setInterval(() => {
+          if (streamDone) return
+          const idleMs = Date.now() - lastPartAt
+          if (idleMs >= 15000) {
+            sse({ type: 'heartbeat', idle_ms: idleMs })
+          }
+        }, 5000)
 
         let fullText = ''
         let fullThinking = ''
@@ -235,6 +252,7 @@ export async function authorChatRoutes(app: FastifyInstance) {
 
         let streamError: unknown = null
         for await (const part of result.fullStream) {
+          lastPartAt = Date.now()
           switch (part.type) {
             case 'text-delta':
               // AI SDK v6 uses part.text (was part.textDelta in v5)
@@ -332,6 +350,7 @@ export async function authorChatRoutes(app: FastifyInstance) {
         }
       } finally {
         streamDone = true
+        if (heartbeat) clearInterval(heartbeat)
         request.socket.off('close', onSocketClose)
       }
 
