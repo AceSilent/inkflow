@@ -197,6 +197,7 @@ export async function authorChatRoutes(app: FastifyInstance) {
           }
         }
 
+        let streamError: unknown = null
         for await (const part of result.fullStream) {
           switch (part.type) {
             case 'text-delta':
@@ -219,9 +220,26 @@ export async function authorChatRoutes(app: FastifyInstance) {
                 result_preview: String(part.output).slice(0, 200),
               })
               break
+            case 'tool-error':
+              sse({
+                type: 'tool_done',
+                name: (part as any).toolName,
+                result_preview: `[error] ${String((part as any).error).slice(0, 200)}`,
+              })
+              break
+            case 'error':
+              // AI SDK v6 surfaces upstream LLM errors (rate limits, network, etc.)
+              // as fullStream parts rather than throwing — capture so we can SSE
+              // them out instead of silently ending with no assistant content.
+              streamError = (part as any).error
+              break
           }
         }
         drain(true)
+
+        if (streamError) {
+          sse({ type: 'error', message: String((streamError as any)?.message ?? streamError).slice(0, 500) })
+        }
 
         streamDone = true
 
