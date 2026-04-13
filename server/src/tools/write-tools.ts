@@ -129,7 +129,8 @@ export const saveLoreTool: ToolDefinition = {
   name: 'save_lore',
   description: '保存/更新设定数据。支持 characters 和 world_setting 两个分类。',
   parameters: z.object({
-    category: z.string().describe("分类: 'characters' 或 'world_setting'"),
+    category: z.enum(['characters', 'world_setting'])
+      .describe("分类：'characters'（角色库）或 'world_setting'（世界观/设定）"),
     content_json: z.string().describe('设定数据的 JSON 字符串'),
   }),
   permissionLevel: 'write',

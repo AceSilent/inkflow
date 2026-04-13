@@ -72,8 +72,10 @@ export function loadSkillContent(skillName: string, promptsDir?: string): string
 // Vercel AI SDK tool definitions
 export const loadSkillTool: ToolDefinition = {
   name: 'load_skill',
-  description: '加载写作方法论 skill 的完整内容。在写作前使用。',
-  parameters: z.object({ skill_name: z.string().describe('skill 名称') }),
+  description: '加载指定 skill 的完整方法论内容。skill_name 必须是 list_skills 返回的精确名称（不带 skill_ 前缀，不带 .md 后缀）。如果不确定有哪些 skill，先调 list_skills。',
+  parameters: z.object({
+    skill_name: z.string().describe("skill 名称，例如 'iceberg_writing'、'exemplar_study'。必须存在于 list_skills 的输出中。"),
+  }),
   permissionLevel: 'read',
   execute: async ({ skill_name }) => loadSkillContent(skill_name),
 }

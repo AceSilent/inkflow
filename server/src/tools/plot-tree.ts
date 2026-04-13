@@ -52,8 +52,9 @@ export const addPlotNodeTool: ToolDefinition = {
   name: 'add_plot_node',
   description: '向剧情树添加新节点。',
   parameters: z.object({
-    parent: z.string().describe('父节点ID'),
-    node_type: z.string().describe('节点类型: arc, chapter, turning_point, branch, convergence'),
+    parent: z.string().describe('父节点 ID（用 root 表示挂在树根）'),
+    node_type: z.enum(['arc', 'chapter', 'turning_point', 'branch', 'convergence'])
+      .describe('节点类型：arc=卷/弧、chapter=章节、turning_point=关键转折、branch=分支起点、convergence=分支汇合'),
     title: z.string().describe('节点标题'),
     description: z.string().optional().describe('节点描述'),
     characters: z.string().optional().describe('涉及角色（逗号分隔）'),

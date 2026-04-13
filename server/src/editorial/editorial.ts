@@ -66,7 +66,9 @@ export const submitToEditorialTool: ToolDefinition = {
   ].join('\n'),
   parameters: z.object({
     draft_text: z.string().describe('要审核的草稿文本'),
-    chapter_id: z.string().describe('章节ID，用于保存审核结果'),
+    chapter_id: z.string()
+      .regex(/^ch\d{1,4}$/i, "chapter_id 必须是 'ch{N}' 形式（如 ch01）。和 save_draft 的 ch{N}.md 文件名对齐，review 才会保存到 review_ch{N}.json，前端章节卡片才能配对显示审稿结果。")
+      .describe("章节 ID，必须是 'ch{N}' 形式（如 ch01, ch02）。审稿结果保存到 04_Drafts/review_{chapter_id}.json"),
     book_tone: z.string().optional().describe('书籍基调，如"热血玄幻"'),
     book_genre: z.string().optional().describe('书籍类型，如"玄幻"'),
   }),
