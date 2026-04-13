@@ -10,9 +10,11 @@ import { createBackup, appendAuditLog } from './safety.js'
 
 export const saveDraftTool: ToolDefinition = {
   name: 'save_draft',
-  description: '保存章节草稿到 04_Drafts/。无论 file_path 写什么，都会被强制重定位到 04_Drafts/ 下，保证 UI 能找到。',
+  description: '保存章节草稿到 04_Drafts/{ch{N}.md}。文件名必须是 ch{N}.md 形式（如 ch01.md），UI 才能把草稿对应到 outline 中相同 id 的 chapter 节点。',
   parameters: z.object({
-    file_path: z.string().describe('文件名（如 ch01.md 或 001_第一章.md），不需要写目录前缀；会自动放进 04_Drafts/'),
+    file_path: z.string()
+      .regex(/^ch\d{1,4}\.md$/, "file_path 必须是 'ch{N}.md' 形式（如 ch01.md, ch02.md, ch137.md）。N 是阿拉伯数字章节序号，1-4 位，建议 2-3 位零填充以方便排序。")
+      .describe("章节文件名，必须是 'ch{N}.md' 形式（如 ch01.md, ch02.md）。N 用零填充到 2-3 位。会自动放进 04_Drafts/。"),
     content: z.string().describe('要保存的章节正文'),
   }),
   permissionLevel: 'write',
@@ -44,9 +46,18 @@ export const saveDraftTool: ToolDefinition = {
 
 export const saveOutlineTool: ToolDefinition = {
   name: 'save_outline',
-  description: '保存/更新书籍大纲。',
+  description: [
+    '保存/更新书籍大纲。outline_json 必须是规范章节树结构：',
+    "{ id: <bookId>, label: '...', type: 'book', children: [",
+    "  { id: 'vol1', type: 'volume', label: '...', children: [",
+    "    { id: 'ch01', type: 'chapter', label: '...', summary: '...' }, ...",
+    '  ]}, ...',
+    ']}',
+    "type 必须是 'book'/'volume'/'chapter'/'scene' 之一。chapter 的 id 必须是 'ch{N}' 形式（与 save_draft 的 ch{N}.md 对齐，UI 才能配对）。",
+    '不要塞 free-form JSON（title/intro/characters/worldview 这些是设定，应走 save_lore）。',
+  ].join('\n'),
   parameters: z.object({
-    outline_json: z.string().describe('大纲的 JSON 字符串'),
+    outline_json: z.string().describe('大纲 JSON 字符串，必须是规范章节树（见 description）'),
   }),
   permissionLevel: 'write',
   execute: async ({ outline_json }, ctx) => {
@@ -55,11 +66,22 @@ export const saveOutlineTool: ToolDefinition = {
     if (!fs.existsSync(outlineDir)) fs.mkdirSync(outlineDir, { recursive: true })
     const outlineFile = path.join(outlineDir, 'outline.json')
 
-    let data: unknown
+    let data: any
     try {
       data = JSON.parse(outline_json)
     } catch (e) {
       return `Error: Invalid JSON — ${e}`
+    }
+
+    // Schema validation — reject free-form JSON so the UI tree editor can render.
+    const validation = validateOutlineNode(data, 'root')
+    if (validation) {
+      return [
+        'Error: outline_json schema invalid.',
+        validation,
+        "Required shape: { id, label, type:'book', children:[{ id, type:'volume', children:[{ id:'chXX', type:'chapter', label, summary }] }] }.",
+        '世界观/角色/题材这类设定信息请用 save_lore 保存，不要塞进 outline。',
+      ].join('\n')
     }
 
     createBackup(outlineFile)
@@ -70,6 +92,37 @@ export const saveOutlineTool: ToolDefinition = {
 
     return `Outline saved (${outline_json.length} chars)`
   },
+}
+
+const VALID_OUTLINE_TYPES = new Set(['book', 'volume', 'chapter', 'scene'])
+
+/** Returns null if `node` is a valid outline subtree, else an error string. */
+function validateOutlineNode(node: any, where: string): string | null {
+  if (typeof node !== 'object' || node === null || Array.isArray(node)) {
+    return `${where}: must be an object, got ${Array.isArray(node) ? 'array' : typeof node}`
+  }
+  if (typeof node.type !== 'string' || !VALID_OUTLINE_TYPES.has(node.type)) {
+    return `${where}: missing or invalid 'type' (got ${JSON.stringify(node.type)}); must be one of book/volume/chapter/scene`
+  }
+  if (where === 'root' && node.type !== 'book') {
+    return `root: type must be 'book', got '${node.type}'`
+  }
+  if (typeof node.id !== 'string' || node.id.length === 0) {
+    return `${where}: missing 'id' string`
+  }
+  if (node.type === 'chapter' && !/^ch\d{1,4}$/i.test(node.id)) {
+    return `${where} (chapter): id must be 'ch{N}' (e.g. 'ch01'), got '${node.id}' — must align with save_draft's ch{N}.md`
+  }
+  if (node.children !== undefined) {
+    if (!Array.isArray(node.children)) {
+      return `${where}: 'children' must be an array if present`
+    }
+    for (let i = 0; i < node.children.length; i++) {
+      const childErr = validateOutlineNode(node.children[i], `${where}.children[${i}]`)
+      if (childErr) return childErr
+    }
+  }
+  return null
 }
 
 export const saveLoreTool: ToolDefinition = {
