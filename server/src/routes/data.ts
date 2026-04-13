@@ -104,15 +104,37 @@ export function listChapters(dataDir: string, bookId: string): any[] {
 
 /**
  * Find a chapter node in outline, then check for draft content in 04_Drafts/.
+ * Special-case: chapterId of the form "draft:filename.md" returns an orphan
+ * draft (file in 04_Drafts/ with no matching outline chapter), so the UI can
+ * still surface drafts the agent saved before the outline got fleshed out.
  */
 export function getChapterDetail(
   dataDir: string,
   bookId: string,
   chapterId: string
 ): any {
-  const outline = readOutline(dataDir, bookId)
+  const draftsDir = path.join(dataDir, bookId, '04_Drafts')
 
-  // Find the chapter node in the outline tree
+  // Orphan draft path
+  if (chapterId.startsWith('draft:')) {
+    const fname = chapterId.slice('draft:'.length)
+    const draftPath = path.join(draftsDir, fname)
+    if (!draftPath.startsWith(path.resolve(draftsDir)) || !fs.existsSync(draftPath)) {
+      return null
+    }
+    const content = fs.readFileSync(draftPath, 'utf-8')
+    const bareName = fname.replace(/\.(md|txt|markdown)$/i, '')
+    return {
+      id: chapterId,
+      label: bareName,
+      summary: '未关联大纲的草稿文件',
+      content,
+      status: 'draft',
+      word_count: content.length,
+    }
+  }
+
+  const outline = readOutline(dataDir, bookId)
   let chapterNode: any = null
 
   function findChapter(node: any): void {
@@ -134,16 +156,18 @@ export function getChapterDetail(
     return null
   }
 
-  // Check for draft file in 04_Drafts/
-  const draftsDir = path.join(dataDir, bookId, '04_Drafts')
+  // Check for draft file in 04_Drafts/. Accept .md, .txt, and the historical
+  // {id}_v{N} suffix pattern from earlier versions.
   let content: string | null = null
   let status = 'outline'
 
   if (fs.existsSync(draftsDir)) {
-    // Look for files matching the chapter id pattern: {chapterId}_v*.txt or {chapterId}.txt
     const files = fs.readdirSync(draftsDir)
     const draftFile = files.find(
-      (f) => f === `${chapterId}.txt` || f.startsWith(`${chapterId}_v`)
+      (f) =>
+        f === `${chapterId}.md` ||
+        f === `${chapterId}.txt` ||
+        f.startsWith(`${chapterId}_v`)
     )
 
     if (draftFile) {

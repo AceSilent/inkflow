@@ -121,8 +121,9 @@ export function explorerTree(dataDir: string): TreeNode[] {
   return books.map((book) => {
     const bookDir = path.join(dataDir, book.book_id)
     const children: TreeNode[] = []
+    const knownDraftFiles = new Set<string>()
 
-    // Scan outlines for chapters
+    // Outline-defined chapters (canonical: outline.children → volumes → chapters)
     const outlinePath = path.join(bookDir, '02_Outlines', 'outline.json')
     if (fs.existsSync(outlinePath)) {
       try {
@@ -133,6 +134,47 @@ export function explorerTree(dataDir: string): TreeNode[] {
           }
         }
       } catch { /* ignore parse errors */ }
+    }
+
+    // Walk the just-built tree to learn which draft filenames are already
+    // claimed by an outline chapter (chapter id → its draft file would be
+    // ch01_v1.md / ch01.md / ${id}.txt). Anything else in 04_Drafts/ is
+    // surfaced below as an orphan so the user actually sees it.
+    const collectIds = (node: TreeNode) => {
+      if (node.type === 'chapter') knownDraftFiles.add(node.id)
+      node.children?.forEach(collectIds)
+    }
+    children.forEach(collectIds)
+
+    const draftsDir = path.join(bookDir, '04_Drafts')
+    if (fs.existsSync(draftsDir)) {
+      const orphans: TreeNode[] = []
+      for (const f of fs.readdirSync(draftsDir)) {
+        if (f.startsWith('.') || f.startsWith('review_') || f.endsWith('.bak')) continue
+        const stat = fs.statSync(path.join(draftsDir, f))
+        if (!stat.isFile()) continue
+        // Skip files clearly bound to an outline chapter (ch01.md, ch01_v1.md…)
+        const bareName = f.replace(/\.(md|txt|markdown)$/i, '')
+        const matchedKnown = [...knownDraftFiles].some((id) =>
+          bareName === id || bareName.startsWith(`${id}_v`)
+        )
+        if (matchedKnown) continue
+        orphans.push({
+          id: `draft:${f}`,
+          label: bareName,
+          type: 'draft',
+          summary: `${(stat.size / 1024).toFixed(1)} KB`,
+        })
+      }
+      if (orphans.length > 0) {
+        orphans.sort((a, b) => a.label.localeCompare(b.label))
+        children.push({
+          id: '__orphan_drafts__',
+          label: '草稿（未关联大纲）',
+          type: 'volume',
+          children: orphans,
+        })
+      }
     }
 
     return {

@@ -47,7 +47,7 @@ export function Sidebar({ activePanel, addToast, onSelect, onBookSelect, onNewBo
     if (node.type === 'scene') {
       onSelect?.({ id: node.id, label: node.label, type: 'scene', bookId })
     }
-    if (node.type === 'chapter' || node.type === 'volume') {
+    if (node.type === 'chapter' || node.type === 'volume' || node.type === 'draft') {
       // Also set book context so ChapterEditor gets the bookId
       if (bookId) onBookSelect?.({ book_id: bookId, title: '' })
       onSelect?.({ id: node.id, label: node.label, type: node.type, summary: node.summary, bookId })

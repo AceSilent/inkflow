@@ -10,15 +10,19 @@ import { createBackup, appendAuditLog } from './safety.js'
 
 export const saveDraftTool: ToolDefinition = {
   name: 'save_draft',
-  description: '将草稿保存到书籍目录中的文件。',
+  description: '保存章节草稿到 04_Drafts/。无论 file_path 写什么，都会被强制重定位到 04_Drafts/ 下，保证 UI 能找到。',
   parameters: z.object({
-    file_path: z.string().describe('相对于书籍目录的文件路径'),
-    content: z.string().describe('要保存的内容'),
+    file_path: z.string().describe('文件名（如 ch01.md 或 001_第一章.md），不需要写目录前缀；会自动放进 04_Drafts/'),
+    content: z.string().describe('要保存的章节正文'),
   }),
   permissionLevel: 'write',
   execute: async ({ file_path, content }, ctx) => {
     const bookDir = path.join(ctx.dataDir, ctx.bookId)
-    const target = path.resolve(bookDir, file_path)
+    // Always relocate into 04_Drafts/ — strip any path prefix the agent put in,
+    // keep just the leaf filename. This is the difference between drafts the
+    // sidebar can find and orphan files at the book root nobody sees.
+    const baseName = path.basename(file_path)
+    const target = path.resolve(bookDir, '04_Drafts', baseName)
 
     if (!target.startsWith(path.resolve(bookDir))) {
       return 'Error: Access denied — path outside book directory.'
@@ -27,16 +31,14 @@ export const saveDraftTool: ToolDefinition = {
     const dir = path.dirname(target)
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
 
-    // Auto-backup before overwriting
     createBackup(target)
-
     fs.writeFileSync(target, content, 'utf-8')
 
-    // Audit log
     const logFile = path.join(bookDir, 'audit_log.jsonl')
-    appendAuditLog(logFile, 'save_draft', { file_path }, `saved ${content.length} chars`, true)
+    const relPath = path.posix.join('04_Drafts', baseName)
+    appendAuditLog(logFile, 'save_draft', { file_path: relPath }, `saved ${content.length} chars`, true)
 
-    return `Draft saved to ${file_path} (${content.length} chars)`
+    return `Draft saved to ${relPath} (${content.length} chars)`
   },
 }
 
