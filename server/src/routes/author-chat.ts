@@ -153,6 +153,17 @@ export async function authorChatRoutes(app: FastifyInstance) {
           mode,
           abortSignal: abortController.signal,
           hooks: createStatsHooks(dataDir, bookId),
+          onProgress: (evt) => {
+            if (evt.type === 'retry') {
+              sse({
+                type: 'retry',
+                attempt: evt.attempt,
+                delay_ms: evt.delayMs,
+                status: evt.status,
+                reason: evt.reason,
+              })
+            }
+          },
         })
 
         let fullText = ''

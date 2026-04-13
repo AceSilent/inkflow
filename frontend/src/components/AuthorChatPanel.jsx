@@ -106,7 +106,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
       hasAttachments: attachmentNames.length > 0, attachmentNames
     }])
     setLoading(true)
-    setStreamingMsg({ thinking: '', segments: [], thinkingDone: false, phase: 'init' })
+    setStreamingMsg({ thinking: '', segments: [], thinkingDone: false, phase: 'init', retry: null })
 
     try {
       const resp = await fetch(`/api/v1/author-chat/${bookId}/send`, {
@@ -144,15 +144,21 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
 
             if (evt.type === 'status') {
               setStreamingMsg(prev => ({ ...prev, phase: evt.phase }))
+            } else if (evt.type === 'retry') {
+              setStreamingMsg(prev => ({
+                ...prev,
+                retry: { attempt: evt.attempt, delayMs: evt.delay_ms, status: evt.status, reason: evt.reason },
+              }))
             } else if (evt.type === 'thinking') {
               finalThinking += evt.token
-              setStreamingMsg(prev => ({ ...prev, thinking: prev.thinking + evt.token, thinkingDone: false }))
+              // First successful chunk after a retry — clear the retry banner.
+              setStreamingMsg(prev => ({ ...prev, thinking: prev.thinking + evt.token, thinkingDone: false, retry: null }))
             } else if (evt.type === 'content') {
               currentContentBuf += evt.token
               // Update segments for live display
               const liveSegments = [...segments, { type: 'content', text: currentContentBuf, streaming: true }]
               setStreamingMsg(prev => ({
-                ...prev, segments: liveSegments
+                ...prev, segments: liveSegments, retry: null
               }))
             } else if (evt.type === 'tool_start') {
               flushContent()
@@ -280,6 +286,21 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
         {streamingMsg && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
             <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 3 }}><PenTool size={9} /> {t('authorChat.author')}</div>
+
+            {/* Retry banner — shown while backing off; auto-cleared on first content/thinking chunk */}
+            {streamingMsg.retry && (
+              <div style={{
+                maxWidth: '85%', padding: '6px 10px', borderRadius: 8, marginBottom: 4,
+                background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.35)',
+                fontSize: 11, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6,
+              }}>
+                <Loader size={11} style={{ animation: 'spin 1.5s linear infinite', color: '#f59e0b' }} />
+                <span>
+                  服务繁忙（{streamingMsg.retry.status}），第 {streamingMsg.retry.attempt} 次重试中…{' '}
+                  {Math.round(streamingMsg.retry.delayMs / 1000)}s 后再试
+                </span>
+              </div>
+            )}
 
             {/* Thinking */}
             {streamingMsg.thinking && (

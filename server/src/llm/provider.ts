@@ -25,15 +25,61 @@ function isReasoningModel(model: string): boolean {
 export const REASONING_OPEN = '\u0002__autonovel_reasoning_open__\u0002'
 export const REASONING_CLOSE = '\u0002__autonovel_reasoning_close__\u0002'
 
+export type ProviderProgressEvent =
+  | { type: 'retry'; attempt: number; delayMs: number; status: number; reason: string }
+export type ProviderProgressCallback = (evt: ProviderProgressEvent) => void
+
+const RETRYABLE_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504])
+const MAX_RETRIES = 5
+const BASE_DELAY_MS = 1000   // 1s
+const MAX_DELAY_MS = 30000   // cap each backoff at 30s
+
 /**
  * Wrap an OpenAI-compatible streaming response so `delta.reasoning_content` chunks are
  * rewritten as `delta.content` chunks bracketed with REASONING_OPEN / REASONING_CLOSE.
  * Non-streaming responses pass through unchanged (GLM puts the final answer in
  * `message.content`, which the AI SDK reads correctly).
  */
-function createReasoningFetch(): typeof globalThis.fetch {
-  const customFetch: typeof globalThis.fetch = async (url, init) => {
+/**
+ * Fetch with exponential-backoff retry on transient HTTP failures (429, 5xx, etc.).
+ * Fires `onProgress({ type: 'retry' })` before each backoff so the SSE route can
+ * forward a retry indicator to the UI. Honors AbortSignal in init.
+ */
+async function fetchWithRetry(
+  url: RequestInfo | URL,
+  init: RequestInit | undefined,
+  onProgress: ProviderProgressCallback | undefined,
+): Promise<Response> {
+  let attempt = 0
+  let delay = BASE_DELAY_MS
+  while (true) {
     const response = await globalThis.fetch(url, init)
+    if (response.ok || !RETRYABLE_STATUSES.has(response.status) || attempt >= MAX_RETRIES) {
+      return response
+    }
+    attempt += 1
+    let reason = `HTTP ${response.status}`
+    try {
+      const txt = await response.clone().text()
+      reason = txt.slice(0, 200) || reason
+    } catch { /* response body unreadable, keep status text */ }
+    onProgress?.({ type: 'retry', attempt, delayMs: delay, status: response.status, reason })
+    await new Promise((resolve, reject) => {
+      const t = setTimeout(resolve, delay)
+      const sig = init?.signal
+      if (sig) {
+        const onAbort = () => { clearTimeout(t); reject(new DOMException('Aborted', 'AbortError')) }
+        if (sig.aborted) onAbort()
+        else sig.addEventListener('abort', onAbort, { once: true })
+      }
+    })
+    delay = Math.min(delay * 2, MAX_DELAY_MS)
+  }
+}
+
+function createReasoningFetch(onProgress?: ProviderProgressCallback): typeof globalThis.fetch {
+  const customFetch: typeof globalThis.fetch = async (url, init) => {
+    const response = await fetchWithRetry(url, init, onProgress)
     const contentType = response.headers.get('content-type') || ''
     if (!response.body || !contentType.includes('text/event-stream')) {
       return response
@@ -122,13 +168,19 @@ function createReasoningFetch(): typeof globalThis.fetch {
   return customFetch
 }
 
-export function createProvider(config: LLMConfig) {
+export function createProvider(config: LLMConfig, onProgress?: ProviderProgressCallback) {
   const needsReasoningWrap = isReasoningModel(config.model)
+
+  // Always wrap fetch — reasoning models also get the SSE transformer; everyone
+  // gets retry-with-backoff. Only retry, no transform, for non-reasoning models.
+  const customFetch: typeof globalThis.fetch = needsReasoningWrap
+    ? createReasoningFetch(onProgress)
+    : (url, init) => fetchWithRetry(url, init, onProgress)
 
   const provider = createOpenAI({
     apiKey: config.apiKey,
     baseURL: config.baseURL,
-    ...(needsReasoningWrap ? { fetch: createReasoningFetch() } : {}),
+    fetch: customFetch,
   })
 
   // Use .chat() to select the Chat Completions API (/chat/completions).

@@ -14,7 +14,7 @@
 import { streamText, stepCountIs, type ModelMessage } from 'ai'
 import { type ToolRegistry, type ToolContext, type ToolHooks } from '../tools/base-tool.js'
 import { buildAuthorPrompt, buildBrainstormPrompt } from './prompt-builder.js'
-import { type LLMConfig, createProvider } from '../llm/provider.js'
+import { type LLMConfig, type ProviderProgressCallback, createProvider } from '../llm/provider.js'
 
 /** Minimal shape of the streamText result used by callers (SSE route + Feishu bridge). */
 export interface AgentStreamResult {
@@ -37,6 +37,8 @@ export interface AgentRunOptions {
   abortSignal?: AbortSignal
   /** Observation hooks fired around each tool call (stats, audit, etc.) */
   hooks?: ToolHooks
+  /** Provider-level progress callback (currently used for retry-with-backoff events). */
+  onProgress?: ProviderProgressCallback
 }
 
 /**
@@ -63,11 +65,12 @@ export function runAgentStream(options: AgentRunOptions): AgentStreamResult {
     mode,
     abortSignal,
     hooks,
+    onProgress,
   } = options
 
   const toolSummary = toolRegistry.getToolSummary()
   const systemPrompt = selectPrompt(mode, memoryContext, toolSummary)
-  const model = createProvider(llmConfig)
+  const model = createProvider(llmConfig, onProgress)
   const ctx: ToolContext = { bookId, dataDir, mode }
 
   const messages: ModelMessage[] = [
@@ -83,5 +86,8 @@ export function runAgentStream(options: AgentRunOptions): AgentStreamResult {
     stopWhen: stepCountIs(maxSteps),
     temperature: 0.7,
     abortSignal,
+    // Retry is owned by our fetch wrapper (provider.ts) so we can surface
+    // backoff events to the UI; disable AI SDK's own retry to avoid stacking.
+    maxRetries: 0,
   })
 }
