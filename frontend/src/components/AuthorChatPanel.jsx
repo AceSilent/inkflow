@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from 'react'
-import { Send, Trash2, Wrench, Paperclip, X, FileText, ChevronDown, ChevronRight, Brain, PenTool, User, Loader, Check } from 'lucide-react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { Send, Trash2, Wrench, Paperclip, X, FileText, ChevronDown, ChevronRight, Brain, PenTool, User, Loader, Check, History } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { useI18n } from '../hooks/useI18n'
 
@@ -11,14 +11,15 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
   const [attachments, setAttachments] = useState([])
   const [streamingMsg, setStreamingMsg] = useState(null) // {thinking, segments[], thinkingDone, phase}
   const [expandedThinking, setExpandedThinking] = useState({})
+  const [snapshots, setSnapshots] = useState([])
+  const [snapsOpen, setSnapsOpen] = useState(false)
   const chatEndRef = useRef(null)
   const inputRef = useRef(null)
   const fileInputRef = useRef(null)
 
   const bookId = currentBook?.book_id
 
-  // Load history
-  useEffect(() => {
+  const loadChatHistory = useCallback(() => {
     if (!bookId) return
     fetch(`/api/v1/author-chat/${bookId}/history`)
       .then(r => r.ok ? r.json() : null)
@@ -60,6 +61,31 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
       })
       .catch(() => {})
   }, [bookId])
+
+  useEffect(() => { loadChatHistory() }, [loadChatHistory])
+
+  const fetchSnapshots = useCallback(() => {
+    if (!bookId) return
+    fetch(`/api/v1/books/${bookId}/snapshots`)
+      .then(r => r.ok ? r.json() : { snapshots: [] })
+      .then(data => setSnapshots(data.snapshots || []))
+      .catch(() => setSnapshots([]))
+  }, [bookId])
+
+  const handleRestoreSnapshot = async (snapId, label) => {
+    if (!bookId) return
+    if (!window.confirm(`回滚到该快照？将覆盖当前所有内容（含对话、大纲、设定、草稿）。\n\n快照：${label}`)) return
+    try {
+      const resp = await fetch(`/api/v1/books/${bookId}/snapshots/${snapId}/restore`, { method: 'POST' })
+      if (!resp.ok) throw new Error('restore failed')
+      addToast?.('已回滚到快照', 'success')
+      setSnapsOpen(false)
+      loadChatHistory()
+      onLoreUpdated?.()  // bump dataVersion → other panels (outline / lore / plot tree) refresh
+    } catch (e) {
+      addToast?.('回滚失败：' + e.message, 'error')
+    }
+  }
 
   // Auto-scroll
   useEffect(() => {
@@ -277,10 +303,61 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
             17 tools · streaming
           </span>
         </div>
-        <button onClick={handleClear} title="清空对话"
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4, borderRadius: 4 }}>
-          <Trash2 size={14} />
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, position: 'relative' }}>
+          <button
+            onClick={() => { fetchSnapshots(); setSnapsOpen(s => !s) }}
+            title="快照 / 回滚"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4, borderRadius: 4 }}
+          >
+            <History size={14} />
+          </button>
+          {snapsOpen && (
+            <div style={{
+              position: 'absolute', top: '100%', right: 0, marginTop: 4, zIndex: 10,
+              minWidth: 320, maxWidth: 420, maxHeight: 360, overflowY: 'auto',
+              background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)',
+              borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.18)', padding: 6,
+            }}>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', padding: '4px 8px 6px' }}>
+                快照（最近 {snapshots.length} 个，最多保留 10 个）
+              </div>
+              {snapshots.length === 0 && (
+                <div style={{ padding: '12px 8px', fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>
+                  暂无快照（每次发消息前会自动创建）
+                </div>
+              )}
+              {snapshots.map(s => (
+                <button
+                  key={s.id}
+                  onClick={() => handleRestoreSnapshot(s.id, s.label)}
+                  style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
+                    width: '100%', textAlign: 'left', padding: '6px 8px', marginBottom: 2,
+                    border: '1px solid transparent', borderRadius: 6, background: 'transparent',
+                    cursor: 'pointer', color: 'var(--text-primary)', gap: 2,
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(59,130,246,0.08)'; e.currentTarget.style.borderColor = 'rgba(59,130,246,0.30)' }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'transparent' }}
+                >
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                    {new Date(s.created_at).toLocaleString()}
+                  </div>
+                  <div style={{
+                    fontSize: 12, lineHeight: 1.4, color: 'var(--text-primary)',
+                    overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box',
+                    WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+                  }}>
+                    {s.label || '(无内容)'}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+          <button onClick={handleClear} title="清空对话"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4, borderRadius: 4 }}>
+            <Trash2 size={14} />
+          </button>
+        </div>
       </div>
 
       {/* Messages */}

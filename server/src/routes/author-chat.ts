@@ -14,6 +14,7 @@ import { sendChatBody } from './schemas.js'
 import { getSettings } from './settings.js'
 import { loadHistory, saveHistory } from './chat-history.js'
 import { createStatsHooks } from '../stats/tool-stats.js'
+import { createSnapshot } from '../snapshots/snapshots.js'
 
 /**
  * Resolve LLM config from settings.json (provider/model selector).
@@ -135,17 +136,33 @@ export async function authorChatRoutes(app: FastifyInstance) {
       let heartbeat: NodeJS.Timeout | null = null
       // Persistence closure — set inside try after accumulators are wired up,
       // invoked from finally so partial state survives errors / cancellations.
-      let persistAssistant: (() => void) | null = null
+      let persistAssistant: ((status?: 'incomplete' | 'aborted') => void) | null = null
+      let streamSucceeded = false
 
       try {
+        // Checkpoint the book state BEFORE this turn touches anything, so the
+        // user can rewind to the moment right before they hit send. Logged but
+        // never blocking — snapshot failure shouldn't kill the actual chat.
+        try {
+          createSnapshot(dataDir, bookId, message)
+        } catch (snapErr) {
+          app.log.warn({ err: snapErr, bookId }, '[author-chat] snapshot failed; continuing without checkpoint')
+        }
+
         const rawHistory = loadHistory(dataDir, bookId)
-        // Strip persisted UI metadata (`thinking`, `segments`) — neither belongs in the
-        // LLM context: thinking is just the reasoning trace, segments are a UI-only
-        // breakdown of content + tool calls already represented elsewhere by AI SDK.
-        const history: ModelMessage[] = rawHistory.map((m) => {
-          const { thinking: _t, segments: _s, ...rest } = m as ModelMessage & { thinking?: string; segments?: unknown }
-          return rest as ModelMessage
-        })
+        // For LLM context: drop pairs marked status='incomplete' / 'aborted'
+        // (failed or cancelled turns are kept on disk for UI replay but must
+        // never be replayed to the model — partial assistant content + an
+        // unanswered user message would corrupt subsequent reasoning).
+        // Also strip UI-only metadata (`thinking`, `segments`, `status`).
+        const history: ModelMessage[] = rawHistory
+          .filter((m) => !(m as any).status)
+          .map((m) => {
+            const { thinking: _t, segments: _s, status: _st, ...rest } = m as ModelMessage & {
+              thinking?: string; segments?: unknown; status?: string
+            }
+            return rest as ModelMessage
+          })
 
         sse({ type: 'status', phase: 'agent_loop' })
 
@@ -254,22 +271,27 @@ export async function authorChatRoutes(app: FastifyInstance) {
         }
 
         // Wire up the persister now that all accumulators + helpers exist.
-        persistAssistant = () => {
+        // status: undefined → normal completion (replayed to LLM next turn)
+        //         'incomplete' → stream errored mid-way
+        //         'aborted'    → user / client cancelled
+        // 'incomplete' / 'aborted' pairs are kept for UI but excluded from LLM context.
+        persistAssistant = (status?: 'incomplete' | 'aborted') => {
           drain(true)
           flushOpenContent()
           const hasAnything = fullText.length > 0 || fullThinking.length > 0 || segments.length > 0
           if (!hasAnything) return
-          const assistantMsg: ModelMessage & { thinking?: string; segments?: Segment[] } = {
+          const userMsg: ModelMessage & { status?: string } = { role: 'user', content: message }
+          const assistantMsg: ModelMessage & { thinking?: string; segments?: Segment[]; status?: string } = {
             role: 'assistant',
             content: fullText || '(Author Agent 没有生成回复)',
           }
           if (fullThinking) assistantMsg.thinking = fullThinking
           if (segments.length > 0) assistantMsg.segments = segments
-          const updatedHistory: ModelMessage[] = [
-            ...history,
-            { role: 'user' as const, content: message },
-            assistantMsg,
-          ]
+          if (status) {
+            userMsg.status = status
+            assistantMsg.status = status
+          }
+          const updatedHistory: ModelMessage[] = [...history, userMsg, assistantMsg]
           saveHistory(dataDir, bookId, updatedHistory)
         }
 
@@ -347,6 +369,8 @@ export async function authorChatRoutes(app: FastifyInstance) {
 
         if (streamError) {
           sse({ type: 'error', message: String((streamError as any)?.message ?? streamError).slice(0, 500) })
+        } else {
+          streamSucceeded = true
         }
 
         streamDone = true
@@ -367,7 +391,10 @@ export async function authorChatRoutes(app: FastifyInstance) {
         // slightly truncated entry.
         if (persistAssistant) {
           try {
-            persistAssistant()
+            const status = streamSucceeded
+              ? undefined
+              : abortController.signal.aborted ? 'aborted' : 'incomplete'
+            persistAssistant(status)
           } catch (saveErr) {
             app.log.error({ err: saveErr, bookId }, '[author-chat] failed to persist partial history')
           }

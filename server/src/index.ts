@@ -7,6 +7,7 @@ import { authorChatRoutes } from './routes/author-chat.js'
 import { booksRoutes } from './routes/books.js'
 import { dataRoutes } from './routes/data.js'
 import { settingsRoutes } from './routes/settings.js'
+import { snapshotRoutes } from './routes/snapshots.js'
 import { initFeishu } from './feishu/index.js'
 
 const app = Fastify({ logger: true, ignoreTrailingSlash: true })
@@ -16,6 +17,7 @@ await app.register(authorChatRoutes)
 await app.register(booksRoutes)
 await app.register(dataRoutes)
 await app.register(settingsRoutes)
+await app.register(snapshotRoutes)
 
 app.get('/health', async () => ({ status: 'ok', engine: 'autonovel-ts' }))
 
