@@ -11,13 +11,27 @@ export interface LLMConfig {
 }
 
 /**
- * Detect models that emit `delta.reasoning_content` (e.g., ZhipuAI GLM-5.x in thinking mode).
- * @ai-sdk/openai doesn't parse this field, so we transform it into normal `delta.content`
- * wrapped with markers that the SSE route splits back into thinking vs content events.
+ * Detect models that emit `delta.reasoning_content` in streaming mode
+ * (ZhipuAI GLM-5.x, DashScope Qwen3.x, etc.). @ai-sdk/openai doesn't parse
+ * that field, so we transform it into regular `delta.content` wrapped with
+ * markers that the SSE route splits back into thinking vs content events.
  */
 function isReasoningModel(model: string): boolean {
   const m = model.toLowerCase()
   return m.includes('glm-5') || m.includes('glm5')
+      || m.startsWith('qwen3') || m.includes('qwen-3')
+      || m.includes('qwen3.6') || m.includes('qwen3-max') || m.includes('qwen3-plus')
+}
+
+/**
+ * DashScope Qwen3 defaults to non-thinking mode; the API only returns
+ * reasoning_content when the request body carries `enable_thinking: true`
+ * (equivalent to the Python SDK's `extra_body={"enable_thinking": True}`).
+ */
+function requiresEnableThinkingFlag(model: string): boolean {
+  const m = model.toLowerCase()
+  return m.startsWith('qwen3') || m.includes('qwen-3')
+      || m.includes('qwen3.6') || m.includes('qwen3-max') || m.includes('qwen3-plus')
 }
 
 // Sentinel markers — control chars + label, vanishingly unlikely to appear in real text.
@@ -77,8 +91,24 @@ async function fetchWithRetry(
   }
 }
 
-function createReasoningFetch(onProgress?: ProviderProgressCallback): typeof globalThis.fetch {
+function createReasoningFetch(model: string, onProgress?: ProviderProgressCallback): typeof globalThis.fetch {
+  const needsEnableThinking = requiresEnableThinkingFlag(model)
+
   const customFetch: typeof globalThis.fetch = async (url, init) => {
+    // DashScope Qwen3 opt-in to thinking mode: add enable_thinking at the top
+    // level of the JSON body (mirrors the Python SDK's extra_body mechanic).
+    // Only do this for streaming requests — non-streaming Qwen calls return
+    // reasoning in a different shape we don't currently surface.
+    if (needsEnableThinking && init?.body && typeof init.body === 'string') {
+      try {
+        const body = JSON.parse(init.body)
+        if (body && body.stream === true) {
+          body.enable_thinking = true
+          init = { ...init, body: JSON.stringify(body) }
+        }
+      } catch { /* non-JSON body — leave alone */ }
+    }
+
     const response = await fetchWithRetry(url, init, onProgress)
     const contentType = response.headers.get('content-type') || ''
     if (!response.body || !contentType.includes('text/event-stream')) {
@@ -174,7 +204,7 @@ export function createProvider(config: LLMConfig, onProgress?: ProviderProgressC
   // Always wrap fetch — reasoning models also get the SSE transformer; everyone
   // gets retry-with-backoff. Only retry, no transform, for non-reasoning models.
   const customFetch: typeof globalThis.fetch = needsReasoningWrap
-    ? createReasoningFetch(onProgress)
+    ? createReasoningFetch(config.model, onProgress)
     : (url, init) => fetchWithRetry(url, init, onProgress)
 
   const provider = createOpenAI({
