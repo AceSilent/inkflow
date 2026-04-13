@@ -268,9 +268,13 @@ export async function authorChatRoutes(app: FastifyInstance) {
                 fullText += chunk
                 appendContent(chunk)
               } else {
-                sse({ type: 'thinking', token: chunk })
-                fullThinking += chunk
+                // appendThinking first so its synthetic thinking_start (when a
+                // new block opens) lands BEFORE the matching thinking token —
+                // otherwise the frontend creates an orphan segment for the
+                // first chunk and a fresh one once start finally arrives.
                 appendThinking(chunk)
+                fullThinking += chunk
+                sse({ type: 'thinking', token: chunk })
               }
               return
             }
@@ -281,9 +285,9 @@ export async function authorChatRoutes(app: FastifyInstance) {
                 fullText += chunk
                 appendContent(chunk)
               } else {
-                sse({ type: 'thinking', token: chunk })
-                fullThinking += chunk
                 appendThinking(chunk)
+                fullThinking += chunk
+                sse({ type: 'thinking', token: chunk })
               }
             }
             pending = pending.slice(idx + marker.length)
