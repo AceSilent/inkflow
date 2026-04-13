@@ -14,7 +14,7 @@ import { sendChatBody } from './schemas.js'
 import { getSettings } from './settings.js'
 import { loadHistory, saveHistory } from './chat-history.js'
 import { createStatsHooks } from '../stats/tool-stats.js'
-import { createTipHooks } from '../stats/tip-hooks.js'
+import { createTipHooks } from '../stats/tips/index.js'
 import { composeHooks } from '../tools/base-tool.js'
 import { createSnapshot } from '../snapshots/snapshots.js'
 
