@@ -323,13 +323,13 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
               <div style={{ maxWidth: '85%', display: 'flex', flexDirection: 'column', gap: 4, width: '100%' }}>
                 {streamingMsg.segments.map((seg, j) => (
                   seg.type === 'content' ? (
-                    <div key={j} style={{
+                    <div key={j} className="markdown-chat" style={{
                       padding: '10px 14px', borderRadius: 12,
-                      fontSize: 13, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                      fontSize: 13, lineHeight: 1.6, wordBreak: 'break-word',
                       background: 'var(--bg-elevated)', color: 'var(--text-primary)',
                       borderBottomLeftRadius: 4,
                     }}>
-                      {seg.text}
+                      <ReactMarkdown>{seg.text}</ReactMarkdown>
                       {seg.streaming && <span style={{ animation: 'pulse 1s infinite' }}>▍</span>}
                     </div>
                   ) : seg.type === 'tool_call' ? (

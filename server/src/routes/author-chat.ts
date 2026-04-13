@@ -135,9 +135,11 @@ export async function authorChatRoutes(app: FastifyInstance) {
 
       try {
         const rawHistory = loadHistory(dataDir, bookId)
-        // Strip persisted `thinking` field — it's UI metadata, not part of the LLM context.
+        // Strip persisted UI metadata (`thinking`, `segments`) — neither belongs in the
+        // LLM context: thinking is just the reasoning trace, segments are a UI-only
+        // breakdown of content + tool calls already represented elsewhere by AI SDK.
         const history: ModelMessage[] = rawHistory.map((m) => {
-          const { thinking: _t, ...rest } = m as ModelMessage & { thinking?: string }
+          const { thinking: _t, segments: _s, ...rest } = m as ModelMessage & { thinking?: string; segments?: unknown }
           return rest as ModelMessage
         })
 
@@ -171,6 +173,26 @@ export async function authorChatRoutes(app: FastifyInstance) {
         let pending = ''
         let segmentMode: 'content' | 'thinking' = 'content'
 
+        // Mirror the segments the frontend would build live: ordered list of
+        // {type:'content',text} | {type:'tool_call',name,argsPreview,result?}
+        // entries, persisted with the assistant message so reload restores
+        // tool calls and interleaving instead of just collapsing to plain text.
+        type Segment =
+          | { type: 'content'; text: string }
+          | { type: 'tool_call'; name: string; argsPreview?: string; result?: string; status: 'running' | 'done' }
+        const segments: Segment[] = []
+        let openContent: { type: 'content'; text: string } | null = null
+        const flushOpenContent = () => {
+          if (openContent && openContent.text.trim()) segments.push(openContent)
+          openContent = null
+        }
+        const appendContent = (text: string) => {
+          if (!openContent) {
+            openContent = { type: 'content', text: '' }
+          }
+          openContent.text += text
+        }
+
         // Drain `pending`, splitting on REASONING_OPEN/CLOSE markers, emitting
         // SSE events for each side and accumulating into fullText / fullThinking.
         // Holds back up to (markerLen-1) chars to avoid splitting a partial marker.
@@ -187,6 +209,7 @@ export async function authorChatRoutes(app: FastifyInstance) {
               if (segmentMode === 'content') {
                 sse({ type: 'content', token: chunk })
                 fullText += chunk
+                appendContent(chunk)
               } else {
                 sse({ type: 'thinking', token: chunk })
                 fullThinking += chunk
@@ -198,6 +221,7 @@ export async function authorChatRoutes(app: FastifyInstance) {
               if (segmentMode === 'content') {
                 sse({ type: 'content', token: chunk })
                 fullText += chunk
+                appendContent(chunk)
               } else {
                 sse({ type: 'thinking', token: chunk })
                 fullThinking += chunk
@@ -216,28 +240,41 @@ export async function authorChatRoutes(app: FastifyInstance) {
               pending += part.text
               drain(false)
               break
-            case 'tool-call':
+            case 'tool-call': {
               toolsUsed.push(part.toolName)
-              sse({
-                type: 'tool_start',
-                name: part.toolName,
-                args_preview: JSON.stringify(part.input).slice(0, 200),
-              })
+              const argsPreview = JSON.stringify(part.input).slice(0, 200)
+              flushOpenContent()
+              segments.push({ type: 'tool_call', name: part.toolName, argsPreview, status: 'running' })
+              sse({ type: 'tool_start', name: part.toolName, args_preview: argsPreview })
               break
-            case 'tool-result':
-              sse({
-                type: 'tool_done',
-                name: part.toolName,
-                result_preview: String(part.output).slice(0, 200),
-              })
+            }
+            case 'tool-result': {
+              const preview = String(part.output).slice(0, 200)
+              for (let i = segments.length - 1; i >= 0; i--) {
+                const s = segments[i]
+                if (s.type === 'tool_call' && s.name === part.toolName && s.status === 'running') {
+                  s.status = 'done'
+                  s.result = preview
+                  break
+                }
+              }
+              sse({ type: 'tool_done', name: part.toolName, result_preview: preview })
               break
-            case 'tool-error':
-              sse({
-                type: 'tool_done',
-                name: (part as any).toolName,
-                result_preview: `[error] ${String((part as any).error).slice(0, 200)}`,
-              })
+            }
+            case 'tool-error': {
+              const preview = `[error] ${String((part as any).error).slice(0, 200)}`
+              const toolName = (part as any).toolName
+              for (let i = segments.length - 1; i >= 0; i--) {
+                const s = segments[i]
+                if (s.type === 'tool_call' && s.name === toolName && s.status === 'running') {
+                  s.status = 'done'
+                  s.result = preview
+                  break
+                }
+              }
+              sse({ type: 'tool_done', name: toolName, result_preview: preview })
               break
+            }
             case 'error':
               // AI SDK v6 surfaces upstream LLM errors (rate limits, network, etc.)
               // as fullStream parts rather than throwing — capture so we can SSE
@@ -247,6 +284,7 @@ export async function authorChatRoutes(app: FastifyInstance) {
           }
         }
         drain(true)
+        flushOpenContent()
 
         if (streamError) {
           sse({ type: 'error', message: String((streamError as any)?.message ?? streamError).slice(0, 500) })
@@ -254,13 +292,15 @@ export async function authorChatRoutes(app: FastifyInstance) {
 
         streamDone = true
 
-        // Save to history — assistant entry carries an extra `thinking` field
-        // for UI replay; the LLM-bound history above strips it out.
-        const assistantMsg: ModelMessage & { thinking?: string } = {
+        // Save to history — assistant entry carries extra `thinking` and
+        // `segments` fields for UI replay; the LLM-bound history (above) strips
+        // them out so they never round-trip back to the model.
+        const assistantMsg: ModelMessage & { thinking?: string; segments?: Segment[] } = {
           role: 'assistant',
           content: fullText || '(Author Agent 没有生成回复)',
         }
         if (fullThinking) assistantMsg.thinking = fullThinking
+        if (segments.length > 0) assistantMsg.segments = segments
 
         const updatedHistory: ModelMessage[] = [
           ...history,
