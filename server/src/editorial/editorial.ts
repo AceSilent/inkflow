@@ -15,11 +15,21 @@ import { type LLMConfig } from '../llm/provider.js'
 import { getSettings } from '../routes/settings.js'
 import { MIN_DRAFT_CHARS } from '../tools/write-tools.js'
 
-// LLM config for editorial reviewers — reads from settings.json first, falls back to env vars.
-// Uses editorModel (or readerModel) from settings, which can be a cheaper/faster model.
+/**
+ * LLM config for editorial reviewers.
+ *
+ * Resolution order: editorModel → authorModel → env.
+ * (We intentionally DROPPED the old `readerModel` step and the `gpt-4o-mini`
+ *  fallback — a reviewer weaker than the author is a known anti-pattern: the
+ *  weak reviewer rubber-stamps prose it can't actually evaluate, producing
+ *  false ✅s. If the user wants a cheaper reviewer, set editorModel explicitly
+ *  via settings — don't let it silently degrade.)
+ */
 function editorialLLMConfig(dataDir: string): LLMConfig {
   const settings = getSettings(dataDir)
-  const modelSelector = settings.editorModel || settings.readerModel || settings.authorModel || ''
+  // Fall back to authorModel (same tier as the writer) rather than to a
+  // weaker readerModel — reviewer weaker than author → false passes.
+  const modelSelector = settings.editorModel || settings.authorModel || ''
 
   if (modelSelector.includes('/')) {
     const [providerId, ...modelParts] = modelSelector.split('/')
@@ -30,11 +40,13 @@ function editorialLLMConfig(dataDir: string): LLMConfig {
     }
   }
 
-  // Fallback to environment variables
+  // Env fallback. EDITORIAL_MODEL takes precedence if set; otherwise use the
+  // same LLM_MODEL the author is on. No hidden "cheap default" — if nothing
+  // is configured, that's a setup error the user should see.
   return {
     apiKey: process.env.LLM_API_KEY || '',
     baseURL: process.env.LLM_BASE_URL,
-    model: process.env.EDITORIAL_MODEL || process.env.LLM_MODEL || 'gpt-4o-mini',
+    model: process.env.EDITORIAL_MODEL || process.env.LLM_MODEL || '',
   }
 }
 
@@ -126,23 +138,94 @@ function loadEditorialContext(dataDir: string, bookId: string, chapterId: string
   }
 }
 
-function persistReview(
+// ── Convergence tracking ──
+// Same issue flagged across revisions = the author is spinning. After N rounds
+// we surface it so the agent can escalate to request_guidance() instead of
+// rewriting forever.
+
+/**
+ * Rounds-same-issue ≥ this count → emit convergence warning.
+ */
+export const STUCK_ROUND_THRESHOLD = 3
+
+export interface IssueHistoryEntry {
+  first_seen_round: number
+  count: number
+}
+
+export type IssueHistory = Record<string, IssueHistoryEntry>
+
+export interface PersistResult {
+  revision_round: number
+  /** Issues present in the current round that have been flagged ≥ STUCK_ROUND_THRESHOLD consecutive rounds. */
+  persistent_issues: Array<{ fingerprint: string; count: number; first_seen_round: number }>
+}
+
+/**
+ * Build a stable fingerprint for an issue. Uses reviewer + type + a prefix of
+ * quote (or fix_instruction as fallback) so trivial LLM wording changes
+ * don't mask the fact that it's the same underlying complaint.
+ */
+export function issueFingerprint(reviewer: string, issue: { type?: string; quote?: string; fix_instruction?: string }): string {
+  const type = issue.type ?? 'unknown'
+  const text = (issue.quote ?? issue.fix_instruction ?? '').trim().slice(0, 60)
+  return `${reviewer}::${type}::${text}`
+}
+
+export function persistReview(
   dataDir: string,
   bookId: string,
   chapterId: string,
   result: EditorialResult,
-): void {
+): PersistResult {
   const draftsDir = path.join(dataDir, bookId, '04_Drafts')
   if (!fs.existsSync(draftsDir)) {
     fs.mkdirSync(draftsDir, { recursive: true })
   }
   const reviewPath = path.join(draftsDir, `review_${chapterId}.json`)
+
+  // Load previous round's state for convergence tracking.
+  let prevRound = 0
+  let prevHistory: IssueHistory = {}
+  if (fs.existsSync(reviewPath)) {
+    try {
+      const prev = JSON.parse(fs.readFileSync(reviewPath, 'utf-8'))
+      if (typeof prev.revision_round === 'number') prevRound = prev.revision_round
+      if (prev.issue_history && typeof prev.issue_history === 'object') {
+        prevHistory = prev.issue_history as IssueHistory
+      }
+    } catch { /* ignore corrupt prior file */ }
+  }
+  const revision_round = prevRound + 1
+
+  // Update history: issues present this round inherit (and increment) the
+  // previous count; anything not present this round drops off.
+  const nextHistory: IssueHistory = {}
+  const persistent_issues: PersistResult['persistent_issues'] = []
+  for (const fb of result.feedbacks) {
+    for (const issue of fb.issues) {
+      const fp = issueFingerprint(fb.reviewer, issue)
+      const prev = prevHistory[fp]
+      const entry: IssueHistoryEntry = prev
+        ? { first_seen_round: prev.first_seen_round, count: prev.count + 1 }
+        : { first_seen_round: revision_round, count: 1 }
+      nextHistory[fp] = entry
+      if (entry.count >= STUCK_ROUND_THRESHOLD) {
+        persistent_issues.push({ fingerprint: fp, count: entry.count, first_seen_round: entry.first_seen_round })
+      }
+    }
+  }
+
   fs.writeFileSync(reviewPath, JSON.stringify({
     overall_pass: result.overall_pass,
+    revision_round,
     feedbacks: result.feedbacks,
     merged_summary: result.merged_summary,
+    issue_history: nextHistory,
     reviewed_at: new Date().toISOString(),
   }, null, 2), 'utf-8')
+
+  return { revision_round, persistent_issues }
 }
 
 export const submitToEditorialTool: ToolDefinition = {
@@ -212,18 +295,40 @@ export const submitToEditorialTool: ToolDefinition = {
         promptsDir,
       )
 
-      // Auto-persist review results
+      // Auto-persist review results + track convergence across rounds.
+      let persist: PersistResult | null = null
       if (chapter_id && ctx.bookId && ctx.dataDir) {
-        persistReview(ctx.dataDir, ctx.bookId, chapter_id, result)
+        persist = persistReview(ctx.dataDir, ctx.bookId, chapter_id, result)
       }
 
       // Inline tool result for Author — strip `thinking` from each feedback to
       // keep the agent's context lean. Full thinking traces stay in the
       // persisted review_{chapterId}.json file for human inspection.
       const leanFeedbacks = result.feedbacks.map(({ thinking: _t, ...rest }) => rest)
+
+      // Convergence banner: if the same issue has been flagged across
+      // STUCK_ROUND_THRESHOLD or more rounds, prepend a loud warning to the
+      // summary pointing the agent at request_guidance() instead of another
+      // blind rewrite. Without this, agent loops forever on unsolvable items.
+      let summary = result.merged_summary
+      if (persist && persist.persistent_issues.length > 0) {
+        const lines = persist.persistent_issues.map(p =>
+          `  · ${p.fingerprint}  (已累计 ${p.count} 轮)`
+        )
+        summary = [
+          `⚠️ 收敛警告：以下问题已反复出现 ≥${STUCK_ROUND_THRESHOLD} 轮修改，继续自行改写大概率无效。`,
+          `   建议调用 request_guidance() 把这些点抛给人类决策，而不是再写一遍。`,
+          ...lines,
+          '',
+          summary,
+        ].join('\n')
+      }
+
       return JSON.stringify({
         overall_pass: result.overall_pass,
-        summary: result.merged_summary,
+        revision_round: persist?.revision_round ?? 1,
+        persistent_issues: persist?.persistent_issues ?? [],
+        summary,
         feedbacks: leanFeedbacks,
       }, null, 2)
     } catch (err) {
