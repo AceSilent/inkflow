@@ -8,9 +8,17 @@ import path from 'path'
 import { type ToolDefinition } from './base-tool.js'
 import { createBackup, appendAuditLog } from './safety.js'
 
+/**
+ * Minimum characters a draft must contain. Rejects the "200-char shell" failure
+ * mode where the agent saves a placeholder and submits it for review, getting
+ * a free ✅. A real novel chapter is ≥ 2000 chars; 800 is well below that floor
+ * so legitimate short scenes/interludes still pass.
+ */
+export const MIN_DRAFT_CHARS = 800
+
 export const saveDraftTool: ToolDefinition = {
   name: 'save_draft',
-  description: '保存章节草稿到 04_Drafts/{ch{N}.md}。文件名必须是 ch{N}.md 形式（如 ch01.md），UI 才能把草稿对应到 outline 中相同 id 的 chapter 节点。',
+  description: `保存章节草稿到 04_Drafts/{ch{N}.md}。文件名必须是 ch{N}.md 形式（如 ch01.md），UI 才能把草稿对应到 outline 中相同 id 的 chapter 节点。草稿正文至少 ${MIN_DRAFT_CHARS} 字，否则拒绝保存（防止空壳草稿绕过审稿）。`,
   parameters: z.object({
     file_path: z.string()
       .regex(/^ch\d{1,4}\.md$/, "file_path 必须是 'ch{N}.md' 形式（如 ch01.md, ch02.md, ch137.md）。N 是阿拉伯数字章节序号，1-4 位，建议 2-3 位零填充以方便排序。")
@@ -19,6 +27,11 @@ export const saveDraftTool: ToolDefinition = {
   }),
   permissionLevel: 'write',
   execute: async ({ file_path, content }, ctx) => {
+    // Short-shell guard: fail fast before backup/write/audit.
+    if (content.length < MIN_DRAFT_CHARS) {
+      return `Error: 草稿正文只有 ${content.length} 字，少于最低要求 ${MIN_DRAFT_CHARS} 字。完整写完章节正文再保存——不要保存大纲、占位、或"下回分解"式的空壳。`
+    }
+
     const bookDir = path.join(ctx.dataDir, ctx.bookId)
     // Always relocate into 04_Drafts/ — strip any path prefix the agent put in,
     // keep just the leaf filename. This is the difference between drafts the
@@ -136,14 +149,14 @@ export const saveLoreTool: ToolDefinition = {
   permissionLevel: 'write',
   execute: async ({ category, content_json }, ctx) => {
     const bookDir = path.join(ctx.dataDir, ctx.bookId)
-    const loreDir = path.join(bookDir, 'lore')
-    const legacyDir = path.join(bookDir, '01_Global_Settings')
+    const loreDir = path.join(bookDir, '01_Global_Settings')
     if (!fs.existsSync(loreDir)) fs.mkdirSync(loreDir, { recursive: true })
-    if (!fs.existsSync(legacyDir)) fs.mkdirSync(legacyDir, { recursive: true })
 
-    const fileMap: Record<string, [string, string]> = {
-      characters: ['characters.json', 'characters.json'],
-      world_setting: ['world_setting.json', 'world_lore.json'],
+    // File names match what readers (routes/data.ts, tools/search-lore.ts,
+    // feishu/commands.ts, editorial) already look for in 01_Global_Settings/.
+    const fileMap: Record<string, string> = {
+      characters: 'characters.json',
+      world_setting: 'world_lore.json',
     }
 
     if (!(category in fileMap)) {
@@ -157,14 +170,9 @@ export const saveLoreTool: ToolDefinition = {
       return `Error: Invalid JSON — ${e}`
     }
 
-    const [loreName, legacyName] = fileMap[category]
-    const jsonStr = JSON.stringify(data, null, 2)
-
-    createBackup(path.join(loreDir, loreName))
-    createBackup(path.join(legacyDir, legacyName))
-
-    fs.writeFileSync(path.join(loreDir, loreName), jsonStr, 'utf-8')
-    fs.writeFileSync(path.join(legacyDir, legacyName), jsonStr, 'utf-8')
+    const target = path.join(loreDir, fileMap[category])
+    createBackup(target)
+    fs.writeFileSync(target, JSON.stringify(data, null, 2), 'utf-8')
 
     const logFile = path.join(bookDir, 'audit_log.jsonl')
     appendAuditLog(logFile, 'save_lore', { category }, 'saved', true)

@@ -115,13 +115,15 @@ describe('Write Tools', () => {
 
   it('save_draft should create file and audit log', async () => {
     const registry = createAllTools()
+    // Must be >= MIN_DRAFT_CHARS (800) or save_draft refuses as an empty shell.
+    const body = '# 第一章\n' + '这是正文。'.repeat(200)
     const result = await registry.execute('save_draft', {
-      file_path: '04_Drafts/ch1.md',
-      content: '# 第一章\n这是正文。',
+      file_path: 'ch01.md',
+      content: body,
     }, { bookId: 'test-book', dataDir: tmpDir })
 
     expect(result).toContain('saved')
-    const file = path.join(tmpDir, 'test-book', '04_Drafts', 'ch1.md')
+    const file = path.join(tmpDir, 'test-book', '04_Drafts', 'ch01.md')
     expect(fs.existsSync(file)).toBe(true)
     expect(fs.readFileSync(file, 'utf-8')).toContain('第一章')
 
@@ -130,11 +132,47 @@ describe('Write Tools', () => {
     expect(fs.existsSync(log)).toBe(true)
   })
 
-  it('save_outline should create outline file', async () => {
+  it('save_draft should reject too-short content as empty shell', async () => {
+    const registry = createAllTools()
+    const result = await registry.execute('save_draft', {
+      file_path: 'ch01.md',
+      content: '# 第一章\n这是正文。',
+    }, { bookId: 'test-book', dataDir: tmpDir })
+
+    expect(result).toContain('Error')
+    expect(result).toContain('最低要求')
+    // File should NOT have been written.
+    const file = path.join(tmpDir, 'test-book', '04_Drafts', 'ch01.md')
+    expect(fs.existsSync(file)).toBe(false)
+  })
+
+  it('save_outline should accept a valid chapter tree', async () => {
+    const registry = createAllTools()
+    const outline = JSON.stringify({
+      id: 'test-book',
+      type: 'book',
+      label: '测试小说',
+      children: [
+        {
+          id: 'vol1',
+          type: 'volume',
+          label: '第一卷',
+          children: [
+            { id: 'ch01', type: 'chapter', label: '开篇', summary: '主角登场' },
+          ],
+        },
+      ],
+    })
+    const result = await registry.execute('save_outline', { outline_json: outline }, { bookId: 'test-book', dataDir: tmpDir })
+    expect(result).toContain('Outline saved')
+  })
+
+  it('save_outline should reject free-form JSON missing type', async () => {
     const registry = createAllTools()
     const outline = JSON.stringify({ title: '测试小说', volumes: [] })
     const result = await registry.execute('save_outline', { outline_json: outline }, { bookId: 'test-book', dataDir: tmpDir })
-    expect(result).toContain('Outline saved')
+    expect(result).toContain('Error')
+    expect(result).toContain('schema invalid')
   })
 
   it('save_lore should reject invalid category', async () => {
@@ -144,13 +182,14 @@ describe('Write Tools', () => {
     expect(result).toContain('Unknown category')
   })
 
-  it('save_lore should save to both dirs', async () => {
+  it('save_lore should write to 01_Global_Settings/ only (single source of truth)', async () => {
     const registry = createAllTools()
     const chars = JSON.stringify({ '萧炎': { level: '斗帝' } })
     const result = await registry.execute('save_lore', { category: 'characters', content_json: chars }, { bookId: 'test-book', dataDir: tmpDir })
     expect(result).toContain('saved successfully')
-    expect(fs.existsSync(path.join(tmpDir, 'test-book', 'lore', 'characters.json'))).toBe(true)
     expect(fs.existsSync(path.join(tmpDir, 'test-book', '01_Global_Settings', 'characters.json'))).toBe(true)
+    // The legacy `lore/` duplicate should no longer be produced.
+    expect(fs.existsSync(path.join(tmpDir, 'test-book', 'lore', 'characters.json'))).toBe(false)
   })
 })
 
