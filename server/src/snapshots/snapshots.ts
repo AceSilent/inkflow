@@ -37,8 +37,11 @@ function snapPath(dataDir: string, bookId: string, snapId: string): string {
 function isExcluded(absPath: string): boolean {
   const base = path.basename(absPath)
   if (base === SNAPSHOTS_DIR) return true
+  if (base === '.draft_history') return true
   if (base.endsWith('.bak')) return true
   if (base === 'audit_log.jsonl') return true
+  // Rotated audit logs (audit_log.jsonl.1, .2, .3) follow the same exclusion.
+  if (/^audit_log\.jsonl\.\d+$/.test(base)) return true
   return false
 }
 
