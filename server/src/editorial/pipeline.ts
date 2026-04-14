@@ -77,14 +77,39 @@ export interface EditorialResult {
   merged_summary: string
 }
 
-// ── Template rendering (simple variable substitution) ──
+// ── Template rendering (Jinja2 subset: {{ var }} + {% if var %}...{% endif %}) ──
 
-function renderTemplate(templatePath: string, vars: Record<string, string>): string {
+/**
+ * Minimal Jinja2-compatible renderer covering what the reader templates use:
+ *   - `{{ var }}` / `{{var}}` variable substitution
+ *   - `{% if var %}...{% endif %}` conditional blocks (no else, no nesting),
+ *     where "truthy" = var is defined AND its rendered value is non-empty.
+ *
+ * Anything not covered (loops, filters, else, nested ifs) falls through
+ * unchanged. Any dangling `{{ foo }}` after substitution is replaced with
+ * "(未提供)" so the LLM never sees raw placeholders.
+ */
+export function renderTemplate(templatePath: string, vars: Record<string, string>): string {
   let content = fs.readFileSync(templatePath, 'utf-8')
+
+  // 1. Resolve `{% if var %}...{% endif %}` blocks first so variables inside
+  //    stripped blocks don't pollute the output.
+  const ifRegex = /\{%\s*if\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*%\}([\s\S]*?)\{%\s*endif\s*%\}/g
+  content = content.replace(ifRegex, (_, varName: string, body: string) => {
+    const v = vars[varName]
+    return v && v.trim().length > 0 ? body : ''
+  })
+
+  // 2. Substitute `{{ var }}` / `{{var}}` occurrences.
   for (const [key, value] of Object.entries(vars)) {
     content = content.replaceAll(`{{ ${key} }}`, value)
     content = content.replaceAll(`{{${key}}}`, value)
   }
+
+  // 3. Backstop — any unresolved `{{ anything }}` becomes "(未提供)" so the
+  //    reviewer LLM doesn't see placeholder syntax.
+  content = content.replace(/\{\{\s*[a-zA-Z_][a-zA-Z0-9_]*\s*\}\}/g, '（未提供）')
+
   return content
 }
 
@@ -168,14 +193,27 @@ async function runReviewer(
 
 // ── Full editorial pipeline ──
 
+export interface EditorialContext {
+  bookTone?: string
+  bookGenre?: string
+  /** Human-readable characters dump (not raw JSON) — injected into `{{ characters_info }}`. */
+  charactersInfo?: string
+  /** Human-readable world-lore dump — injected into `{{ world_lore }}`. */
+  worldLore?: string
+  /** Scene-specific hints the agent supplies when calling submit_to_editorial. */
+  povCharacter?: string
+  setting?: string
+  sceneTarget?: string
+  logicChain?: string
+  emotionalArc?: string
+  focusPoint?: string
+  /** Outline slice (current chapter + neighbors) for contextual grounding. */
+  outlineContext?: string
+}
+
 export async function runEditorialPipeline(
   draft: string,
-  context: {
-    bookTone?: string
-    bookGenre?: string
-    loreJson?: string
-    outlineContext?: string
-  },
+  context: EditorialContext,
   llmConfig: LLMConfig,
   promptsDir: string,
 ): Promise<EditorialResult> {
@@ -183,7 +221,14 @@ export async function runEditorialPipeline(
     draft,
     book_tone: context.bookTone ?? '热血玄幻',
     book_genre: context.bookGenre ?? '玄幻',
-    lore_json: context.loreJson ?? '{}',
+    characters_info: context.charactersInfo ?? '',
+    world_lore: context.worldLore ?? '',
+    pov_character: context.povCharacter ?? '',
+    setting: context.setting ?? '',
+    scene_target: context.sceneTarget ?? '',
+    logic_chain: context.logicChain ?? '',
+    emotional_arc: context.emotionalArc ?? '',
+    focus_point: context.focusPoint ?? '',
     outline_context: context.outlineContext ?? '',
   }
 

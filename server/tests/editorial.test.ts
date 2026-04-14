@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { createAllTools } from '../src/tools/index.js'
 import fs from 'fs'
+import os from 'os'
 import path from 'path'
 
 const PROMPTS_DIR = path.resolve(__dirname, '../../prompts')
@@ -60,6 +61,42 @@ describe('Editorial Templates', () => {
       expect(content).toContain('reader_role')
       expect(content).toContain('pass_status')
     }
+  })
+})
+
+describe('submit_to_editorial hard gates', () => {
+  let tmpDir: string
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'editorial-guard-'))
+    fs.mkdirSync(path.join(tmpDir, 'test-book', '04_Drafts'), { recursive: true })
+  })
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true })
+  })
+
+  it('should reject draft_text shorter than MIN_DRAFT_CHARS', async () => {
+    const registry = createAllTools()
+    const result = await registry.execute('submit_to_editorial', {
+      draft_text: '就这几十个字想蒙混过关。',
+      chapter_id: 'ch01',
+    }, { bookId: 'test-book', dataDir: tmpDir })
+    expect(result).toContain('Error')
+    expect(result).toContain('最低要求')
+  })
+
+  it('should reject when 04_Drafts/{chapterId}.md does not exist', async () => {
+    const registry = createAllTools()
+    // Long enough to pass length guard, but file is missing.
+    const longDraft = '正文'.repeat(500)
+    const result = await registry.execute('submit_to_editorial', {
+      draft_text: longDraft,
+      chapter_id: 'ch07',
+    }, { bookId: 'test-book', dataDir: tmpDir })
+    expect(result).toContain('Error')
+    expect(result).toContain('04_Drafts/ch07.md')
+    expect(result).toContain('save_draft')
   })
 })
 

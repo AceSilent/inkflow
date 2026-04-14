@@ -6,6 +6,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import fs from 'fs'
 import path from 'path'
+import { renderTemplate } from '../src/editorial/pipeline.js'
 
 const TEST_DIR = path.join(process.cwd(), '__test_editorial__')
 
@@ -23,17 +24,6 @@ beforeEach(() => {
 afterEach(() => {
   cleanDir()
 })
-
-// ── Template rendering (same logic as pipeline.ts) ──
-
-function renderTemplate(templatePath: string, vars: Record<string, string>): string {
-  let content = fs.readFileSync(templatePath, 'utf-8')
-  for (const [key, value] of Object.entries(vars)) {
-    content = content.replaceAll(`{{ ${key} }}`, value)
-    content = content.replaceAll(`{{${key}}}`, value)
-  }
-  return content
-}
 
 // ── Reviewer response parsing (same logic as pipeline.ts) ──
 
@@ -114,12 +104,43 @@ describe('Template Rendering', () => {
     expect(result).toBe('Value: 42')
   })
 
-  it('should leave unknown variables unsubstituted', () => {
+  it('should replace unknown variables with （未提供） backstop', () => {
     const tplPath = path.join(TEST_DIR, 'unknown.j2')
     fs.writeFileSync(tplPath, '{{ known }} {{ unknown }}', 'utf-8')
 
     const result = renderTemplate(tplPath, { known: 'yes' })
-    expect(result).toBe('yes {{ unknown }}')
+    expect(result).toBe('yes （未提供）')
+    expect(result).not.toContain('{{')
+  })
+
+  it('should keep {% if var %} body when var is truthy', () => {
+    const tplPath = path.join(TEST_DIR, 'if-true.j2')
+    fs.writeFileSync(tplPath, 'A{% if flag %} middle={{ flag }}{% endif %} B', 'utf-8')
+
+    const result = renderTemplate(tplPath, { flag: 'ON' })
+    expect(result).toBe('A middle=ON B')
+  })
+
+  it('should strip {% if var %} block when var is missing or empty', () => {
+    const tplPath = path.join(TEST_DIR, 'if-false.j2')
+    fs.writeFileSync(tplPath, 'A{% if flag %} middle={{ flag }}{% endif %} B', 'utf-8')
+
+    const emptyVar = renderTemplate(tplPath, { flag: '' })
+    expect(emptyVar).toBe('A B')
+
+    const missingVar = renderTemplate(tplPath, {})
+    expect(missingVar).toBe('A B')
+  })
+
+  it('should handle multiple {% if %} blocks independently', () => {
+    const tplPath = path.join(TEST_DIR, 'multi-if.j2')
+    fs.writeFileSync(
+      tplPath,
+      '{% if a %}A={{ a }}{% endif %}|{% if b %}B={{ b }}{% endif %}|{% if c %}C={{ c }}{% endif %}',
+      'utf-8'
+    )
+    const result = renderTemplate(tplPath, { a: '1', c: '3' })
+    expect(result).toBe('A=1||C=3')
   })
 })
 
