@@ -6,8 +6,8 @@
  *   PUT /api/v1/settings  — save settings to settings.json
  */
 import { type FastifyInstance } from 'fastify'
-import fs from 'fs'
 import path from 'path'
+import { safeReadJson, writeJson } from '../utils/file-io.js'
 import { saveSettingsBody } from './schemas.js'
 
 // ── Types ──
@@ -46,26 +46,18 @@ function settingsPath(dataDir: string): string {
 }
 
 export function getSettings(dataDir: string): AppSettings {
-  const p = settingsPath(dataDir)
-  if (!fs.existsSync(p)) return { ...DEFAULT_SETTINGS }
-  try {
-    const raw = JSON.parse(fs.readFileSync(p, 'utf-8'))
-    return {
-      providers: raw.providers ?? [],
-      authorModel: raw.authorModel ?? '',
-      editorModel: raw.editorModel ?? '',
-    }
-  } catch {
-    return { ...DEFAULT_SETTINGS }
+  const raw = safeReadJson<Partial<AppSettings>>(settingsPath(dataDir))
+  if (!raw) return { ...DEFAULT_SETTINGS }
+  return {
+    providers: raw.providers ?? [],
+    authorModel: raw.authorModel ?? '',
+    editorModel: raw.editorModel ?? '',
   }
 }
 
 export function saveSettings(dataDir: string, settings: AppSettings): void {
-  const p = settingsPath(dataDir)
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true })
-  }
-  fs.writeFileSync(p, JSON.stringify(settings, null, 2), 'utf-8')
+  // writeJson handles ensureDir(dirname) for us.
+  writeJson(settingsPath(dataDir), settings)
 }
 
 // ── Mask all API keys in a settings object ──

@@ -16,29 +16,12 @@ import { generateText } from 'ai'
 import { type LLMConfig, createProvider } from '../llm/provider.js'
 import { renderTemplate } from '../editorial/pipeline.js'
 import { updatePlotProgress, updateCharacterStates } from './project-memory.js'
+import { safeReadJson } from '../utils/file-io.js'
+import { findChapterById } from '../utils/outline.js'
 
 export interface ChapterSummary {
   summary: string
   character_states: Record<string, string>
-}
-
-/**
- * Walk the outline for a chapter's display label. Used to give the
- * summarizer a human-friendly title even when the agent didn't pass one.
- */
-function findChapterLabel(outline: unknown, chapterId: string): string {
-  if (!outline || typeof outline !== 'object') return ''
-  let found = ''
-  const walk = (node: any): void => {
-    if (!node || found) return
-    if (node.type === 'chapter' && node.id === chapterId) {
-      found = node.label ?? ''
-      return
-    }
-    if (Array.isArray(node.children)) node.children.forEach(walk)
-  }
-  walk(outline)
-  return found
 }
 
 /**
@@ -108,14 +91,8 @@ export async function persistChapterSummary(opts: {
 }): Promise<ChapterSummary | null> {
   const { dataDir, bookId, chapterId, draftText, llmConfig, promptsDir } = opts
   try {
-    let chapterLabel = ''
-    const outlinePath = path.join(dataDir, bookId, '02_Outlines', 'outline.json')
-    if (fs.existsSync(outlinePath)) {
-      try {
-        const outline = JSON.parse(fs.readFileSync(outlinePath, 'utf-8'))
-        chapterLabel = findChapterLabel(outline, chapterId)
-      } catch { /* outline malformed — fall back to empty label */ }
-    }
+    const outline = safeReadJson(path.join(dataDir, bookId, '02_Outlines', 'outline.json'))
+    const chapterLabel = findChapterById(outline, chapterId)?.label ?? ''
 
     const result = await summarizeChapter({
       chapterId, chapterLabel, draftText, llmConfig, promptsDir,

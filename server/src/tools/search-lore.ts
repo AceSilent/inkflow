@@ -2,25 +2,21 @@
  * SearchLore tool — searches characters/world_lore JSON files.
  */
 import { z } from 'zod'
-import fs from 'fs'
 import path from 'path'
 import { type ToolDefinition } from './base-tool.js'
+import { safeReadJson } from '../utils/file-io.js'
 
 function searchJsonFile(filePath: string, query: string, label: string): string[] {
-  if (!fs.existsSync(filePath)) return []
-  try {
-    const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'))
-    const results: string[] = []
-    const q = query.toLowerCase()
-    for (const [name, value] of Object.entries(data)) {
-      if (name.toLowerCase().includes(q) || JSON.stringify(value).toLowerCase().includes(q)) {
-        results.push(`${label}: ${name}\n${JSON.stringify(value, null, 2)}`)
-      }
+  const data = safeReadJson<Record<string, unknown>>(filePath)
+  if (!data) return []
+  const results: string[] = []
+  const q = query.toLowerCase()
+  for (const [name, value] of Object.entries(data)) {
+    if (name.toLowerCase().includes(q) || JSON.stringify(value).toLowerCase().includes(q)) {
+      results.push(`${label}: ${name}\n${JSON.stringify(value, null, 2)}`)
     }
-    return results
-  } catch {
-    return []
   }
+  return results
 }
 
 export const searchLoreTool: ToolDefinition = {

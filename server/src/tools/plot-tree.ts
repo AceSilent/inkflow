@@ -5,24 +5,18 @@
  * will be ported in a separate task. For now, tools operate on JSON files directly.
  */
 import { z } from 'zod'
-import fs from 'fs'
 import path from 'path'
 import { type ToolDefinition } from './base-tool.js'
+import { safeReadJson, writeJson } from '../utils/file-io.js'
 
 const TREE_FILE = 'plot_tree.json'
 
 function loadTree(bookDir: string): Record<string, unknown> | null {
-  const treePath = path.join(bookDir, TREE_FILE)
-  if (!fs.existsSync(treePath)) return null
-  try {
-    return JSON.parse(fs.readFileSync(treePath, 'utf-8'))
-  } catch {
-    return null
-  }
+  return safeReadJson<Record<string, unknown>>(path.join(bookDir, TREE_FILE))
 }
 
 function saveTree(bookDir: string, tree: Record<string, unknown>): void {
-  fs.writeFileSync(path.join(bookDir, TREE_FILE), JSON.stringify(tree, null, 2), 'utf-8')
+  writeJson(path.join(bookDir, TREE_FILE), tree)
 }
 
 export const readTreeTool: ToolDefinition = {

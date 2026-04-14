@@ -2,9 +2,9 @@
  * Feishu session mapping — maps Feishu user/group to a bookId.
  * Persists to books/feishu_sessions.json.
  */
-import fs from 'fs'
 import path from 'path'
 import { type FeishuSession } from './types.js'
+import { safeReadJson, writeJson } from '../utils/file-io.js'
 
 const SESSION_FILE = 'feishu_sessions.json'
 
@@ -12,28 +12,16 @@ function sessionPath(dataDir: string): string {
   return path.join(dataDir, SESSION_FILE)
 }
 
-function ensureDataDir(dataDir: string): void {
-  if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true })
-}
-
 export function loadSessions(dataDir: string): Record<string, FeishuSession> {
-  const p = sessionPath(dataDir)
-  if (!fs.existsSync(p)) return {}
-  try {
-    return JSON.parse(fs.readFileSync(p, 'utf-8'))
-  } catch {
-    return {}
-  }
+  return safeReadJson<Record<string, FeishuSession>>(sessionPath(dataDir)) ?? {}
 }
 
 function saveSessions(dataDir: string, sessions: Record<string, FeishuSession>): void {
-  ensureDataDir(dataDir)
-  fs.writeFileSync(sessionPath(dataDir), JSON.stringify(sessions, null, 2), 'utf-8')
+  writeJson(sessionPath(dataDir), sessions)
 }
 
 export function getSession(dataDir: string, key: string): FeishuSession | null {
-  const sessions = loadSessions(dataDir)
-  return sessions[key] || null
+  return loadSessions(dataDir)[key] ?? null
 }
 
 export function setSession(dataDir: string, key: string, session: FeishuSession): void {
@@ -43,8 +31,7 @@ export function setSession(dataDir: string, key: string, session: FeishuSession)
 }
 
 export function resolveBookId(dataDir: string, key: string): string | null {
-  const session = getSession(dataDir, key)
-  return session?.currentBookId || null
+  return getSession(dataDir, key)?.currentBookId ?? null
 }
 
 /**

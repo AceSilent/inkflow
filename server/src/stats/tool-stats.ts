@@ -4,9 +4,9 @@
  * Implements ToolHooks to passively count tool/skill invocations for the UI.
  * Read-modify-write per call is fine for our traffic; one process per book.
  */
-import fs from 'fs'
 import path from 'path'
 import { type ToolHooks } from '../tools/base-tool.js'
+import { safeReadJson, writeJson } from '../utils/file-io.js'
 
 export interface ToolStat {
   call_count: number
@@ -24,20 +24,11 @@ export function statsPath(dataDir: string, bookId: string): string {
 }
 
 export function loadStats(dataDir: string, bookId: string): ToolStatsMap {
-  const p = statsPath(dataDir, bookId)
-  if (!fs.existsSync(p)) return {}
-  try {
-    return JSON.parse(fs.readFileSync(p, 'utf-8')) as ToolStatsMap
-  } catch {
-    return {}
-  }
+  return safeReadJson<ToolStatsMap>(statsPath(dataDir, bookId)) ?? {}
 }
 
 function saveStats(dataDir: string, bookId: string, stats: ToolStatsMap): void {
-  const p = statsPath(dataDir, bookId)
-  const dir = path.dirname(p)
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-  fs.writeFileSync(p, JSON.stringify(stats, null, 2), 'utf-8')
+  writeJson(statsPath(dataDir, bookId), stats)
 }
 
 function emptyStat(): ToolStat {

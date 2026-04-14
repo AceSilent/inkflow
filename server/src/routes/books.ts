@@ -12,6 +12,7 @@ import { type FastifyInstance } from 'fastify'
 import fs from 'fs'
 import path from 'path'
 import { sanitizePathSegment } from '../utils/path-sanitizer.js'
+import { safeReadJson, ensureDir, writeJson } from '../utils/file-io.js'
 import { createBookBody, bookIdParam } from './schemas.js'
 
 // ── Types ──
@@ -39,32 +40,17 @@ export interface TreeNode {
 export function listBooks(dataDir: string): BookMeta[] {
   if (!fs.existsSync(dataDir)) return []
 
-  const entries = fs.readdirSync(dataDir, { withFileTypes: true })
   const books: BookMeta[] = []
-
-  for (const entry of entries) {
+  for (const entry of fs.readdirSync(dataDir, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue
-    const metaPath = path.join(dataDir, entry.name, '00_Config', 'book_meta.json')
-    if (!fs.existsSync(metaPath)) continue
-    try {
-      const raw = JSON.parse(fs.readFileSync(metaPath, 'utf-8'))
-      books.push(raw as BookMeta)
-    } catch {
-      // skip malformed
-    }
+    const meta = safeReadJson<BookMeta>(path.join(dataDir, entry.name, '00_Config', 'book_meta.json'))
+    if (meta) books.push(meta)
   }
-
   return books
 }
 
 export function getBook(dataDir: string, bookId: string): BookMeta | null {
-  const metaPath = path.join(dataDir, bookId, '00_Config', 'book_meta.json')
-  if (!fs.existsSync(metaPath)) return null
-  try {
-    return JSON.parse(fs.readFileSync(metaPath, 'utf-8')) as BookMeta
-  } catch {
-    return null
-  }
+  return safeReadJson<BookMeta>(path.join(dataDir, bookId, '00_Config', 'book_meta.json'))
 }
 
 export function createBook(dataDir: string, meta: BookMeta): BookMeta {
@@ -74,24 +60,15 @@ export function createBook(dataDir: string, meta: BookMeta): BookMeta {
     throw new Error(`Book '${meta.book_id}' already exists`)
   }
 
-  // Create directory structure
-  const dirs = [
-    path.join(bookDir, '00_Config'),
-    path.join(bookDir, '01_Global_Settings'),
-    path.join(bookDir, '02_Outlines'),
-    path.join(bookDir, 'memory'),
-  ]
-  for (const dir of dirs) {
-    fs.mkdirSync(dir, { recursive: true })
+  for (const sub of ['00_Config', '01_Global_Settings', '02_Outlines', 'memory']) {
+    ensureDir(path.join(bookDir, sub))
   }
 
-  // Write metadata
   const withTimestamp: BookMeta = {
     ...meta,
     created_at: meta.created_at || new Date().toISOString(),
   }
-  const metaPath = path.join(bookDir, '00_Config', 'book_meta.json')
-  fs.writeFileSync(metaPath, JSON.stringify(withTimestamp, null, 2), 'utf-8')
+  writeJson(path.join(bookDir, '00_Config', 'book_meta.json'), withTimestamp)
 
   return withTimestamp
 }
@@ -124,16 +101,9 @@ export function explorerTree(dataDir: string): TreeNode[] {
     const knownDraftFiles = new Set<string>()
 
     // Outline-defined chapters (canonical: outline.children → volumes → chapters)
-    const outlinePath = path.join(bookDir, '02_Outlines', 'outline.json')
-    if (fs.existsSync(outlinePath)) {
-      try {
-        const outline = JSON.parse(fs.readFileSync(outlinePath, 'utf-8'))
-        if (outline.children) {
-          for (const vol of outline.children) {
-            children.push(scanOutlineNode(vol))
-          }
-        }
-      } catch { /* ignore parse errors */ }
+    const outline = safeReadJson<{ children?: any[] }>(path.join(bookDir, '02_Outlines', 'outline.json'))
+    if (outline?.children) {
+      for (const vol of outline.children) children.push(scanOutlineNode(vol))
     }
 
     // Walk the just-built tree to learn which draft filenames are already

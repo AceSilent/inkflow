@@ -2,8 +2,8 @@
  * Project Memory — per-book, episodic, read+write during session.
  * Stores decided facts, plot progress, character states, world state.
  */
-import fs from 'fs'
 import path from 'path'
+import { safeReadJson, ensureDir, writeJson } from '../utils/file-io.js'
 
 const PROJECT_MEMORY_FILES = [
   'decided_facts.json',
@@ -13,22 +13,15 @@ const PROJECT_MEMORY_FILES = [
 ]
 
 function projectMemoryDir(dataDir: string, bookId: string): string {
-  const dir = path.join(dataDir, bookId, 'memory')
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-  return dir
+  return ensureDir(path.join(dataDir, bookId, 'memory'))
 }
 
 export function loadProjectMemory(dataDir: string, bookId: string): Record<string, unknown> {
   const memDir = projectMemoryDir(dataDir, bookId)
   const result: Record<string, unknown> = {}
   for (const fname of PROJECT_MEMORY_FILES) {
-    const fp = path.join(memDir, fname)
-    if (fs.existsSync(fp)) {
-      try {
-        const data = JSON.parse(fs.readFileSync(fp, 'utf-8'))
-        if (data) result[fname.replace('.json', '')] = data
-      } catch { /* skip corrupt */ }
-    }
+    const data = safeReadJson(path.join(memDir, fname))
+    if (data) result[fname.replace('.json', '')] = data
   }
   return result
 }
@@ -36,22 +29,16 @@ export function loadProjectMemory(dataDir: string, bookId: string): Record<strin
 export function saveProjectMemoryField(
   dataDir: string, bookId: string, field: string, data: unknown
 ): void {
-  const memDir = projectMemoryDir(dataDir, bookId)
-  const fp = path.join(memDir, `${field}.json`)
-  fs.writeFileSync(fp, JSON.stringify(data, null, 2), 'utf-8')
+  writeJson(path.join(projectMemoryDir(dataDir, bookId), `${field}.json`), data)
 }
 
 export function updateDecidedFacts(
   dataDir: string, bookId: string, facts: Record<string, string>
 ): void {
-  const memDir = projectMemoryDir(dataDir, bookId)
-  const fp = path.join(memDir, 'decided_facts.json')
-  let existing: Record<string, string> = {}
-  if (fs.existsSync(fp)) {
-    try { existing = JSON.parse(fs.readFileSync(fp, 'utf-8')) } catch { /* fresh */ }
-  }
+  const fp = path.join(projectMemoryDir(dataDir, bookId), 'decided_facts.json')
+  const existing = safeReadJson<Record<string, string>>(fp) ?? {}
   Object.assign(existing, facts)
-  fs.writeFileSync(fp, JSON.stringify(existing, null, 2), 'utf-8')
+  writeJson(fp, existing)
 }
 
 export interface PlotProgressEntry {
@@ -69,20 +56,13 @@ export interface PlotProgressEntry {
 export function updatePlotProgress(
   dataDir: string, bookId: string, chapterId: string, summary: string
 ): void {
-  const memDir = projectMemoryDir(dataDir, bookId)
-  const fp = path.join(memDir, 'plot_progress.json')
-  let progress: PlotProgressEntry[] = []
-  if (fs.existsSync(fp)) {
-    try { progress = JSON.parse(fs.readFileSync(fp, 'utf-8')) } catch { /* fresh */ }
-  }
-  const existingIdx = progress.findIndex(p => p.chapter_id === chapterId)
+  const fp = path.join(projectMemoryDir(dataDir, bookId), 'plot_progress.json')
+  const progress = safeReadJson<PlotProgressEntry[]>(fp) ?? []
   const entry: PlotProgressEntry = { chapter_id: chapterId, summary, ts: Date.now() / 1000 }
-  if (existingIdx >= 0) {
-    progress[existingIdx] = entry
-  } else {
-    progress.push(entry)
-  }
-  fs.writeFileSync(fp, JSON.stringify(progress, null, 2), 'utf-8')
+  const idx = progress.findIndex(p => p.chapter_id === chapterId)
+  if (idx >= 0) progress[idx] = entry
+  else progress.push(entry)
+  writeJson(fp, progress)
 }
 
 /**
@@ -103,25 +83,18 @@ export function updateCharacterStates(
   dataDir: string, bookId: string, chapterId: string, states: Record<string, string>
 ): void {
   if (!states || Object.keys(states).length === 0) return
-  const memDir = projectMemoryDir(dataDir, bookId)
-  const fp = path.join(memDir, 'character_states.json')
-  let store: Record<string, CharacterStateEntry[]> = {}
-  if (fs.existsSync(fp)) {
-    try { store = JSON.parse(fs.readFileSync(fp, 'utf-8')) } catch { /* fresh */ }
-  }
+  const fp = path.join(projectMemoryDir(dataDir, bookId), 'character_states.json')
+  const store = safeReadJson<Record<string, CharacterStateEntry[]>>(fp) ?? {}
   const ts = Date.now() / 1000
   for (const [name, state] of Object.entries(states)) {
     if (!state) continue
     const history = store[name] ?? []
-    const existingIdx = history.findIndex(e => e.chapter_id === chapterId)
+    const idx = history.findIndex(e => e.chapter_id === chapterId)
     const entry: CharacterStateEntry = { chapter_id: chapterId, state, ts }
-    if (existingIdx >= 0) {
-      history[existingIdx] = entry
-    } else {
-      history.push(entry)
-    }
+    if (idx >= 0) history[idx] = entry
+    else history.push(entry)
     // Cap history per character so a 100-chapter run doesn't bloat the file.
     store[name] = history.slice(-CHARACTER_STATE_HISTORY)
   }
-  fs.writeFileSync(fp, JSON.stringify(store, null, 2), 'utf-8')
+  writeJson(fp, store)
 }

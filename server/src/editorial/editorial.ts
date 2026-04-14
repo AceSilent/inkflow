@@ -15,6 +15,8 @@ import { type LLMConfig } from '../llm/provider.js'
 import { getSettings } from '../routes/settings.js'
 import { MIN_DRAFT_CHARS } from '../tools/write-tools.js'
 import { persistChapterSummary } from '../memory/chapter-summarizer.js'
+import { safeReadJson, ensureDir, writeJson } from '../utils/file-io.js'
+import { collectChapters } from '../utils/outline.js'
 
 /**
  * LLM config for editorial reviewers.
@@ -52,15 +54,6 @@ function editorialLLMConfig(dataDir: string): LLMConfig {
 }
 
 // ── Lore / outline context loaders ──
-
-function safeReadJson(filePath: string): unknown | null {
-  if (!fs.existsSync(filePath)) return null
-  try {
-    return JSON.parse(fs.readFileSync(filePath, 'utf-8'))
-  } catch {
-    return null
-  }
-}
 
 /**
  * Render the characters database into a reviewer-friendly bullet list.
@@ -102,17 +95,7 @@ function formatWorldLore(data: unknown): string {
  * reviewers the minimum narrative context they need.
  */
 function formatOutlineContext(outline: unknown, chapterId: string): string {
-  if (!outline || typeof outline !== 'object') return ''
-  const chapters: Array<{ id: string; label?: string; summary?: string }> = []
-  const walk = (node: any): void => {
-    if (!node) return
-    if (node.type === 'chapter') {
-      chapters.push({ id: node.id, label: node.label, summary: node.summary })
-    }
-    if (Array.isArray(node.children)) node.children.forEach(walk)
-  }
-  walk(outline)
-
+  const chapters = collectChapters(outline)
   const idx = chapters.findIndex(c => c.id === chapterId)
   if (idx < 0) return ''
 
@@ -179,24 +162,14 @@ export function persistReview(
   chapterId: string,
   result: EditorialResult,
 ): PersistResult {
-  const draftsDir = path.join(dataDir, bookId, '04_Drafts')
-  if (!fs.existsSync(draftsDir)) {
-    fs.mkdirSync(draftsDir, { recursive: true })
-  }
-  const reviewPath = path.join(draftsDir, `review_${chapterId}.json`)
+  const reviewPath = path.join(ensureDir(path.join(dataDir, bookId, '04_Drafts')), `review_${chapterId}.json`)
 
   // Load previous round's state for convergence tracking.
-  let prevRound = 0
-  let prevHistory: IssueHistory = {}
-  if (fs.existsSync(reviewPath)) {
-    try {
-      const prev = JSON.parse(fs.readFileSync(reviewPath, 'utf-8'))
-      if (typeof prev.revision_round === 'number') prevRound = prev.revision_round
-      if (prev.issue_history && typeof prev.issue_history === 'object') {
-        prevHistory = prev.issue_history as IssueHistory
-      }
-    } catch { /* ignore corrupt prior file */ }
-  }
+  const prev = safeReadJson<{ revision_round?: number; issue_history?: IssueHistory }>(reviewPath)
+  const prevRound = typeof prev?.revision_round === 'number' ? prev.revision_round : 0
+  const prevHistory: IssueHistory = (prev?.issue_history && typeof prev.issue_history === 'object')
+    ? prev.issue_history
+    : {}
   const revision_round = prevRound + 1
 
   // Update history: issues present this round inherit (and increment) the
@@ -217,14 +190,14 @@ export function persistReview(
     }
   }
 
-  fs.writeFileSync(reviewPath, JSON.stringify({
+  writeJson(reviewPath, {
     overall_pass: result.overall_pass,
     revision_round,
     feedbacks: result.feedbacks,
     merged_summary: result.merged_summary,
     issue_history: nextHistory,
     reviewed_at: new Date().toISOString(),
-  }, null, 2), 'utf-8')
+  })
 
   return { revision_round, persistent_issues }
 }

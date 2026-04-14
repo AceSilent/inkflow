@@ -6,6 +6,7 @@ import fs from 'fs'
 import path from 'path'
 import { type CommandContext, type CommandResult } from './types.js'
 import { setSession, getSession } from './session.js'
+import { safeReadJson, ensureDir, writeJson } from '../utils/file-io.js'
 import {
   buildHelpCard, buildBookListCard, buildBookInfoCard,
   buildOutlineCard, buildLoreCard, buildChapterListCard, buildReviewCard, buildTextCard,
@@ -20,57 +21,30 @@ function booksDir(dataDir: string): string {
 function listBooksMeta(dataDir: string): { book_id: string; title: string; genre?: string; tone?: string; target_words?: number }[] {
   const dir = booksDir(dataDir)
   if (!fs.existsSync(dir)) return []
-  return fs.readdirSync(dir)
-    .filter(name => {
-      const metaPath = path.join(dir, name, '00_Config', 'book_meta.json')
-      return fs.existsSync(metaPath)
-    })
-    .map(name => {
-      try {
-        const meta = JSON.parse(fs.readFileSync(path.join(dir, name, '00_Config', 'book_meta.json'), 'utf-8'))
-        return { book_id: name, ...meta }
-      } catch {
-        return null
-      }
-    })
-    .filter(Boolean) as any[]
+  const out: any[] = []
+  for (const name of fs.readdirSync(dir)) {
+    const meta = safeReadJson<any>(path.join(dir, name, '00_Config', 'book_meta.json'))
+    if (meta) out.push({ book_id: name, ...meta })
+  }
+  return out
 }
 
 function getBookMeta(dataDir: string, bookId: string) {
-  const p = path.join(booksDir(dataDir), bookId, '00_Config', 'book_meta.json')
-  if (!fs.existsSync(p)) return null
-  try {
-    return { book_id: bookId, ...JSON.parse(fs.readFileSync(p, 'utf-8')) }
-  } catch {
-    return null
-  }
+  const meta = safeReadJson<any>(path.join(booksDir(dataDir), bookId, '00_Config', 'book_meta.json'))
+  return meta ? { book_id: bookId, ...meta } : null
 }
 
 function readOutline(dataDir: string, bookId: string) {
-  const p = path.join(booksDir(dataDir), bookId, '02_Outlines', 'outline.json')
-  if (!fs.existsSync(p)) return null
-  try {
-    return JSON.parse(fs.readFileSync(p, 'utf-8'))
-  } catch {
-    return null
-  }
+  return safeReadJson(path.join(booksDir(dataDir), bookId, '02_Outlines', 'outline.json'))
 }
 
 function readLore(dataDir: string, bookId: string) {
-  const dir = path.join(booksDir(dataDir), bookId, '01_Global_Settings')
-  const result: Record<string, any> = {}
-  const files = [
-    { key: 'meta', path: path.join('..', '00_Config', 'book_meta.json') },
-    { key: 'world_setting', path: 'world_lore.json' },
-    { key: 'characters', path: 'characters.json' },
-  ]
-  for (const f of files) {
-    const fp = f.key === 'meta' ? path.resolve(dir, f.path) : path.join(dir, f.path)
-    if (fs.existsSync(fp)) {
-      try { result[f.key] = JSON.parse(fs.readFileSync(fp, 'utf-8')) } catch { /* skip */ }
-    }
+  const bookRoot = path.join(booksDir(dataDir), bookId)
+  return {
+    meta: safeReadJson(path.join(bookRoot, '00_Config', 'book_meta.json')),
+    world_setting: safeReadJson(path.join(bookRoot, '01_Global_Settings', 'world_lore.json')),
+    characters: safeReadJson(path.join(bookRoot, '01_Global_Settings', 'characters.json')),
   }
-  return result
 }
 
 function listChapters(dataDir: string, bookId: string) {
@@ -88,13 +62,7 @@ function listChapters(dataDir: string, bookId: string) {
 }
 
 function readReview(dataDir: string, bookId: string, chapterId: string) {
-  const p = path.join(booksDir(dataDir), bookId, '04_Drafts', `review_${chapterId}.json`)
-  if (!fs.existsSync(p)) return null
-  try {
-    return JSON.parse(fs.readFileSync(p, 'utf-8'))
-  } catch {
-    return null
-  }
+  return safeReadJson(path.join(booksDir(dataDir), bookId, '04_Drafts', `review_${chapterId}.json`))
 }
 
 function createBook(dataDir: string, title: string, genre?: string, tone?: string): { book_id: string; title: string } | null {
@@ -104,14 +72,11 @@ function createBook(dataDir: string, title: string, genre?: string, tone?: strin
   const bookDir = path.join(booksDir(dataDir), bookId)
 
   try {
-    fs.mkdirSync(path.join(bookDir, '00_Config'), { recursive: true })
-    fs.mkdirSync(path.join(bookDir, '01_Global_Settings'), { recursive: true })
-    fs.mkdirSync(path.join(bookDir, '02_Outlines'), { recursive: true })
-    fs.mkdirSync(path.join(bookDir, '04_Drafts'), { recursive: true })
-
+    for (const sub of ['00_Config', '01_Global_Settings', '02_Outlines', '04_Drafts']) {
+      ensureDir(path.join(bookDir, sub))
+    }
     const meta = { title, genre: genre || '', tone: tone || '', target_words: 100000, created_at: new Date().toISOString() }
-    fs.writeFileSync(path.join(bookDir, '00_Config', 'book_meta.json'), JSON.stringify(meta, null, 2), 'utf-8')
-
+    writeJson(path.join(bookDir, '00_Config', 'book_meta.json'), meta)
     return { book_id: bookId, title }
   } catch (e: any) {
     console.error('[feishu] createBook failed:', e.message)

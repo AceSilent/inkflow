@@ -12,6 +12,8 @@ import { type FastifyInstance } from 'fastify'
 import fs from 'fs'
 import path from 'path'
 import { sanitizePathSegment } from '../utils/path-sanitizer.js'
+import { safeReadJson, writeJson } from '../utils/file-io.js'
+import { collectChapters, findChapterById } from '../utils/outline.js'
 import { outlineBody } from './schemas.js'
 import { loadStats } from '../stats/tool-stats.js'
 
@@ -21,15 +23,8 @@ import { loadStats } from '../stats/tool-stats.js'
  * Read outline.json from 02_Outlines/. Returns a default structure if file doesn't exist.
  */
 export function readOutline(dataDir: string, bookId: string): any {
-  const outlinePath = path.join(dataDir, bookId, '02_Outlines', 'outline.json')
-  if (!fs.existsSync(outlinePath)) {
-    return { id: bookId, label: '', type: 'book', children: [] }
-  }
-  try {
-    return JSON.parse(fs.readFileSync(outlinePath, 'utf-8'))
-  } catch {
-    return { id: bookId, label: '', type: 'book', children: [] }
-  }
+  return safeReadJson(path.join(dataDir, bookId, '02_Outlines', 'outline.json'))
+    ?? { id: bookId, label: '', type: 'book', children: [] }
 }
 
 /**
@@ -40,66 +35,27 @@ export function readLore(
   bookId: string
 ): { meta: any; world_setting: any; characters: any; outline: any } {
   const bookDir = path.join(dataDir, bookId)
-
-  function readJson(filePath: string): any {
-    if (!fs.existsSync(filePath)) return null
-    try {
-      return JSON.parse(fs.readFileSync(filePath, 'utf-8'))
-    } catch {
-      return null
-    }
+  return {
+    meta: safeReadJson(path.join(bookDir, '00_Config', 'book_meta.json')),
+    world_setting: safeReadJson(path.join(bookDir, '01_Global_Settings', 'world_lore.json')),
+    characters: safeReadJson(path.join(bookDir, '01_Global_Settings', 'characters.json')),
+    outline: safeReadJson(path.join(bookDir, '02_Outlines', 'outline.json')),
   }
-
-  const meta = readJson(path.join(bookDir, '00_Config', 'book_meta.json'))
-  const world_setting = readJson(path.join(bookDir, '01_Global_Settings', 'world_lore.json'))
-  const characters = readJson(path.join(bookDir, '01_Global_Settings', 'characters.json'))
-  const outline = readJson(path.join(bookDir, '02_Outlines', 'outline.json'))
-
-  return { meta, world_setting, characters, outline }
 }
 
 /**
  * Read plot_tree.json from book root. Returns { nodes: [] } if file doesn't exist.
  */
 export function readPlotTree(dataDir: string, bookId: string): any {
-  const treePath = path.join(dataDir, bookId, 'plot_tree.json')
-  if (!fs.existsSync(treePath)) {
-    return { nodes: [] }
-  }
-  try {
-    return JSON.parse(fs.readFileSync(treePath, 'utf-8'))
-  } catch {
-    return { nodes: [] }
-  }
+  return safeReadJson(path.join(dataDir, bookId, 'plot_tree.json')) ?? { nodes: [] }
 }
 
 /**
  * Recursively walk outline tree and collect all chapter-level nodes.
  */
 export function listChapters(dataDir: string, bookId: string): any[] {
-  const outline = readOutline(dataDir, bookId)
-  const chapters: any[] = []
-
-  function walk(node: any): void {
-    if (!node) return
-    if (node.type === 'chapter') {
-      chapters.push({
-        id: node.id,
-        label: node.label,
-        type: 'chapter',
-        status: node.status,
-        summary: node.summary,
-      })
-    }
-    if (Array.isArray(node.children)) {
-      for (const child of node.children) {
-        walk(child)
-      }
-    }
-  }
-
-  walk(outline)
-  return chapters
+  return collectChapters(readOutline(dataDir, bookId))
+    .map(c => ({ id: c.id, label: c.label, type: 'chapter', status: c.status, summary: c.summary }))
 }
 
 /**
@@ -137,27 +93,8 @@ export function getChapterDetail(
     }
   }
 
-  const outline = readOutline(dataDir, bookId)
-  let chapterNode: any = null
-
-  function findChapter(node: any): void {
-    if (!node || chapterNode) return
-    if (node.id === chapterId && node.type === 'chapter') {
-      chapterNode = node
-      return
-    }
-    if (Array.isArray(node.children)) {
-      for (const child of node.children) {
-        findChapter(child)
-      }
-    }
-  }
-
-  findChapter(outline)
-
-  if (!chapterNode) {
-    return null
-  }
+  const chapterNode = findChapterById(readOutline(dataDir, bookId), chapterId)
+  if (!chapterNode) return null
 
   // Check for draft file in 04_Drafts/. Accept .md, .txt, and the historical
   // {id}_v{N} suffix pattern from earlier versions.
@@ -198,43 +135,21 @@ export function getChapterDetail(
  * Write outline.json to 02_Outlines/. Creates directory if needed.
  */
 export function writeOutline(dataDir: string, bookId: string, outline: any): void {
-  const outlinesDir = path.join(dataDir, bookId, '02_Outlines')
-  if (!fs.existsSync(outlinesDir)) {
-    fs.mkdirSync(outlinesDir, { recursive: true })
-  }
-  fs.writeFileSync(
-    path.join(outlinesDir, 'outline.json'),
-    JSON.stringify(outline, null, 2),
-    'utf-8'
-  )
+  writeJson(path.join(dataDir, bookId, '02_Outlines', 'outline.json'), outline)
 }
 
 /**
  * Read review results for a chapter. Reviews are stored as JSON in 04_Drafts/.
  */
 export function readReview(dataDir: string, bookId: string, chapterId: string): any {
-  const reviewPath = path.join(dataDir, bookId, '04_Drafts', `review_${chapterId}.json`)
-  if (!fs.existsSync(reviewPath)) return null
-  try {
-    return JSON.parse(fs.readFileSync(reviewPath, 'utf-8'))
-  } catch {
-    return null
-  }
+  return safeReadJson(path.join(dataDir, bookId, '04_Drafts', `review_${chapterId}.json`))
 }
 
 /**
  * Write review results for a chapter.
  */
 export function writeReview(dataDir: string, bookId: string, chapterId: string, review: any): void {
-  const draftsDir = path.join(dataDir, bookId, '04_Drafts')
-  if (!fs.existsSync(draftsDir)) {
-    fs.mkdirSync(draftsDir, { recursive: true })
-  }
-  fs.writeFileSync(
-    path.join(draftsDir, `review_${chapterId}.json`),
-    JSON.stringify(review, null, 2),
-    'utf-8'
-  )
+  writeJson(path.join(dataDir, bookId, '04_Drafts', `review_${chapterId}.json`), review)
 }
 
 // ── Fastify route registration ──

@@ -10,6 +10,7 @@
  */
 import fs from 'fs'
 import path from 'path'
+import { safeReadJson, writeJson } from '../utils/file-io.js'
 
 export const SNAPSHOTS_DIR = '.snapshots'
 export const MAX_SNAPSHOTS = 10
@@ -68,7 +69,7 @@ export function createSnapshot(dataDir: string, bookId: string, label: string): 
     created_at: new Date().toISOString(),
     label: label.slice(0, 200),
   }
-  fs.writeFileSync(path.join(dest, META_FILE), JSON.stringify(meta, null, 2), 'utf-8')
+  writeJson(path.join(dest, META_FILE), meta)
 
   pruneOldSnapshots(dataDir, bookId)
   return meta
@@ -81,12 +82,8 @@ export function listSnapshots(dataDir: string, bookId: string): SnapshotMeta[] {
   const out: SnapshotMeta[] = []
   for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue
-    const metaPath = path.join(root, entry.name, META_FILE)
-    if (!fs.existsSync(metaPath)) continue
-    try {
-      const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8')) as SnapshotMeta
-      out.push(meta)
-    } catch { /* corrupt meta file — skip */ }
+    const meta = safeReadJson<SnapshotMeta>(path.join(root, entry.name, META_FILE))
+    if (meta) out.push(meta)
   }
   out.sort((a, b) => b.created_at.localeCompare(a.created_at))
   return out

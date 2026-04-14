@@ -8,6 +8,7 @@ import path from 'path'
 import { type ToolDefinition } from './base-tool.js'
 import { createBackup, appendAuditLog } from './safety.js'
 import { archivePriorDraft } from './draft-history.js'
+import { ensureDir, safeReadJson } from '../utils/file-io.js'
 
 /**
  * Minimum characters a draft must contain. Rejects the "200-char shell" failure
@@ -45,8 +46,7 @@ export const saveDraftTool: ToolDefinition = {
       return 'Error: Access denied — path outside book directory.'
     }
 
-    const dir = path.dirname(target)
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+    ensureDir(path.dirname(target))
 
     // Archive the prior version into .draft_history/{chapter}/ before the
     // single .bak gets clobbered. .bak handles "oops, my last write was bad";
@@ -83,9 +83,7 @@ export const saveOutlineTool: ToolDefinition = {
   category: '写入',
   execute: async ({ outline_json }, ctx) => {
     const bookDir = path.join(ctx.dataDir, ctx.bookId)
-    const outlineDir = path.join(bookDir, '02_Outlines')
-    if (!fs.existsSync(outlineDir)) fs.mkdirSync(outlineDir, { recursive: true })
-    const outlineFile = path.join(outlineDir, 'outline.json')
+    const outlineFile = path.join(ensureDir(path.join(bookDir, '02_Outlines')), 'outline.json')
 
     let data: any
     try {
@@ -158,8 +156,7 @@ export const saveLoreTool: ToolDefinition = {
   category: '写入',
   execute: async ({ category, content_json }, ctx) => {
     const bookDir = path.join(ctx.dataDir, ctx.bookId)
-    const loreDir = path.join(bookDir, '01_Global_Settings')
-    if (!fs.existsSync(loreDir)) fs.mkdirSync(loreDir, { recursive: true })
+    const loreDir = ensureDir(path.join(bookDir, '01_Global_Settings'))
 
     // File names match what readers (routes/data.ts, tools/search-lore.ts,
     // feishu/commands.ts, editorial) already look for in 01_Global_Settings/.
@@ -199,26 +196,14 @@ export const readOutlineTool: ToolDefinition = {
   permissionLevel: 'read',
   category: '读取',
   execute: async ({ volume }, ctx) => {
-    const bookDir = path.join(ctx.dataDir, ctx.bookId)
-    const outlineFile = path.join(bookDir, '02_Outlines', 'outline.json')
+    const data = safeReadJson<any>(path.join(ctx.dataDir, ctx.bookId, '02_Outlines', 'outline.json'))
+    if (!data) return 'Error: Outline file not found or unreadable.'
 
-    if (!fs.existsSync(outlineFile)) {
-      return 'Error: Outline file not found.'
+    if (volume !== undefined) {
+      const volumes = data.volumes ?? []
+      const found = volumes.find((v: { title?: string }) => String(volume) === String(v.title ?? ''))
+      return found ? JSON.stringify(found, null, 2) : `Error: Volume ${volume} not found in outline.`
     }
-
-    try {
-      const data = JSON.parse(fs.readFileSync(outlineFile, 'utf-8'))
-      if (volume !== undefined) {
-        const volumes = data.volumes ?? []
-        const found = volumes.find((v: { title?: string }) =>
-          String(volume) === String(v.title ?? '')
-        )
-        if (found) return JSON.stringify(found, null, 2)
-        return `Error: Volume ${volume} not found in outline.`
-      }
-      return JSON.stringify(data, null, 2)
-    } catch (e) {
-      return `Error reading outline: ${e}`
-    }
+    return JSON.stringify(data, null, 2)
   },
 }
