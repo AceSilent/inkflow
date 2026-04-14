@@ -45,6 +45,32 @@ export function createBackup(filePath: string): string | null {
   return backup
 }
 
+/**
+ * Max size (bytes) before the active audit log is rotated.
+ * Past the threshold we rename `audit_log.jsonl` → `audit_log.jsonl.1`,
+ * shifting older rotations (`.1 → .2 → .3`) and dropping anything beyond
+ * AUDIT_KEEP_ROTATIONS. 5MB ≈ tens of thousands of tool calls — plenty
+ * of history, but avoids the "100-chapter book = 50MB single file" trap.
+ */
+export const AUDIT_MAX_BYTES = 5 * 1024 * 1024
+export const AUDIT_KEEP_ROTATIONS = 3
+
+function rotateAuditLog(logFile: string): void {
+  // Shift .N → .N+1 from the tail inward so we never overwrite the wrong file.
+  for (let i = AUDIT_KEEP_ROTATIONS; i >= 1; i--) {
+    const src = `${logFile}.${i}`
+    if (!fs.existsSync(src)) continue
+    if (i === AUDIT_KEEP_ROTATIONS) {
+      fs.rmSync(src, { force: true })
+    } else {
+      fs.renameSync(src, `${logFile}.${i + 1}`)
+    }
+  }
+  if (fs.existsSync(logFile)) {
+    fs.renameSync(logFile, `${logFile}.1`)
+  }
+}
+
 export function appendAuditLog(
   logFile: string,
   toolName: string,
@@ -71,5 +97,13 @@ export function appendAuditLog(
 
   const dir = path.dirname(logFile)
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+
+  // Rotate before append so the new entry always lands in a fresh file when
+  // the previous one crossed the size threshold. Stat failures (missing file)
+  // are benign — fs.statSync throws, so guard with existsSync first.
+  if (fs.existsSync(logFile) && fs.statSync(logFile).size >= AUDIT_MAX_BYTES) {
+    rotateAuditLog(logFile)
+  }
+
   fs.appendFileSync(logFile, JSON.stringify(entry) + '\n', 'utf-8')
 }
