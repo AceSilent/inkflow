@@ -1,14 +1,15 @@
 /**
- * Editorial Pipeline — 3 specialized reviewers run in parallel.
+ * Editorial Pipeline — 5 specialized reviewers run in parallel.
  *
- * Replaces scene_pipeline.py's reader/editor flow.
- * Author Agent calls submit_to_editorial -> 3 reviewers run in parallel ->
- * feedback returned to Author for self-revision.
+ * Author Agent calls submit_to_editorial -> reviewers run in parallel ->
+ * severity-weighted feedback returned to Author for self-revision.
  *
  * Reviewers:
- *   1. 设定审稿人 (Lore Keeper) — checks lore consistency
- *   2. 节奏审稿人 (Pacing Junkie) — checks rhythm and pacing
- *   3. 文风审稿人 (AI Tone Detector) — detects AI-generated tone
+ *   1. 设定审稿人 (Lore Keeper) — lore consistency vs characters.json/world_lore
+ *   2. 节奏审稿人 (Pacing Reviewer) — scene rhythm, beat density
+ *   3. 文风审稿人 (AI Tone Detector) — AI-voice smell
+ *   4. 人物审稿人 (Character Consistency) — voice / motive / emotion continuity
+ *   5. 因果审稿人 (Causality & Foreshadow) — logic chain + hook bookkeeping
  */
 import fs from 'fs'
 import path from 'path'
@@ -75,6 +76,79 @@ export interface EditorialResult {
   overall_pass: boolean
   feedbacks: EditorialFeedback[]
   merged_summary: string
+}
+
+// ── Severity-weighted pass logic ──
+
+/**
+ * Issues at this severity or above force a reviewer fail regardless of what
+ * the LLM put in `pass_status`. Prevents the "✅ but also severity-5 lore
+ * break" contradiction the reviewers sometimes emit.
+ */
+export const SEVERITY_CRITICAL = 4
+
+/**
+ * Per-reviewer ceiling on sum-of-severity across all issues. Ten low-severity
+ * issues pile up to the same "something is systemically wrong here" signal as
+ * one mid-severity one, so we fail even without any single blocker.
+ */
+export const WEIGHTED_FAIL_THRESHOLD = 8
+
+function issueSeverity(i: { severity?: number }): number {
+  const v = i.severity
+  return typeof v === 'number' && v > 0 ? v : 3
+}
+
+function reviewerMaxSeverity(fb: EditorialFeedback): number {
+  return fb.issues.reduce((max, i) => Math.max(max, issueSeverity(i)), 0)
+}
+
+function reviewerWeightedSeverity(fb: EditorialFeedback): number {
+  return fb.issues.reduce((n, i) => n + issueSeverity(i), 0)
+}
+
+/**
+ * Effective pass for one reviewer = LLM's own pass_status AND no critical
+ * issue AND weighted severity below the ceiling. The LLM is one voice; the
+ * severity data is the other, and they have to agree.
+ */
+export function reviewerEffectivePass(fb: EditorialFeedback): boolean {
+  if (!fb.pass_status) return false
+  if (reviewerMaxSeverity(fb) >= SEVERITY_CRITICAL) return false
+  if (reviewerWeightedSeverity(fb) >= WEIGHTED_FAIL_THRESHOLD) return false
+  return true
+}
+
+export function computeOverallPass(feedbacks: EditorialFeedback[]): boolean {
+  return feedbacks.every(reviewerEffectivePass)
+}
+
+/**
+ * Build the merged summary: failing reviewers first, then by max severity
+ * descending; within each failing reviewer, issues also sorted by severity.
+ * The agent sees the loudest problems at the top of its tool result.
+ */
+export function buildMergedSummary(feedbacks: EditorialFeedback[]): string {
+  const sorted = [...feedbacks].sort((a, b) => {
+    const passA = reviewerEffectivePass(a)
+    const passB = reviewerEffectivePass(b)
+    if (passA !== passB) return passA ? 1 : -1
+    return reviewerMaxSeverity(b) - reviewerMaxSeverity(a)
+  })
+  const parts: string[] = []
+  for (const fb of sorted) {
+    if (!reviewerEffectivePass(fb)) {
+      const weighted = reviewerWeightedSeverity(fb)
+      parts.push(`[${fb.reviewer}] ❌ ${fb.quick_comment}  (加权严重度 ${weighted})`)
+      const sortedIssues = [...fb.issues].sort((a, b) => issueSeverity(b) - issueSeverity(a))
+      for (const issue of sortedIssues) {
+        parts.push(`  - [${issue.type}|严重度${issueSeverity(issue)}] ${issue.fix_instruction ?? ''}`)
+      }
+    } else {
+      parts.push(`[${fb.reviewer}] ✅ ${fb.quick_comment}`)
+    }
+  }
+  return parts.join('\n')
 }
 
 // ── Template rendering (Jinja2 subset: {{ var }} + {% if var %}...{% endif %}) ──
@@ -232,32 +306,21 @@ export async function runEditorialPipeline(
     outline_context: context.outlineContext ?? '',
   }
 
-  // Run all 3 reviewers in parallel
-  const [lore, pacing, aiTone] = await Promise.all([
+  // Run all reviewers in parallel. New reviewers (character, causality) are
+  // added behind the existing three rather than replacing them so past review
+  // files (review_{id}.json) stay shape-compatible.
+  const [lore, pacing, aiTone, character, causality] = await Promise.all([
     runReviewer('editorial_lore', 'reader_scene_lore.j2', promptsDir, vars, llmConfig),
     runReviewer('editorial_pacing', 'reader_scene_pacing.j2', promptsDir, vars, llmConfig),
     runReviewer('editorial_ai_tone', 'reader_scene_ai_tone.j2', promptsDir, vars, llmConfig),
+    runReviewer('editorial_character', 'reader_scene_character.j2', promptsDir, vars, llmConfig),
+    runReviewer('editorial_causality', 'reader_scene_causality.j2', promptsDir, vars, llmConfig),
   ])
 
-  const feedbacks = [lore, pacing, aiTone]
-  const overall_pass = feedbacks.every(f => f.pass_status)
-
-  // Merge summary for Author
-  const summaryParts: string[] = []
-  for (const fb of feedbacks) {
-    if (!fb.pass_status) {
-      summaryParts.push(`[${fb.reviewer}] ❌ ${fb.quick_comment}`)
-      for (const issue of fb.issues) {
-        summaryParts.push(`  - [${issue.type}|严重度${issue.severity}] ${issue.fix_instruction ?? ''}`)
-      }
-    } else {
-      summaryParts.push(`[${fb.reviewer}] ✅ ${fb.quick_comment}`)
-    }
-  }
-
+  const feedbacks = [lore, pacing, aiTone, character, causality]
   return {
-    overall_pass,
+    overall_pass: computeOverallPass(feedbacks),
     feedbacks,
-    merged_summary: summaryParts.join('\n'),
+    merged_summary: buildMergedSummary(feedbacks),
   }
 }

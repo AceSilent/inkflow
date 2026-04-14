@@ -6,7 +6,15 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import fs from 'fs'
 import path from 'path'
-import { renderTemplate } from '../src/editorial/pipeline.js'
+import {
+  renderTemplate,
+  computeOverallPass,
+  buildMergedSummary,
+  reviewerEffectivePass,
+  SEVERITY_CRITICAL,
+  WEIGHTED_FAIL_THRESHOLD,
+  type EditorialFeedback,
+} from '../src/editorial/pipeline.js'
 
 const TEST_DIR = path.join(process.cwd(), '__test_editorial__')
 
@@ -55,28 +63,13 @@ function parseReviewerResponse(text: string, reviewerName: string): {
   }
 }
 
-// ── Merge summary (same logic as pipeline.ts) ──
-
-function mergeSummary(
-  feedbacks: Array<{
-    reviewer: string
-    pass_status: boolean
-    issues: Array<{ type: string; severity: number; fix_instruction?: string }>
-    quick_comment: string
-  }>
-): string {
-  const parts: string[] = []
-  for (const fb of feedbacks) {
-    if (!fb.pass_status) {
-      parts.push(`[${fb.reviewer}] ❌ ${fb.quick_comment}`)
-      for (const issue of fb.issues) {
-        parts.push(`  - [${issue.type}|严重度${issue.severity}] ${issue.fix_instruction ?? ''}`)
-      }
-    } else {
-      parts.push(`[${fb.reviewer}] ✅ ${fb.quick_comment}`)
-    }
-  }
-  return parts.join('\n')
+function fb(
+  reviewer: string,
+  pass_status: boolean,
+  issues: EditorialFeedback['issues'] = [],
+  quick_comment = '',
+): EditorialFeedback {
+  return { reviewer, pass_status, issues, quick_comment }
 }
 
 describe('Template Rendering', () => {
@@ -229,81 +222,117 @@ describe('Reviewer Response Parsing', () => {
   })
 })
 
-describe('Merge Summary', () => {
+describe('Merged Summary (severity-sorted)', () => {
   it('should show check marks for passing reviewers', () => {
-    const feedbacks = [
-      { reviewer: 'lore', pass_status: true, issues: [], quick_comment: 'OK' },
-      { reviewer: 'pacing', pass_status: true, issues: [], quick_comment: 'Good' },
-    ]
-    const summary = mergeSummary(feedbacks)
+    const summary = buildMergedSummary([
+      fb('lore', true, [], 'OK'),
+      fb('pacing', true, [], 'Good'),
+    ])
     expect(summary).toContain('✅')
     expect(summary).not.toContain('❌')
   })
 
-  it('should show X marks for failing reviewers with issue details', () => {
-    const feedbacks = [
-      {
-        reviewer: 'lore',
-        pass_status: false,
-        issues: [{ type: 'Lore_Break', severity: 4, fix_instruction: 'Fix character name' }],
-        quick_comment: 'Inconsistency found',
-      },
-    ]
-    const summary = mergeSummary(feedbacks)
+  it('should show failing reviewer with issue details and weighted severity tag', () => {
+    const summary = buildMergedSummary([
+      fb('lore', false,
+        [{ type: 'Lore_Break', severity: 4, fix_instruction: 'Fix character name' }],
+        'Inconsistency found'),
+    ])
     expect(summary).toContain('❌')
     expect(summary).toContain('Inconsistency found')
     expect(summary).toContain('Lore_Break')
     expect(summary).toContain('严重度4')
     expect(summary).toContain('Fix character name')
+    expect(summary).toContain('加权严重度 4')
   })
 
-  it('should mix passing and failing reviewers', () => {
-    const feedbacks = [
-      { reviewer: 'lore', pass_status: true, issues: [], quick_comment: 'OK' },
-      {
-        reviewer: 'pacing',
-        pass_status: false,
-        issues: [{ type: 'Slow', severity: 2, fix_instruction: 'Add tension' }],
-        quick_comment: 'Too slow',
-      },
-      { reviewer: 'ai_tone', pass_status: true, issues: [], quick_comment: 'Fine' },
-    ]
-    const summary = mergeSummary(feedbacks)
-    expect(summary).toContain('✅')
-    expect(summary).toContain('❌')
-    expect(summary).toContain('[lore] ✅ OK')
-    expect(summary).toContain('[pacing] ❌ Too slow')
+  it('should put failing reviewers before passing ones', () => {
+    const summary = buildMergedSummary([
+      fb('lore', true, [], 'OK'),
+      fb('pacing', false, [{ type: 'Slow', severity: 2, fix_instruction: 'Add tension' }], 'Too slow'),
+      fb('ai_tone', true, [], 'Fine'),
+    ])
+    // Failing reviewer's section must precede both passing reviewers in the output.
+    const pacingIdx = summary.indexOf('[pacing]')
+    const loreIdx = summary.indexOf('[lore]')
+    const toneIdx = summary.indexOf('[ai_tone]')
+    expect(pacingIdx).toBeGreaterThanOrEqual(0)
+    expect(pacingIdx).toBeLessThan(loreIdx)
+    expect(pacingIdx).toBeLessThan(toneIdx)
+  })
+
+  it('should sort failing reviewers by max severity desc', () => {
+    const summary = buildMergedSummary([
+      fb('minor', false, [{ type: 'X', severity: 2 }], 'Nit'),
+      fb('major', false, [{ type: 'Y', severity: 5 }], 'Crash'),
+    ])
+    expect(summary.indexOf('[major]')).toBeLessThan(summary.indexOf('[minor]'))
+  })
+
+  it('should sort issues within a failing reviewer by severity desc', () => {
+    const summary = buildMergedSummary([
+      fb('lore', false, [
+        { type: 'Tiny', severity: 1, fix_instruction: 'small' },
+        { type: 'Huge', severity: 5, fix_instruction: 'fatal' },
+        { type: 'Med', severity: 3, fix_instruction: 'medium' },
+      ], 'Bad'),
+    ])
+    expect(summary.indexOf('Huge')).toBeLessThan(summary.indexOf('Med'))
+    expect(summary.indexOf('Med')).toBeLessThan(summary.indexOf('Tiny'))
   })
 })
 
-describe('Editorial Result Overall Pass', () => {
-  it('should pass when all reviewers pass', () => {
-    const feedbacks = [
-      { reviewer: 'lore', pass_status: true, issues: [], quick_comment: 'OK' },
-      { reviewer: 'pacing', pass_status: true, issues: [], quick_comment: 'OK' },
-      { reviewer: 'ai_tone', pass_status: true, issues: [], quick_comment: 'OK' },
-    ]
-    const overall = feedbacks.every(f => f.pass_status)
-    expect(overall).toBe(true)
+describe('Severity-weighted overall pass', () => {
+  it('should pass when all reviewers pass with no issues', () => {
+    expect(computeOverallPass([
+      fb('lore', true), fb('pacing', true), fb('ai_tone', true),
+    ])).toBe(true)
   })
 
-  it('should fail when any reviewer fails', () => {
-    const feedbacks = [
-      { reviewer: 'lore', pass_status: true, issues: [], quick_comment: 'OK' },
-      { reviewer: 'pacing', pass_status: false, issues: [], quick_comment: 'Bad' },
-      { reviewer: 'ai_tone', pass_status: true, issues: [], quick_comment: 'OK' },
-    ]
-    const overall = feedbacks.every(f => f.pass_status)
-    expect(overall).toBe(false)
+  it('should fail when a reviewer has a critical-severity issue even if pass_status=true', () => {
+    // LLM said ✅ but emitted a severity-5 issue → forced fail.
+    const contradicting = fb('lore', true,
+      [{ type: 'Timeline_Conflict', severity: SEVERITY_CRITICAL + 1 }], 'mostly fine')
+    expect(reviewerEffectivePass(contradicting)).toBe(false)
+    expect(computeOverallPass([
+      contradicting, fb('pacing', true), fb('ai_tone', true),
+    ])).toBe(false)
   })
 
-  it('should fail when all reviewers fail', () => {
-    const feedbacks = [
-      { reviewer: 'lore', pass_status: false, issues: [], quick_comment: 'Bad' },
-      { reviewer: 'pacing', pass_status: false, issues: [], quick_comment: 'Bad' },
-      { reviewer: 'ai_tone', pass_status: false, issues: [], quick_comment: 'Bad' },
-    ]
-    const overall = feedbacks.every(f => f.pass_status)
-    expect(overall).toBe(false)
+  it('should fail when weighted severity meets threshold even without a blocker', () => {
+    // Four sev-2 issues = weighted 8, at the threshold → fail.
+    const noisy = fb('pacing', true, [
+      { type: 'A', severity: 2 }, { type: 'B', severity: 2 },
+      { type: 'C', severity: 2 }, { type: 'D', severity: 2 },
+    ], 'many little things')
+    expect(reviewerWeightedSeverityThresholdHit(noisy)).toBe(true)
+    expect(reviewerEffectivePass(noisy)).toBe(false)
+  })
+
+  it('should pass when weighted severity stays below threshold and no blocker', () => {
+    const mild = fb('pacing', true, [
+      { type: 'A', severity: 2 }, { type: 'B', severity: 3 },
+    ], 'two small notes')
+    expect(reviewerEffectivePass(mild)).toBe(true)
+    expect(computeOverallPass([mild, fb('lore', true), fb('ai_tone', true)])).toBe(true)
+  })
+
+  it('should respect an LLM pass_status=false even with no issues (trusts the reviewer)', () => {
+    const gutFail = fb('ai_tone', false, [], '整体味道不对')
+    expect(reviewerEffectivePass(gutFail)).toBe(false)
+  })
+
+  it('should treat missing severity as 3 (mid)', () => {
+    const noSev = fb('lore', true, [
+      { type: 'X' } as any, { type: 'Y' } as any, { type: 'Z' } as any,
+    ], 'no severity field')
+    // Three defaults of 3 = 9, over WEIGHTED_FAIL_THRESHOLD (8) → fail.
+    expect(WEIGHTED_FAIL_THRESHOLD).toBe(8)
+    expect(reviewerEffectivePass(noSev)).toBe(false)
   })
 })
+
+function reviewerWeightedSeverityThresholdHit(f: EditorialFeedback): boolean {
+  const sum = f.issues.reduce((n, i) => n + (i.severity ?? 3), 0)
+  return sum >= WEIGHTED_FAIL_THRESHOLD
+}
