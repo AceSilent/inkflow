@@ -66,16 +66,86 @@ export function buildMemoryContext(dataDir: string, bookId: string): string {
 
   if (project.plot_progress) {
     const progress = project.plot_progress as Array<{ chapter_id: string; summary: string }>
-    const recent = progress.slice(-5)
-    const progText = recent.map(p => `- ${p.chapter_id}: ${(p.summary ?? '').slice(0, 100)}`).join('\n')
-    parts.push(`[项目记忆·剧情进展]\n${progText}`)
+    parts.push(`[项目记忆·剧情进展]\n${formatPlotProgressTiered(progress)}`)
   }
 
   if (project.character_states) {
-    const chars = project.character_states
-    const charText = JSON.stringify(chars).slice(0, 500)
-    parts.push(`[项目记忆·角色状态]\n${charText}`)
+    parts.push(`[项目记忆·角色状态]\n${formatCharacterStatesTiered(
+      project.character_states as Record<string, Array<{ chapter_id: string; state: string }>>,
+    )}`)
   }
 
   return parts.join('\n\n')
+}
+
+// ── Tiered formatters ──
+// 50+ chapter books: dumping every entry blows the prompt budget. Tier the
+// output so recent stuff is full-fidelity and older stuff degrades to one
+// line each. Earliest stuff ages out entirely.
+
+const RECENT_FULL_CHAPTERS = 5     // last N: full summary
+const OLDER_COMPACT_CHAPTERS = 15  // before that: one-line trail
+const RECENT_CHAR_STATES = 3       // per-character: last N state lines in full
+
+export function formatPlotProgressTiered(
+  progress: Array<{ chapter_id: string; summary: string }>,
+): string {
+  if (progress.length === 0) return '(暂无章节摘要)'
+  const lines: string[] = []
+
+  // Compute non-overlapping windows. The naive slice(-N) approach overlaps
+  // older/recent when total < RECENT_FULL_CHAPTERS, so we clamp explicitly.
+  const recentCount = Math.min(progress.length, RECENT_FULL_CHAPTERS)
+  const recent = progress.slice(progress.length - recentCount)
+  const olderEnd = progress.length - recentCount
+  const olderStart = Math.max(0, olderEnd - OLDER_COMPACT_CHAPTERS)
+  const older = progress.slice(olderStart, olderEnd)
+
+  if (older.length > 0) {
+    lines.push(`(更早 ${older.length} 章简写)`)
+    for (const p of older) {
+      // Single-line trail: chapter id + first ~40 chars of summary.
+      const trail = (p.summary ?? '').replace(/\s+/g, ' ').slice(0, 40)
+      lines.push(`  · ${p.chapter_id}: ${trail}${(p.summary ?? '').length > 40 ? '…' : ''}`)
+    }
+  }
+
+  if (recent.length > 0) {
+    lines.push(`(最近 ${recent.length} 章全摘要)`)
+    for (const p of recent) {
+      lines.push(`- ${p.chapter_id}: ${(p.summary ?? '').slice(0, 200)}`)
+    }
+  }
+
+  // Earliest chapters past the OLDER_COMPACT_CHAPTERS window are dropped
+  // entirely from this tier; they live in the on-disk plot_progress.json
+  // for archival but don't reach the prompt.
+  const dropped = progress.length - older.length - recent.length
+  if (dropped > 0) {
+    lines.unshift(`(最早 ${dropped} 章已超出注入窗口，仅保留在 plot_progress.json)`)
+  }
+
+  return lines.join('\n')
+}
+
+export function formatCharacterStatesTiered(
+  states: Record<string, Array<{ chapter_id: string; state: string }>>,
+): string {
+  const names = Object.keys(states)
+  if (names.length === 0) return '(暂无角色状态)'
+  const lines: string[] = []
+  for (const name of names) {
+    const history = states[name] ?? []
+    if (history.length === 0) continue
+    const recent = history.slice(-RECENT_CHAR_STATES)
+    if (recent.length === 1) {
+      lines.push(`- ${name} [${recent[0].chapter_id}]: ${recent[0].state}`)
+    } else {
+      lines.push(`- ${name}:`)
+      for (const e of recent) {
+        lines.push(`    [${e.chapter_id}] ${e.state}`)
+      }
+    }
+  }
+  return lines.join('\n')
 }
