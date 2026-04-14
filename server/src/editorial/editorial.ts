@@ -14,6 +14,7 @@ import { runEditorialPipeline, type EditorialResult, type EditorialContext } fro
 import { type LLMConfig } from '../llm/provider.js'
 import { getSettings } from '../routes/settings.js'
 import { MIN_DRAFT_CHARS } from '../tools/write-tools.js'
+import { persistChapterSummary } from '../memory/chapter-summarizer.js'
 
 /**
  * LLM config for editorial reviewers.
@@ -300,6 +301,23 @@ export const submitToEditorialTool: ToolDefinition = {
       let persist: PersistResult | null = null
       if (chapter_id && ctx.bookId && ctx.dataDir) {
         persist = persistReview(ctx.dataDir, ctx.bookId, chapter_id, result)
+      }
+
+      // Once a chapter clears the editorial gate, fold its summary +
+      // character states into project memory so future chapters get the
+      // continuity context. We await this (rather than fire-and-forget) so
+      // the agent's next call already sees the updated memory — the slight
+      // latency is worth deterministic memory state. Failure is logged but
+      // does not break the editorial result; chapter is still "passed".
+      if (result.overall_pass && chapter_id && ctx.bookId && ctx.dataDir) {
+        await persistChapterSummary({
+          dataDir: ctx.dataDir,
+          bookId: ctx.bookId,
+          chapterId: chapter_id,
+          draftText: draft_text,
+          llmConfig,
+          promptsDir,
+        })
       }
 
       // Inline tool result for Author — strip `thinking` from each feedback to
