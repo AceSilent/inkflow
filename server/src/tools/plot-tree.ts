@@ -32,6 +32,7 @@ export const readTreeTool: ToolDefinition = {
     node_id: z.string().optional().describe('节点ID（可选，不传则返回全部摘要）'),
   }),
   permissionLevel: 'read',
+  category: '剧情树',
   execute: async ({ node_id }, ctx) => {
     const bookDir = path.join(ctx.dataDir, ctx.bookId)
     const tree = loadTree(bookDir)
@@ -60,6 +61,7 @@ export const addPlotNodeTool: ToolDefinition = {
     characters: z.string().optional().describe('涉及角色（逗号分隔）'),
   }),
   permissionLevel: 'write',
+  category: '剧情树',
   execute: async ({ parent, node_type, title, description, characters }, ctx) => {
     const bookDir = path.join(ctx.dataDir, ctx.bookId)
     let tree = loadTree(bookDir) ?? { book_id: ctx.bookId, nodes: {}, root_id: 'root' }
@@ -92,6 +94,7 @@ export const confirmPathTool: ToolDefinition = {
     node_id: z.string().describe('要确认的节点ID'),
   }),
   permissionLevel: 'write',
+  category: '剧情树',
   execute: async ({ node_id }, ctx) => {
     const bookDir = path.join(ctx.dataDir, ctx.bookId)
     const tree = loadTree(bookDir)
@@ -112,6 +115,7 @@ export const pruneBranchTool: ToolDefinition = {
     reason: z.string().optional().describe('剪枝原因'),
   }),
   permissionLevel: 'write',
+  category: '剧情树',
   execute: async ({ node_id, reason }, ctx) => {
     const bookDir = path.join(ctx.dataDir, ctx.bookId)
     const tree = loadTree(bookDir)
@@ -133,6 +137,7 @@ export const mergeBranchesTool: ToolDefinition = {
     convergence_title: z.string().describe('汇合节点标题'),
   }),
   permissionLevel: 'write',
+  category: '剧情树',
   execute: async ({ branch_ids, convergence_title }, ctx) => {
     const bookDir = path.join(ctx.dataDir, ctx.bookId)
     const tree = loadTree(bookDir)

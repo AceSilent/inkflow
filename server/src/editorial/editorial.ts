@@ -251,6 +251,7 @@ export const submitToEditorialTool: ToolDefinition = {
     focus_point: z.string().optional().describe('本场景重点描写对象，可留空'),
   }),
   permissionLevel: 'read',
+  category: '编辑部',
   execute: async ({
     draft_text, chapter_id, book_tone, book_genre,
     pov_character, setting, scene_target, logic_chain, emotional_arc, focus_point,

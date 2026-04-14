@@ -30,6 +30,7 @@ export const searchLoreTool: ToolDefinition = {
     query: z.string().describe('搜索关键词'),
   }),
   permissionLevel: 'read',
+  category: '读取',
   execute: async ({ query }, ctx) => {
     const bookDir = path.join(ctx.dataDir, ctx.bookId)
     const loreDir = path.join(bookDir, '01_Global_Settings')

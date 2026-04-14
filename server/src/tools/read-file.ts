@@ -15,6 +15,7 @@ export const readFileTool: ToolDefinition = {
     relative_path: z.string().describe('相对于书籍目录的文件路径'),
   }),
   permissionLevel: 'read',
+  category: '读取',
   execute: async ({ relative_path }, ctx) => {
     const bookDir = path.join(ctx.dataDir, ctx.bookId)
     const target = path.resolve(bookDir, relative_path)

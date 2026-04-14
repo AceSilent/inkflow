@@ -77,6 +77,7 @@ export const loadSkillTool: ToolDefinition = {
     skill_name: z.string().describe("skill 名称，例如 'iceberg_writing'、'exemplar_study'。必须存在于 list_skills 的输出中。"),
   }),
   permissionLevel: 'read',
+  category: '技能',
   execute: async ({ skill_name }) => loadSkillContent(skill_name),
 }
 
@@ -85,6 +86,7 @@ export const listSkillsTool: ToolDefinition = {
   description: '列出所有可用的写作 skill，按分类显示。',
   parameters: z.object({}),
   permissionLevel: 'read',
+  category: '技能',
   execute: async () => {
     const skills = discoverSkills()
     const groups: Record<string, SkillMeta[]> = {}

@@ -9,6 +9,19 @@ import { tool, asSchema } from 'ai'
 
 export type PermissionLevel = 'read' | 'write' | 'destructive'
 
+/**
+ * UI/prompt category a tool belongs to. Each tool self-declares this so
+ * getToolSummary() can group tools without a hard-coded name → category map
+ * that has to be maintained in lockstep with the registration list.
+ */
+export type ToolCategory = '读取' | '写入' | '剧情树' | '终端' | '技能' | '编辑部' | '其他'
+
+/**
+ * Fixed display order for tool categories in getToolSummary(). Kept separate
+ * from ToolCategory so adding a new category is a one-line change here.
+ */
+export const TOOL_CATEGORY_ORDER: ToolCategory[] = ['读取', '写入', '剧情树', '终端', '技能', '编辑部', '其他']
+
 export interface ToolContext {
   bookId: string
   dataDir: string
@@ -21,6 +34,8 @@ export interface ToolDefinition<T extends z.ZodType = z.ZodType> {
   description: string
   parameters: T
   permissionLevel: PermissionLevel
+  /** UI grouping for getToolSummary(). Defaults to '其他' if unset. */
+  category?: ToolCategory
   isTerminal?: boolean
   // Args are validated at runtime by Vercel AI SDK via the Zod schema.
   // Using `any` because z.infer<z.ZodType> resolves to `unknown` in Zod v4,
@@ -164,36 +179,32 @@ export class ToolRegistry {
     return result
   }
 
-  /** Build a tool summary string for prompt injection. */
+  /**
+   * Build a tool summary string for prompt injection. Groups tools by their
+   * self-declared `category`. No static map — adding a tool only requires
+   * setting `category` in the tool definition itself.
+   */
   getToolSummary(): string {
-    const categories: Record<string, string[]> = {
-      '读取': [],
-      '写入': [],
-      '剧情树': [],
-      '终端': [],
-      '技能': [],
-      '编辑部': [],
-    }
-    const categoryMap: Record<string, string> = {
-      read_file: '读取', search_lore: '读取', read_outline: '读取',
-      save_draft: '写入', save_outline: '写入', save_lore: '写入',
-      read_tree: '剧情树', add_plot_node: '剧情树', confirm_path: '剧情树',
-      prune_branch: '剧情树', merge_branches: '剧情树',
-      submit_for_review: '终端', present_options: '终端', request_guidance: '终端',
-      load_skill: '技能', list_skills: '技能',
-      submit_to_editorial: '编辑部',
+    const groups = new Map<ToolCategory, string[]>()
+    for (const def of this.tools.values()) {
+      const cat = (def.category ?? '其他') as ToolCategory
+      const list = groups.get(cat) ?? []
+      list.push(def.name)
+      groups.set(cat, list)
     }
 
-    for (const name of this.tools.keys()) {
-      const cat = categoryMap[name] ?? '其他'
-      if (!categories[cat]) categories[cat] = []
-      categories[cat].push(name)
+    const lines: string[] = []
+    for (const cat of TOOL_CATEGORY_ORDER) {
+      const list = groups.get(cat)
+      if (list && list.length > 0) lines.push(`${cat}: ${list.join(', ')}`)
     }
-
-    return Object.entries(categories)
-      .filter(([, tools]) => tools.length > 0)
-      .map(([cat, tools]) => `${cat}: ${tools.join(', ')}`)
-      .join('\n')
+    // Any category the tool author invented beyond the ordered list still
+    // shows up, just after the known categories.
+    for (const [cat, list] of groups) {
+      if (TOOL_CATEGORY_ORDER.includes(cat)) continue
+      lines.push(`${cat}: ${list.join(', ')}`)
+    }
+    return lines.join('\n')
   }
 
   listNames(): string[] {

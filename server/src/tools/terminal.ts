@@ -12,6 +12,7 @@ export const submitForReviewTool: ToolDefinition = {
   }),
   permissionLevel: 'write',
   isTerminal: true,
+  category: '终端',
   execute: async ({ draft_text }) => {
     return `TERMINAL:SUBMIT_FOR_REVIEW\nDraft submitted (${draft_text.length} chars)`
   },
@@ -26,6 +27,7 @@ export const presentOptionsTool: ToolDefinition = {
   }),
   permissionLevel: 'read',
   isTerminal: true,
+  category: '终端',
   execute: async ({ description, options }) => {
     return `TERMINAL:PRESENT_OPTIONS\n${description}\n\n${options}`
   },
@@ -40,6 +42,7 @@ export const requestGuidanceTool: ToolDefinition = {
   }),
   permissionLevel: 'read',
   isTerminal: true,
+  category: '终端',
   execute: async ({ question, context }) => {
     const ctx = context ? `\nContext: ${context}` : ''
     return `TERMINAL:REQUEST_GUIDANCE\n${question}${ctx}`

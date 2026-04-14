@@ -7,6 +7,7 @@ import fs from 'fs'
 import path from 'path'
 import { type ToolDefinition } from './base-tool.js'
 import { createBackup, appendAuditLog } from './safety.js'
+import { archivePriorDraft } from './draft-history.js'
 
 /**
  * Minimum characters a draft must contain. Rejects the "200-char shell" failure
@@ -26,6 +27,7 @@ export const saveDraftTool: ToolDefinition = {
     content: z.string().describe('要保存的章节正文'),
   }),
   permissionLevel: 'write',
+  category: '写入',
   execute: async ({ file_path, content }, ctx) => {
     // Short-shell guard: fail fast before backup/write/audit.
     if (content.length < MIN_DRAFT_CHARS) {
@@ -46,6 +48,11 @@ export const saveDraftTool: ToolDefinition = {
     const dir = path.dirname(target)
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
 
+    // Archive the prior version into .draft_history/{chapter}/ before the
+    // single .bak gets clobbered. .bak handles "oops, my last write was bad";
+    // .draft_history/ handles "I rewrote ch01 five times, give me version 3
+    // back." Both cheap, both worth keeping.
+    archivePriorDraft(bookDir, target)
     createBackup(target)
     fs.writeFileSync(target, content, 'utf-8')
 
@@ -73,6 +80,7 @@ export const saveOutlineTool: ToolDefinition = {
     outline_json: z.string().describe('大纲 JSON 字符串，必须是规范章节树（见 description）'),
   }),
   permissionLevel: 'write',
+  category: '写入',
   execute: async ({ outline_json }, ctx) => {
     const bookDir = path.join(ctx.dataDir, ctx.bookId)
     const outlineDir = path.join(bookDir, '02_Outlines')
@@ -147,6 +155,7 @@ export const saveLoreTool: ToolDefinition = {
     content_json: z.string().describe('设定数据的 JSON 字符串'),
   }),
   permissionLevel: 'write',
+  category: '写入',
   execute: async ({ category, content_json }, ctx) => {
     const bookDir = path.join(ctx.dataDir, ctx.bookId)
     const loreDir = path.join(bookDir, '01_Global_Settings')
@@ -188,6 +197,7 @@ export const readOutlineTool: ToolDefinition = {
     volume: z.number().optional().describe('卷号（可选）'),
   }),
   permissionLevel: 'read',
+  category: '读取',
   execute: async ({ volume }, ctx) => {
     const bookDir = path.join(ctx.dataDir, ctx.bookId)
     const outlineFile = path.join(bookDir, '02_Outlines', 'outline.json')
