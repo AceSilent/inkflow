@@ -199,7 +199,6 @@ describe('saveSettingsBody', () => {
       providers: [validProvider],
       authorModel: 'test/model-1',
       editorModel: 'test/model-1',
-      readerModel: 'test/model-1',
     }
     expect(saveSettingsBody.parse(body)).toEqual(body)
   })
@@ -209,7 +208,6 @@ describe('saveSettingsBody', () => {
       providers: [],
       authorModel: '',
       editorModel: '',
-      readerModel: '',
     })).not.toThrow()
   })
 
@@ -218,7 +216,6 @@ describe('saveSettingsBody', () => {
       providers: Array(11).fill(validProvider),
       authorModel: '',
       editorModel: '',
-      readerModel: '',
     })).toThrow()
   })
 
@@ -227,7 +224,6 @@ describe('saveSettingsBody', () => {
       providers: [{ id: '', name: 'Bad' }],
       authorModel: '',
       editorModel: '',
-      readerModel: '',
     })).toThrow()
   })
 })

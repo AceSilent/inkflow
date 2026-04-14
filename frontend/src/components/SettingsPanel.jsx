@@ -131,17 +131,11 @@ export function SettingsPanel({ addToast, theme, toggleTheme }) {
           onChange={v => setSettings({ ...settings, authorModel: v })}
           providers={settings.providers} 
         />
-        <ModelSelector 
-          label={t('settings.editorModel') || 'Editor Model'} 
-          value={settings.editorModel} 
+        <ModelSelector
+          label={t('settings.editorModel') || 'Editor Model'}
+          value={settings.editorModel}
           onChange={v => setSettings({ ...settings, editorModel: v })}
-          providers={settings.providers} 
-        />
-        <ModelSelector 
-          label={t('settings.readerModel') || 'Reader Model'} 
-          value={settings.readerModel} 
-          onChange={v => setSettings({ ...settings, readerModel: v })}
-          providers={settings.providers} 
+          providers={settings.providers}
         />
       </Section>
 

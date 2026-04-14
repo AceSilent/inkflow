@@ -43,7 +43,6 @@ describe('Settings Zod Validation', () => {
       providers: [validProvider],
       authorModel: 'deepseek/deepseek-chat',
       editorModel: 'deepseek/deepseek-chat',
-      readerModel: 'deepseek/deepseek-chat',
     }
     const result = saveSettingsBody.safeParse(body)
     expect(result.success).toBe(true)
@@ -54,7 +53,6 @@ describe('Settings Zod Validation', () => {
       providers: [],
       authorModel: '',
       editorModel: '',
-      readerModel: '',
     }
     const result = saveSettingsBody.safeParse(body)
     expect(result.success).toBe(true)
@@ -65,7 +63,6 @@ describe('Settings Zod Validation', () => {
       providers: Array(11).fill(validProvider),
       authorModel: '',
       editorModel: '',
-      readerModel: '',
     }
     const result = saveSettingsBody.safeParse(body)
     expect(result.success).toBe(false)
@@ -76,7 +73,6 @@ describe('Settings Zod Validation', () => {
       providers: [{ name: 'Test', baseUrl: 'https://test.com', apiKey: '', models: [] }],
       authorModel: '',
       editorModel: '',
-      readerModel: '',
     }
     const result = saveSettingsBody.safeParse(body)
     expect(result.success).toBe(false)
@@ -87,7 +83,6 @@ describe('Settings Zod Validation', () => {
       providers: [{ id: 't', name: 'T', baseUrl: 'not-a-url', apiKey: '', models: [] }],
       authorModel: '',
       editorModel: '',
-      readerModel: '',
     }
     const result = saveSettingsBody.safeParse(body)
     expect(result.success).toBe(false)
@@ -98,7 +93,6 @@ describe('Settings Zod Validation', () => {
       providers: [{ ...validProvider, models: Array(51).fill('model') }],
       authorModel: '',
       editorModel: '',
-      readerModel: '',
     }
     const result = saveSettingsBody.safeParse(body)
     expect(result.success).toBe(false)
@@ -109,7 +103,6 @@ describe('Settings Zod Validation', () => {
       providers: [{ id: '', name: 'X' }],
       authorModel: '',
       editorModel: '',
-      readerModel: '',
     }
     const result = saveSettingsBody.safeParse(body)
     expect(result.success).toBe(false)
@@ -132,7 +125,6 @@ describe('Settings Save/Load with Validated Data', () => {
       }],
       authorModel: 'test-provider/model-a',
       editorModel: 'test-provider/model-b',
-      readerModel: 'test-provider/model-a',
     }
 
     saveSettings(TEST_DIR, settings)
@@ -172,7 +164,6 @@ describe('Settings Edge Cases', () => {
       providers: [],
       authorModel: '',
       editorModel: '',
-      readerModel: '',
     })
 
     expect(fs.existsSync(path.join(newDir, 'settings.json'))).toBe(true)

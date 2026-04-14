@@ -33,7 +33,6 @@ describe('Settings route helpers', () => {
     expect(settings.providers).toEqual([])
     expect(settings.authorModel).toBe('')
     expect(settings.editorModel).toBe('')
-    expect(settings.readerModel).toBe('')
   })
 
   it('should save and load settings roundtrip', () => {
@@ -49,7 +48,6 @@ describe('Settings route helpers', () => {
       providers: [provider],
       authorModel: 'deepseek-chat',
       editorModel: 'deepseek-reasoner',
-      readerModel: 'deepseek-chat',
     }
 
     saveSettings(TEST_DIR, original)
@@ -63,7 +61,6 @@ describe('Settings route helpers', () => {
     expect(loaded.providers[0].models).toEqual(['deepseek-chat', 'deepseek-reasoner'])
     expect(loaded.authorModel).toBe('deepseek-chat')
     expect(loaded.editorModel).toBe('deepseek-reasoner')
-    expect(loaded.readerModel).toBe('deepseek-chat')
   })
 
   it('should mask API keys in GET response', () => {

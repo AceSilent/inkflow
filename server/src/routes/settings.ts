@@ -24,14 +24,12 @@ export interface AppSettings {
   providers: ProviderConfig[]
   authorModel: string
   editorModel: string
-  readerModel: string
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
   providers: [],
   authorModel: '',
   editorModel: '',
-  readerModel: '',
 }
 
 // ── Key masking ──
@@ -56,7 +54,6 @@ export function getSettings(dataDir: string): AppSettings {
       providers: raw.providers ?? [],
       authorModel: raw.authorModel ?? '',
       editorModel: raw.editorModel ?? '',
-      readerModel: raw.readerModel ?? '',
     }
   } catch {
     return { ...DEFAULT_SETTINGS }

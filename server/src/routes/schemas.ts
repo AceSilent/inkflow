@@ -38,7 +38,6 @@ export const saveSettingsBody = z.object({
   providers: z.array(providerSchema).max(10),
   authorModel: z.string().max(200),
   editorModel: z.string().max(200),
-  readerModel: z.string().max(200),
 })
 
 // ── Data schemas ──
