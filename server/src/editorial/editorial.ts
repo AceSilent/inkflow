@@ -205,7 +205,7 @@ export function persistReview(
 export const submitToEditorialTool: ToolDefinition = {
   name: 'submit_to_editorial',
   description: [
-    '将草稿提交给编辑部进行专项审核。3个审稿人（设定、节奏、文风）并行评审。',
+    '将草稿提交给编辑部进行专项审核。5个审稿人（设定、节奏、文风、角色、因果）并行评审。',
     '审核结果包含各审稿人的pass/fail状态、具体问题列表和修改指令。',
     '审核结果自动保存到 04_Drafts/review_{chapterId}.json。',
     '收到反馈后，你应该根据反馈自主修改草稿。',

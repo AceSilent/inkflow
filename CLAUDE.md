@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-AutoNovel-Studio is an AI-powered novel generation system using a **single-agent architecture**: one Author Agent (powered by LLM) operates autonomously with a toolbox of 17 tools via Vercel AI SDK's `streamText({ maxSteps: 20 })`. When quality review is needed, the Agent invokes `submit_to_editorial` which triggers 3 parallel specialized reviewers (lore/pacing/AI-tone) and auto-persists results. The system is migrated from Python to TypeScript with **207 tests** across 18 test files.
+AutoNovel-Studio is an AI-powered novel generation system using a **single-agent architecture**: one Author Agent (powered by LLM) operates autonomously with a toolbox of 17 tools via Vercel AI SDK's `streamText({ maxSteps: 20 })`. When quality review is needed, the Agent invokes `submit_to_editorial` which triggers 5 parallel specialized reviewers (lore/pacing/AI-tone/character/causality) and auto-persists results. The system is migrated from Python to TypeScript with **207 tests** across 18 test files.
 
 ## Commands
 
@@ -65,11 +65,13 @@ Path alias: `@/*` → `./src/*` (configured in both `tsconfig.json` and `vitest.
 
 ### Editorial Pipeline (`server/src/editorial/`)
 
-`editorial.ts` defines the `submit_to_editorial` tool. `pipeline.ts` runs 3 parallel reviewers via `Promise.all`:
+`editorial.ts` defines the `submit_to_editorial` tool. `pipeline.ts` runs 5 parallel reviewers via `Promise.all`:
 
 1. **设定审稿** (`reader_scene_lore.j2`) — lore consistency
 2. **节奏审稿** (`reader_scene_pacing.j2`) — rhythm and pacing
 3. **文风审稿** (`reader_scene_ai_tone.j2`) — AI tone detection
+4. **角色审稿** (`reader_scene_character.j2`) — character consistency
+5. **因果审稿** (`reader_scene_causality.j2`) — causality and foreshadowing
 
 No Editor arbitration layer — Author receives raw feedback and self-revises. Uses a separate `EDITORIAL_MODEL` (can be cheaper). Results auto-persist to `04_Drafts/review_{chapterId}.json`.
 
