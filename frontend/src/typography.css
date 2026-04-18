@@ -1,0 +1,83 @@
+/* Signature typography primitives · Literary Journal aesthetic
+ * Spec: docs/superpowers/specs/2026-04-18-design-system.md
+ */
+
+/* ── Drop cap: apply to a <p> element whose first letter should sink ── */
+.drop-cap::first-letter {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 34px;
+  float: left;
+  margin-right: 4px;
+  line-height: 0.9;
+  color: var(--accent);
+  text-indent: 0;
+}
+
+/* ── Vertical rail label: small-caps, vertical orientation ── */
+.rail-label {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  font-family: var(--font-label);
+  font-variant: small-caps;
+  font-size: var(--fs-label);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+/* ── Epigraph: italic quote block with left hairline ── */
+.epigraph {
+  font-style: italic;
+  font-size: var(--fs-small);
+  color: var(--ink-secondary);
+  border-left: 1px solid var(--border-strong);
+  padding-left: 8px;
+  margin-bottom: 12px;
+}
+
+/* ── Hairline: horizontal 1px divider ── */
+.hairline {
+  border: 0;
+  border-top: 1px solid var(--border-strong);
+  margin: 12px 0;
+}
+
+/* ── Wordmark brand: Fraunces italic with soft first letter ── */
+.wordmark {
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-style: italic;
+  font-size: var(--fs-heading);
+  letter-spacing: -0.02em;
+}
+.wordmark::first-letter {
+  font-size: 22px;
+  font-variation-settings: "SOFT" 100;
+}
+
+/* ── Small-caps label for UI (status bar, chapter numbers) ── */
+.label-sc {
+  font-family: var(--font-label);
+  font-variant: small-caps;
+  font-size: var(--fs-label);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+/* ── Display headings ── */
+.display-hero {
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: var(--fs-hero);
+  font-variation-settings: "opsz" 144;
+  margin: 0 0 4px;
+}
+.display-heading {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--fs-display);
+  font-style: italic;
+  margin: 0;
+}
