@@ -105,6 +105,17 @@ Markdown layer alongside existing JSON:
 - Recall: `buildMarkdownMemoryContext` in `recall.ts`. Dump-all with confidence sort + scope budget (project 50% / global 30% / session 20%), char budget 3000.
 - Existing 8 JSON memory files untouched (hot path for editorial reviewers).
 
+### Context Manager (`server/src/context/*.ts`)
+
+Fine-grained 3-tier retention replacing the old `.slice(-20)` hard cut in `chat-history.ts`:
+
+- **Budget tiers** (green 0-30% / yellow 30-60% / orange 60-80% / red 80%+) computed from `usage.total_tokens / getModelContextWindow(model)`. Window auto-detected for GLM-5 (1M), DeepSeek V3 (200K), Claude [1m] suffix, etc.
+- **Token-weighted zones**: Hot (last 20k tok, never touched) / Warm (next 40k tok, large tool-result payloads decayed) / Cold (rest, eligible for summary compact)
+- **Tool-result decay** (primary mechanism, cheap, cache-friendly): `read_file` > 10k chars / `read_outline` > 5k / `read_graph` > 8k / `search_lore` > 4k in warm zone → replaced with `[tool: ..., re-fetch if needed]`. `submit_to_editorial`, `save_*` results preserved always.
+- **Cold-segment compact** (fallback): fork EDITORIAL_MODEL summary call with PTL fallback (head-strip retry up to 3 times) + circuit breaker (stops after 3 consecutive failures; reset via Settings). Summary persists to Memory v2 `session_summaries/*.md`.
+- **Modes**: `auto` / `decay_only` / `disabled` via Settings.
+- **Observability**: frontend status bar + `context_log.jsonl` per book + debug endpoint `/api/v1/books/:bookId/debug/context-state`.
+
 ### Design System (`frontend/src/design-tokens.css` + `typography.css`)
 
 "Literary Journal" aesthetic with two themes (Light: cream paper + ink + oxide-red accents; Dark: espresso + parchment + brick red + gold "Library Espresso"). All colors and fonts defined as CSS variables in `design-tokens.css`. Signature components (`.drop-cap`, `.rail-label`, `.epigraph`, `.wordmark`, `.label-sc`, `.display-hero`, `.display-heading`) in `typography.css`. Fonts: Fraunces (display) + Noto Serif SC (body), preloaded from Google Fonts in `index.html`. `useTheme` defaults to light. See `docs/superpowers/specs/2026-04-18-design-system.md` and `docs/superpowers/plans/2026-04-18-design-system.md`.
@@ -117,6 +128,10 @@ Fastify is configured with `ignoreTrailingSlash: true`. All POST/PUT bodies vali
 - `GET /api/v1/author-chat/:bookId/history` — load chat history
 - `DELETE /api/v1/author-chat/:bookId/history` — clear history
 - `POST /api/v1/author-chat/:bookId/send` — SSE stream (events: `status`, `content`, `tool_start`, `tool_done`, `done`, `error`, `aborted`). Client disconnect detected via `request.socket.on('close')` with `streamDone` guard to avoid false aborts from POST body consumption.
+
+**context (in author-chat.ts)** — Context manager endpoints:
+- `GET /api/v1/books/:bookId/debug/context-state` — current tier + last decision
+- `POST /api/v1/books/:bookId/context/reset-breaker` — manual breaker reset
 
 **books.ts** — Book CRUD:
 - `GET /api/v1/books` — list all books
@@ -218,6 +233,7 @@ books/{book_id}/
 - **Error types**: use custom `AgentError` hierarchy from `server/src/utils/errors.ts`
 - **User approval override**: `chapter_status_{chId}.json.user_decision` takes precedence over `review_{chId}.json.overall_pass` in the `review-prev-chapter` hook
 - **Workbench lock**: while `workbench_lock_{chId}` exists (and is fresh < 10min), Agent's `save_draft` for that chapter is blocked by the `block-while-user-editing` hook
+- **chat-history full-load**: `loadHistoryFull` (replacing `.slice(-20)` `loadHistory`) is the source of truth. Trimming is done by ContextManager's zone-based logic, not by history load.
 
 ## Configuration
 
