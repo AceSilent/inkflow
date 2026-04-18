@@ -1,7 +1,7 @@
 // Shell component (Task 10) + Milkdown editor + Ctrl+S save (Task 11).
 // Remaining placeholders (batch actions) are wired in Task 17.
 /* eslint-disable no-unused-vars */
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { Loader, Check, RefreshCw, Send } from 'lucide-react'
 import { useI18n } from '../hooks/useI18n'
 import { useWorkbenchSSE } from '../hooks/useWorkbenchSSE'
@@ -10,6 +10,7 @@ import { MilkdownEditor } from './workbench/MilkdownEditor'
 import { CommentFeed } from './workbench/CommentFeed'
 import { AnnotationPopover } from './workbench/AnnotationPopover'
 import { DiffModal } from './workbench/DiffModal'
+import { ApprovalConfirmModal } from './workbench/ApprovalConfirmModal'
 
 export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, dataVersion }) {
   const { t } = useI18n()
@@ -26,6 +27,17 @@ export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, da
   // diff modal. `recentAgentEdit = { rev, oldText }`.
   const [recentAgentEdit, setRecentAgentEdit] = useState(null)
   const [diffOpen, setDiffOpen] = useState(false)
+  // Task 17 — approval confirm modal visibility (prompts when there are still
+  // open annotations at the moment the user clicks "用户通过").
+  const [approvalOpen, setApprovalOpen] = useState(false)
+
+  // Task 17 — memoized count of still-open user annotations. Drives the
+  // "发送 N 条批注" button label + disabled state, and whether the approval
+  // modal opens or we can approve directly.
+  const openAnnotationCount = useMemo(
+    () => annotations.filter(a => a.status === 'open').length,
+    [annotations]
+  )
   // Ref mirror of `content` — the SSE callback captures a stale closure
   // otherwise; the ref gives us the latest value without re-subscribing.
   const contentRef = useRef('')
@@ -77,6 +89,109 @@ export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, da
       addToast?.('保存失败', 'error')
     }
   }, [dirty, content, bookId, chapterId, addToast])
+
+  // Task 17 — Approve-chapter mutation. Shared by the direct-approve path
+  // (zero open annotations) and the modal-confirm path. Defined before
+  // handleApproveClick so the latter can reference it without a TDZ.
+  const doApprove = useCallback(async () => {
+    try {
+      const r = await fetch(`/api/v1/books/${bookId}/chapters/${chapterId}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_decision: 'approved' }),
+      })
+      if (!r.ok) throw new Error('status update failed')
+      const data = await r.json()
+      setStatus(data)
+      setApprovalOpen(false)
+      addToast?.('章节已通过', 'success')
+    } catch (e) {
+      addToast?.(`保存失败：${e.message}`, 'error')
+    }
+  }, [bookId, chapterId, addToast])
+
+  // Task 17 — batch-send open annotations to the Author Agent. Two-step flow:
+  //   (1) POST /send-annotations → server composes a prompt + marks the chosen
+  //       annotations as `sent` with a shared batch_id, returns { prompt }.
+  //   (2) POST /author-chat/:bookId/send with that prompt (SSE stream). We
+  //       read the stream with a `reader.read()` loop and break when we see
+  //       the `event: done` sentinel in the decoded buffer (no explicit
+  //       timeout — relies on the server closing the stream).
+  // When the stream closes we reload draft/annotations/status in parallel and
+  // flip `locked` off. On any error we still release the lock.
+  const handleSendBatch = useCallback(async () => {
+    const openIds = annotations.filter(a => a.status === 'open').map(a => a.id)
+    if (openIds.length === 0) return
+    try {
+      const prep = await fetch(`/api/v1/books/${bookId}/chapters/${chapterId}/send-annotations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ annotation_ids: openIds }),
+      }).then(r => r.json())
+      if (!prep.prompt) throw new Error('no prompt')
+      setLocked(true)
+      const esResp = await fetch(`/api/v1/author-chat/${bookId}/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+        body: JSON.stringify({ message: prep.prompt }),
+      })
+      // Consume SSE stream; minimal parser — scan the decoded buffer for the
+      // `event: done` line and break out. We don't need to parse individual
+      // events here because the final reload re-fetches everything fresh.
+      const reader = esResp.body.getReader()
+      const dec = new TextDecoder()
+      let buf = ''
+      while (true) {
+        const { value, done } = await reader.read()
+        if (done) break
+        buf += dec.decode(value, { stream: true })
+        if (buf.includes('event: done')) break
+      }
+      const [dR, aR, stR] = await Promise.all([
+        fetch(`/api/v1/books/${bookId}/chapters/${chapterId}`).then(r => r.json()),
+        fetch(`/api/v1/books/${bookId}/chapters/${chapterId}/annotations`).then(r => r.json()),
+        fetch(`/api/v1/books/${bookId}/chapters/${chapterId}/status`).then(r => r.json()),
+      ])
+      setContent(dR?.content ?? '')
+      setAnnotations(aR)
+      setStatus(stR)
+      setLocked(false)
+      addToast?.('Agent 已处理批注', 'success')
+    } catch (e) {
+      setLocked(false)
+      addToast?.(`发送失败：${e.message}`, 'error')
+    }
+  }, [annotations, bookId, chapterId, addToast])
+
+  // Task 17 — re-run the 5-reviewer editorial pipeline against the currently
+  // saved draft (no Agent invocation). Locks the UI for the duration so the
+  // user can't double-submit; always unlocks in `finally`.
+  const handleResubmit = useCallback(async () => {
+    setLocked(true)
+    try {
+      const r = await fetch(`/api/v1/books/${bookId}/chapters/${chapterId}/resubmit-review`, {
+        method: 'POST',
+      })
+      if (!r.ok) throw new Error('resubmit failed')
+      const result = await r.json()
+      setReview(result)
+      addToast?.('审稿已刷新', 'success')
+    } catch (e) {
+      addToast?.(`再送审失败：${e.message}`, 'error')
+    } finally {
+      setLocked(false)
+    }
+  }, [bookId, chapterId, addToast])
+
+  // Task 17 — approve-button click handler. Gates through the confirm modal
+  // only when there are still-open annotations; otherwise approves directly.
+  const handleApproveClick = useCallback(() => {
+    if (openAnnotationCount > 0) {
+      setApprovalOpen(true)
+    } else {
+      doApprove()
+    }
+  }, [openAnnotationCount, doApprove])
 
   useEffect(() => {
     function onKey(e) {
@@ -168,10 +283,21 @@ export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, da
             {locked && <span className="workbench-writing-badge"><Loader size={12} className="anim-spin" /> Agent 写作中</span>}
           </div>
           <div className="workbench-actions">
-            {/* Placeholder buttons — wired in Task 17 */}
-            <button className="btn btn-sm"><Send size={12} /> 发送批注</button>
-            <button className="btn btn-sm"><RefreshCw size={12} /> 再次送审</button>
-            <button className="btn btn-sm"><Check size={12} /> 用户通过</button>
+            {/* Task 17 — wired handlers. The send button disables when there
+                are no open annotations or the chapter is locked by the Agent. */}
+            <button
+              className="btn btn-sm"
+              disabled={openAnnotationCount === 0 || locked}
+              onClick={handleSendBatch}
+            >
+              <Send size={12} /> 📤 {openAnnotationCount > 0 ? `发送 ${openAnnotationCount} 条批注` : '无批注'}
+            </button>
+            <button className="btn btn-sm" disabled={locked} onClick={handleResubmit}>
+              <RefreshCw size={12} /> 再次送审
+            </button>
+            <button className="btn btn-sm" disabled={locked} onClick={handleApproveClick}>
+              <Check size={12} /> {status.user_decision === 'approved' ? '已通过' : '用户通过'}
+            </button>
           </div>
         </div>
 
@@ -189,6 +315,14 @@ export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, da
           oldText={recentAgentEdit?.oldText}
           newText={content}
           onClose={() => setDiffOpen(false)}
+        />
+        {/* Task 17 — gate "用户通过" through a confirm dialog whenever there
+            are still-open annotations. Dismiss closes without mutation. */}
+        <ApprovalConfirmModal
+          open={approvalOpen}
+          unresolvedCount={openAnnotationCount}
+          onCancel={() => setApprovalOpen(false)}
+          onConfirm={doApprove}
         />
 
         {/* Editor — Milkdown wrapper (Task 11). key remounts on chapter switch.
@@ -242,14 +376,57 @@ export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, da
         <CommentFeed
           review={review}
           annotations={annotations}
-          onJump={(_quote) => { /* TODO Task 13 */ }}
-          onAdopt={(_item) => { /* TODO Task 13 */ }}
-          onIgnore={(_id) => { /* TODO Task 13 */ }}
+          // Best-effort "jump to quote in rendered chapter" — uses the non-
+          // standard but widely-supported window.find(). Swallows any error
+          // quietly; if the browser blocks it the user just sees no scroll.
+          onJump={(quote) => {
+            if (!quote) return
+            try { window.find?.(quote) } catch { /* quiet */ }
+          }}
+          // Adopt a reviewer-issue into a persisted user annotation so it
+          // joins the batch-send queue. anchor_start/end = 0 mirrors the
+          // AnnotationPopover MVP (markdown source offsets are out-of-scope).
+          onAdopt={async (item) => {
+            const body = {
+              quote: item.quote ?? '',
+              anchor_start: 0,
+              anchor_end: 0,
+              comment: item.text,
+              source: 'adopted_review',
+              source_reviewer: item.reviewer,
+            }
+            const r = await fetch(`/api/v1/books/${bookId}/chapters/${chapterId}/annotations`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(body),
+            })
+            if (r.ok) {
+              const created = await r.json()
+              setAnnotations(prev => [...prev, created])
+              addToast?.('已采纳为批注', 'success')
+            }
+          }}
+          // Review issues live in review_{chId}.json which is Agent-owned — we
+          // don't persist an "ignored" state. Filter locally so the card just
+          // disappears from the feed for this session. The composite id lets
+          // us key it uniquely against the memoized feed items.
+          onIgnore={(id) => {
+            setReview(prev => {
+              if (!prev?.feedbacks) return prev
+              const feedbacks = prev.feedbacks.map(fb => ({
+                ...fb,
+                issues: (fb.issues ?? []).filter(iss =>
+                  `${fb.reviewer}:${iss.quote ?? ''}:${iss.fix_instruction ?? ''}` !== id
+                ),
+              }))
+              return { ...prev, feedbacks }
+            })
+          }}
           onDelete={async (annId) => {
             await fetch(`/api/v1/books/${bookId}/chapters/${chapterId}/annotations/${annId}`, { method: 'DELETE' })
             setAnnotations(prev => prev.filter(a => a.id !== annId))
           }}
-          onSendBatch={() => { /* TODO Task 17 */ }}
+          onSendBatch={handleSendBatch}
         />
       </aside>
     </div>
