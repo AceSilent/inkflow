@@ -6,7 +6,16 @@ import { ToolRegistry } from './base-tool.js'
 import { readFileTool } from './read-file.js'
 import { searchLoreTool } from './search-lore.js'
 import { saveDraftTool, saveOutlineTool, saveLoreTool, readOutlineTool } from './write-tools.js'
-import { readTreeTool, addPlotNodeTool, confirmPathTool, pruneBranchTool, mergeBranchesTool } from './plot-tree.js'
+import {
+  readGraphTool,
+  addPlotNodeTool,
+  addEdgeTool,
+  removeEdgeTool,
+  queryUnresolvedSetupsTool,
+  confirmPathTool,
+  pruneBranchTool,
+  mergeBranchesTool,
+} from './plot-graph.js'
 import { submitForReviewTool, presentOptionsTool, requestGuidanceTool } from './terminal.js'
 import { loadSkillTool, listSkillsTool } from './skills.js'
 import { submitToEditorialTool } from '../editorial/editorial.js'
@@ -24,9 +33,12 @@ export function createAllTools(): ToolRegistry {
   registry.register(saveOutlineTool)
   registry.register(saveLoreTool)
 
-  // Plot tree tools
-  registry.register(readTreeTool)
+  // Plot graph tools
+  registry.register(readGraphTool)
   registry.register(addPlotNodeTool)
+  registry.register(addEdgeTool)
+  registry.register(removeEdgeTool)
+  registry.register(queryUnresolvedSetupsTool)
   registry.register(confirmPathTool)
   registry.register(pruneBranchTool)
   registry.register(mergeBranchesTool)

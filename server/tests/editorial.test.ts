@@ -15,10 +15,10 @@ describe('Editorial Tool Registration', () => {
     expect(tool!.permissionLevel).toBe('read')
   })
 
-  it('should have 16 total tools registered', () => {
+  it('should have 20 total tools registered', () => {
     const registry = createAllTools()
     const names = registry.listNames()
-    expect(names.length).toBe(17)
+    expect(names.length).toBe(20)
     expect(names).toContain('submit_to_editorial')
     expect(names).toContain('load_skill')
     expect(names).toContain('list_skills')

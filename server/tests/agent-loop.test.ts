@@ -50,15 +50,15 @@ describe('Tool Registry Summary', () => {
     expect(summary).toContain('read_file')
     expect(summary).toContain('写入:')
     expect(summary).toContain('save_draft')
-    expect(summary).toContain('剧情树:')
-    expect(summary).toContain('read_tree')
+    expect(summary).toContain('剧情图:')
+    expect(summary).toContain('read_graph')
     expect(summary).toContain('编辑部:')
     expect(summary).toContain('submit_to_editorial')
   })
 
-  it('should list all 17 tools in summary', () => {
+  it('should list all 20 tools in summary', () => {
     const registry = createAllTools()
     const names = registry.listNames()
-    expect(names).toHaveLength(17)
+    expect(names).toHaveLength(20)
   })
 })

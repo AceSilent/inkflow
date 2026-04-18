@@ -10,7 +10,7 @@ describe('Tool Registration', () => {
     expect(registry.listNames().length).toBeGreaterThanOrEqual(13)
     expect(registry.get('read_file')).toBeDefined()
     expect(registry.get('save_draft')).toBeDefined()
-    expect(registry.get('read_tree')).toBeDefined()
+    expect(registry.get('read_graph')).toBeDefined()
     expect(registry.get('submit_for_review')).toBeDefined()
     expect(registry.get('present_options')).toBeDefined()
   })
@@ -193,7 +193,7 @@ describe('Write Tools', () => {
   })
 })
 
-describe('PlotTree Tools', () => {
+describe('PlotGraph Tools', () => {
   let tmpDir: string
 
   beforeEach(() => {
@@ -205,29 +205,29 @@ describe('PlotTree Tools', () => {
     fs.rmSync(tmpDir, { recursive: true })
   })
 
-  it('read_tree should return empty message when no tree', async () => {
+  it('read_graph should return empty message when no graph', async () => {
     const registry = createAllTools()
-    const result = await registry.execute('read_tree', {}, { bookId: 'test-book', dataDir: tmpDir })
-    expect(result).toContain('No plot tree')
+    const result = await registry.execute('read_graph', {}, { bookId: 'test-book', dataDir: tmpDir })
+    expect(result).toContain('No plot graph')
   })
 
-  it('add_plot_node should create tree and node', async () => {
+  it('add_plot_node should create graph and node', async () => {
     const registry = createAllTools()
     const result = await registry.execute('add_plot_node', {
-      parent: 'root', node_type: 'arc', title: '第一卷', description: '起始篇',
+      node_type: 'event', title: '起点事件', description: '起始篇',
     }, { bookId: 'test-book', dataDir: tmpDir })
     expect(result).toContain('Node created')
-    expect(result).toContain('第一卷')
+    expect(result).toContain('起点事件')
 
-    // Tree file should exist now
-    expect(fs.existsSync(path.join(tmpDir, 'test-book', 'plot_tree.json'))).toBe(true)
+    // Graph file should exist now
+    expect(fs.existsSync(path.join(tmpDir, 'test-book', 'plot_graph.json'))).toBe(true)
   })
 
   it('confirm_path should update node status', async () => {
     const registry = createAllTools()
     // First create a node
     const addResult = await registry.execute('add_plot_node', {
-      parent: 'root', node_type: 'chapter', title: '第一章',
+      node_type: 'turning_point', title: '第一转折',
     }, { bookId: 'test-book', dataDir: tmpDir })
     const nodeId = addResult.match(/Node created: (\S+)/)?.[1] ?? ''
     expect(nodeId).toBeTruthy()
