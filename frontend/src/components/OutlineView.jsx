@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import { useState, useEffect, useCallback } from 'react'
 import { Loader, Check, FileText, RefreshCw, GripVertical } from 'lucide-react'
 import {
@@ -130,6 +131,7 @@ export function OutlineView({ currentBook, addToast, onChapterOpen, dataVersion 
   const [loading, setLoading] = useState(Boolean(currentBook))
   const [reorderMode, setReorderMode] = useState(false)
   const [renumberOpen, setRenumberOpen] = useState(false)
+  const [locked, setLocked] = useState(false)
 
   // Hooks can't go inside JSX callbacks — sensors must be created at top level
   const sensors = useSensors(
@@ -268,6 +270,12 @@ export function OutlineView({ currentBook, addToast, onChapterOpen, dataVersion 
 
   return (
     <div className="outline-view">
+      {locked && (
+        <div className="outline-locked-overlay">
+          <Loader size={32} className="anim-spin" />
+          <div className="label-sc" style={{ marginTop: 10 }}>Author 正在修改大纲...</div>
+        </div>
+      )}
       <div className="outline-topbar">
         <div className="label-sc" style={{ color: 'var(--accent)' }}>— Outline —</div>
         <div className="outline-actions">

@@ -779,3 +779,14 @@ button { font-family: var(--font-body); cursor: pointer; }
 }
 .editable-input:focus { border-color: var(--accent); }
 textarea.editable-input { resize: vertical; font-family: var(--font-body); }
+
+/* ─── Outline Locked Overlay (Task 9) ─────────────────────────────── */
+.outline-locked-overlay {
+  position: absolute; inset: 0;
+  background: rgba(244, 237, 224, 0.7);
+  display: flex; flex-direction: column;
+  justify-content: center; align-items: center;
+  z-index: 10;
+}
+[data-theme="dark"] .outline-locked-overlay { background: rgba(31, 23, 18, 0.7); }
+.outline-view { position: relative; }
