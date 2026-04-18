@@ -1,0 +1,96 @@
+/* Design tokens · Literary Journal aesthetic
+ * Spec: docs/superpowers/specs/2026-04-18-design-system.md
+ * Light theme is the default. data-theme="dark" activates Library Espresso.
+ */
+
+:root {
+  /* ── Palette (Light: cream paper + ink) ── */
+  --bg: #f4ede0;
+  --bg-elevated: #faf5ea;
+  --bg-subtle: #ebe3d3;
+  --ink: #1a1411;
+  --ink-secondary: #6a5a4d;
+  --ink-muted: #9a8e7f;
+  --accent: #8a2e1a;
+  --accent-soft: rgba(138, 46, 26, 0.08);
+  --border-strong: #1a1411;
+  --border-subtle: rgba(26, 20, 17, 0.18);
+  --success: #2d5a3d;
+  --warning: #a06820;
+  --danger: #8a2e1a;
+
+  /* ── 5-reviewer palette (Light) ── */
+  --reviewer-lore: #a04820;
+  --reviewer-pacing: #3a6890;
+  --reviewer-ai-tone: #6a4890;
+  --reviewer-character: #4a7848;
+  --reviewer-causality: #8a5028;
+  --reviewer-user: #2d5a3d;
+
+  /* ── Typography ── */
+  --font-display: "Fraunces", "Noto Serif SC", Georgia, serif;
+  --font-body: "Noto Serif SC", "Fraunces", Georgia, serif;
+  --font-label: "Fraunces", serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+
+  /* ── Font sizes ── */
+  --fs-hero: 34px;
+  --fs-display: 22px;
+  --fs-heading: 16px;
+  --fs-body: 13px;
+  --fs-small: 11px;
+  --fs-label: 9px;
+}
+
+[data-theme="dark"] {
+  /* ── Palette (Dark: Library Espresso) ── */
+  --bg: #1f1712;
+  --bg-elevated: #2a1f18;
+  --bg-subtle: #2f241c;
+  --ink: #e6d5b8;
+  --ink-secondary: #8a7a64;
+  --ink-muted: #6a5a4a;
+  --accent: #b04a30;
+  --accent-soft: rgba(176, 74, 48, 0.15);
+  --gold: #d4a444;
+  --border-strong: rgba(230, 213, 184, 0.35);
+  --border-subtle: rgba(230, 213, 184, 0.15);
+  --success: #6a9670;
+  --warning: #d4a444;
+  --danger: #c85c3c;
+
+  /* ── 5-reviewer palette (Dark) ── */
+  --reviewer-lore: #d4823c;
+  --reviewer-pacing: #70a0d0;
+  --reviewer-ai-tone: #a080d0;
+  --reviewer-character: #80b080;
+  --reviewer-causality: #d09050;
+  --reviewer-user: #6a9670;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  line-height: 1.7;
+  position: relative;
+}
+
+/* Paper texture (Light) */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle at 20% 30%, rgba(138, 46, 26, 0.03) 0%, transparent 40%),
+    radial-gradient(circle at 80% 70%, rgba(26, 20, 17, 0.04) 0%, transparent 40%);
+}
+
+/* Grain texture (Dark) */
+body[data-theme="dark"]::before {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence baseFrequency='0.9'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  opacity: 0.025;
+}
