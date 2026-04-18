@@ -90,7 +90,7 @@ export default function App() {
           onChapterOpen={(ch) => handleSceneSelect({ type: 'chapter', id: ch.id, label: ch.label })}
         />;
       case 'memory-library': return <MemoryLibrary addToast={addToast} />;
-      case 'settings': return <SettingsPanel addToast={addToast} theme={theme} toggleTheme={toggleTheme} />;
+      case 'settings': return <SettingsPanel addToast={addToast} theme={theme} toggleTheme={toggleTheme} currentBook={currentBook} />;
       default:
         if (activeTab.startsWith('chapter-') && activeChapter) {
           return <ChapterWorkbench bookId={currentBook?.book_id} chapterId={activeChapter.id} chapterLabel={activeChapter.label} addToast={addToast} dataVersion={dataVersion} />;

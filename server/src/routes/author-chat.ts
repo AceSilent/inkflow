@@ -21,7 +21,7 @@ import { composeHooks, type ToolHooks } from '../tools/base-tool.js'
 import { createSnapshot } from '../snapshots/snapshots.js'
 import { processContext, type ContextMode } from '../context/decision.js'
 import { createSessionState, updateSessionStateAfterToolCall } from '../context/session-state.js'
-import { loadBreakerState } from '../context/circuit-breaker.js'
+import { loadBreakerState, resetBreaker } from '../context/circuit-breaker.js'
 import { getModelContextWindow, evaluateBudgetTier } from '../context/model-window.js'
 
 /**
@@ -136,6 +136,26 @@ export async function authorChatRoutes(app: FastifyInstance) {
           breaker_tripped: breakerState.tripped,
           last_decision: lastDecision,
         }
+      } catch (err: any) {
+        reply.code(400)
+        return { error: err.message }
+      }
+    }
+  )
+
+  // POST reset-breaker — clear compaction circuit breaker for a book.
+  // Breaker trips after repeated cold-compact failures; user-initiated reset
+  // lets the next turn try compaction again instead of permanently degrading
+  // to decay-only.
+  app.post<{ Params: { bookId: string } }>(
+    '/api/v1/books/:bookId/context/reset-breaker',
+    async (request, reply) => {
+      try {
+        const safeBook = sanitizePathSegment(request.params.bookId, 'bookId')
+        const { dataDir } = loadConfig()
+        const bookDir = path.join(dataDir, safeBook)
+        resetBreaker(bookDir)
+        return { ok: true }
       } catch (err: any) {
         reply.code(400)
         return { error: err.message }

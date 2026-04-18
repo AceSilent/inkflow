@@ -175,6 +175,12 @@ const zh = {
   'settings.resetDone': '设置已重置',
   'settings.testing': '正在测试连接...',
   'settings.language': '语言',
+  'settings.context': '上下文管理',
+  'settings.contextMode': '管理模式',
+  'settings.contextModeAuto': 'Auto (推荐) — 自动衰减 + 自动 compact',
+  'settings.contextModeDecayOnly': 'Decay only — 只衰减 tool payloads',
+  'settings.contextModeDisabled': 'Disabled',
+  'settings.resetBreaker': '重置压缩熔断',
 
   // Inbox
   'inbox.title': '待办审批',
@@ -511,6 +517,12 @@ const en = {
   'settings.resetDone': 'Settings reset',
   'settings.testing': 'Testing connection...',
   'settings.language': 'Language',
+  'settings.context': 'Context Management',
+  'settings.contextMode': 'Mode',
+  'settings.contextModeAuto': 'Auto (recommended) — auto decay + compact',
+  'settings.contextModeDecayOnly': 'Decay only — payload decay, no compact',
+  'settings.contextModeDisabled': 'Disabled',
+  'settings.resetBreaker': 'Reset compaction breaker',
 
   // Inbox
   'inbox.title': 'Inbox',

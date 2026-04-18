@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Moon, Sun, Save, Languages, Plus, Trash2, Key, Globe, Box } from 'lucide-react'
 import { useI18n } from '../hooks/useI18n'
 
-export function SettingsPanel({ addToast, theme, toggleTheme }) {
+export function SettingsPanel({ addToast, theme, toggleTheme, currentBook }) {
   const { t, lang, switchLang } = useI18n()
   const [settings, setSettings] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -137,6 +137,42 @@ export function SettingsPanel({ addToast, theme, toggleTheme }) {
           onChange={v => setSettings({ ...settings, editorModel: v })}
           providers={settings.providers}
         />
+      </Section>
+
+      {/* Context Manager: mode dropdown + breaker reset.
+          contextManager is persisted globally via settings.json; breaker reset
+          is per-book since the breaker file lives in the book directory. */}
+      <Section title={t('settings.context')}>
+        <div className="field">
+          <label className="field-label">{t('settings.contextMode')}</label>
+          <select
+            className="select"
+            value={settings.contextManager ?? 'auto'}
+            onChange={e => setSettings({ ...settings, contextManager: e.target.value })}
+          >
+            <option value="auto">{t('settings.contextModeAuto')}</option>
+            <option value="decay_only">{t('settings.contextModeDecayOnly')}</option>
+            <option value="disabled">{t('settings.contextModeDisabled')}</option>
+          </select>
+        </div>
+        <div style={{ marginTop: 12 }}>
+          <button
+            className="btn btn-secondary btn-sm"
+            disabled={!currentBook}
+            onClick={async () => {
+              if (!currentBook) return
+              try {
+                const resp = await fetch(`/api/v1/books/${currentBook.book_id}/context/reset-breaker`, { method: 'POST' })
+                if (!resp.ok) throw new Error('reset failed')
+                addToast?.(t('settings.resetBreaker'), 'success')
+              } catch {
+                addToast?.('Reset failed', 'error')
+              }
+            }}
+          >
+            {t('settings.resetBreaker')}
+          </button>
+        </div>
       </Section>
 
       <Section title={t('settings.appearance') || 'Appearance'}>
