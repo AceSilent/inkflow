@@ -41,7 +41,7 @@ function useDerivedChapterStatus(bookId, chId) {
   return status
 }
 
-function SortableChapterRow({ bookId, chNode, index, onOpen, onPatch, reorderMode }) {
+function SortableChapterRow({ bookId, chNode, index, onOpen, onPatch, onKey, reorderMode }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: chNode.id })
   const status = useDerivedChapterStatus(bookId, chNode.id)
   const statusClass = status === 'Done' ? 'done' : status === 'Draft' ? 'draft' : ''
@@ -51,7 +51,13 @@ function SortableChapterRow({ bookId, chNode, index, onOpen, onPatch, reorderMod
     opacity: isDragging ? 0.5 : 1,
   }
   return (
-    <div ref={setNodeRef} style={style} className="chapter-row">
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`chapter-row ${reorderMode ? 'reorder-mode' : ''}`}
+      tabIndex={0}
+      onKeyDown={onKey}
+    >
       {reorderMode && (
         <div
           {...attributes}
@@ -183,6 +189,46 @@ export function OutlineView({ currentBook, addToast, onChapterOpen, dataVersion 
     saveOutline(next)
   }
 
+  const handleChapterKey = (e, volIdx, chIdx) => {
+    if (!e.altKey) return
+    e.preventDefault()
+    const next = {
+      ...outline,
+      children: outline.children.map(v => ({ ...v, children: [...(v.children ?? [])] })),
+    }
+    const currentVol = next.children[volIdx]
+    const currentCh = currentVol.children[chIdx]
+
+    if (e.shiftKey && e.key === 'ArrowRight') {
+      if (volIdx + 1 >= next.children.length) return
+      currentVol.children.splice(chIdx, 1)
+      next.children[volIdx + 1].children.push(currentCh)
+      saveOutline(next)
+      return
+    }
+    if (e.shiftKey && e.key === 'ArrowLeft') {
+      if (volIdx === 0) return
+      currentVol.children.splice(chIdx, 1)
+      next.children[volIdx - 1].children.push(currentCh)
+      saveOutline(next)
+      return
+    }
+    if (e.key === 'ArrowUp') {
+      if (chIdx === 0) return
+      const arr = currentVol.children
+      ;[arr[chIdx - 1], arr[chIdx]] = [arr[chIdx], arr[chIdx - 1]]
+      saveOutline(next)
+      return
+    }
+    if (e.key === 'ArrowDown') {
+      const arr = currentVol.children
+      if (chIdx + 1 >= arr.length) return
+      ;[arr[chIdx + 1], arr[chIdx]] = [arr[chIdx], arr[chIdx + 1]]
+      saveOutline(next)
+      return
+    }
+  }
+
   const handleDragEnd = (event) => {
     const { active, over } = event
     if (!over || active.id === over.id) return
@@ -296,6 +342,7 @@ export function OutlineView({ currentBook, addToast, onChapterOpen, dataVersion 
                         reorderMode={reorderMode}
                         onOpen={(node) => onChapterOpen?.(node)}
                         onPatch={(patch) => patchChapter(volIdx, chIdx, patch)}
+                        onKey={(e) => handleChapterKey(e, volIdx, chIdx)}
                       />
                     ))}
                   </section>
