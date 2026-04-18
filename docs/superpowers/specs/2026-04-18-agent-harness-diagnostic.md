@@ -54,7 +54,16 @@ AutoNovel 的 Agent harness 从 Python 单文件 while-loop 迁移到 TypeScript
 
 ---
 
-## 子系统 1 · Tool Call 执行引擎 🔴
+## 子系统 1 · Tool Call 执行引擎 🟡（更正自 🔴）
+
+> **2026-04-18 诊断更正**：本节最初评级 🔴 并估工期 1 周（基于"需要写 `toolOrchestration.ts`"）。**实际验证 Vercel AI SDK 6.0.142 源码**（`server/node_modules/ai/dist/index.mjs:6261-6290`）发现并发是 **fire-and-forget** 的，在 streaming 过程中一遇到 tool-call chunk 就立即启动 execute，比 `Promise.all` 还激进。我们的 `toVercelTools` + `composeHooks` 没有阻塞。所以：
+>
+> - 严重度降到 🟡
+> - Phase 1 工作量从 5-8 天 → **1.5-2 天**
+> - 不单独写 spec/plan，作为 Phase 2 前置 housekeeping 处理
+> - 真实工作项：① 验证 provider 是否 emit 多 tool_use（DeepSeek/GLM 可能需显式 `parallel_tool_calls: true`）；② prompt-engineer Agent 批量调 read；③ **审 write-tool 并发安全**（`.bak` + audit log 在多 save 并发时的 race）；④ 前端 SSE 并发 tool_start/done 渲染稳定性
+
+
 
 ### 现状
 
@@ -563,14 +572,14 @@ CC 的 session 存储包含：
 
 基于产品价值 × 实施代价，分 3 个 Phase：
 
-### Phase 1 — 立竿见影性能提升（1.5 周）
+### ~~Phase 1 — 立竿见影性能提升（1.5 周）~~ → 降级为 Phase 2 前置 housekeeping（1.5-2 天）
 
-**单 spec: "Concurrent tool-call orchestration"**
+**见子系统 1 的更正框**。原计划 spec 取消；改为 Phase 2 开跑前做 1 个 commit 的验证清单：
 
-- 子系统 1 档位 A 的最简改造
-- Agent 一轮响应时延降 50-70%
-- 不动 SDK 根基
-- 预期产出：`docs/superpowers/specs/2026-0X-concurrent-tool-orchestration.md`
+1. 验证 LLM provider 发多 tool_use（检查是否需要显式传 `parallel_tool_calls`）
+2. 审 `server/src/tools/safety.ts` 的 `createBackup` + `appendAuditLog` 并发安全性
+3. 在 Agent 铁律加一条"独立的 read 工具可一轮里一起调用"的 hint
+4. 前端 `AuthorChatPanel.jsx` 的 SSE segment 合并逻辑做 stress check
 
 ### Phase 2 — 长篇小说核心能力（4-5 周）
 
@@ -654,7 +663,7 @@ CC 的 session 存储包含：
 
 | 子系统 | 我们的核心文件 | CC 对照 | RED/YELLOW/GREEN | Phase |
 |---|---|---|---|---|
-| 1 Tool call | `tools/base-tool.ts:139-180` | `toolOrchestration.ts` | 🔴 | Phase 1 |
+| 1 Tool call | `tools/base-tool.ts:139-180` | `toolOrchestration.ts` | 🟡 (更正自🔴) | Housekeeping (Phase 2 前置) |
 | 2 Context | `routes/chat-history.ts:17` (slice -20) | `services/compact/*` | 🔴🔴 | Phase 2 |
 | 3 Multi-agent | `editorial/pipeline.ts` (Promise.all) | `tools/AgentTool/*` | 🔴 | Phase 3 |
 | 4 Skills | `tools/skills.ts` (107 lines) | `skills/loadSkillsDir.ts` | 🟡 | Phase 4+ |
