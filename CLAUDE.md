@@ -116,7 +116,6 @@ Fastify is configured with `ignoreTrailingSlash: true`. All POST/PUT bodies vali
 **data.ts** — Read-only book data:
 - `GET /api/v1/books/:bookId/outline` — read outline.json
 - `GET /api/v1/books/:bookId/lore` — combined lore (meta + world_setting + characters + outline)
-- `GET /api/v1/books/:bookId/plot-tree` — read plot_tree.json
 - `GET /api/v1/books/:bookId/chapters` — list chapter nodes from outline
 - `GET /api/v1/books/:bookId/chapters/:chapterId` — chapter detail with draft content
 
@@ -182,7 +181,7 @@ books/{book_id}/
 ├── 02_Outlines/             # outline.json
 ├── 04_Drafts/               # chapter drafts + review_{chapterId}.json
 ├── memory/                  # decided_facts.json, plot_progress.json
-├── plot_tree.json           # plot tree
+├── plot_graph.json          # plot graph (DAG, see services/plot-graph.ts)
 ├── author_chat_history.json # chat history (last 50 messages)
 └── audit_log.jsonl          # tool call audit trail
 ```

@@ -4,7 +4,6 @@ import path from 'path'
 import {
   readOutline,
   readLore,
-  readPlotTree,
   listChapters,
   getChapterDetail,
   writeOutline,
@@ -81,11 +80,6 @@ describe('Data read endpoints', () => {
     expect(result.world_setting).toBeNull()
     expect(result.characters).toBeNull()
     expect(result.outline).toBeNull()
-  })
-
-  it('readPlotTree returns default when no file', () => {
-    const result = readPlotTree(TEST_DIR, 'no-tree-book')
-    expect(result).toEqual({ nodes: [] })
   })
 
   it('listChapters returns empty when no outline', () => {

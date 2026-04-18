@@ -1,10 +1,9 @@
 /**
- * Data Read Routes — Fastify routes for reading book data (outline, lore, plot-tree, chapters).
+ * Data Read Routes — Fastify routes for reading book data (outline, lore, chapters).
  *
  * Endpoints:
  *   GET /api/v1/books/:bookId/outline            — read outline.json
  *   GET /api/v1/books/:bookId/lore               — read combined lore data
- *   GET /api/v1/books/:bookId/plot-tree           — read plot_tree.json
  *   GET /api/v1/books/:bookId/chapters            — list chapter nodes from outline
  *   GET /api/v1/books/:bookId/chapters/:chapterId — get chapter detail with draft content
  */
@@ -43,13 +42,6 @@ export function readLore(
     characters: safeReadJson(path.join(bookDir, '01_Global_Settings', 'characters.json')),
     outline: safeReadJson(path.join(bookDir, '02_Outlines', 'outline.json')),
   }
-}
-
-/**
- * Read plot_tree.json from book root. Returns { nodes: [] } if file doesn't exist.
- */
-export function readPlotTree(dataDir: string, bookId: string): any {
-  return safeReadJson(path.join(dataDir, bookId, 'plot_tree.json')) ?? { nodes: [] }
 }
 
 /**
@@ -194,15 +186,6 @@ export async function dataRoutes(app: FastifyInstance): Promise<void> {
     async (request) => {
       const bookId = sanitizePathSegment(request.params.bookId, 'bookId')
       return readLore(dataDir(), bookId)
-    }
-  )
-
-  // GET /api/v1/books/:bookId/plot-tree
-  app.get<{ Params: { bookId: string } }>(
-    '/api/v1/books/:bookId/plot-tree',
-    async (request) => {
-      const bookId = sanitizePathSegment(request.params.bookId, 'bookId')
-      return readPlotTree(dataDir(), bookId)
     }
   )
 
