@@ -1,376 +1,348 @@
-# Context Manager — Auto-Compact + State Re-injection
+# Context Manager — Fine-Grained 3-Tier Retention
 
-**Spec Date**: 2026-04-18
-**Scope**: Replace `chat-history.ts:17` 的 `.slice(-20)` 硬切，构建自动压缩的上下文管理系统。Agent 写到 ch30 时不再忘记 ch05-15 的讨论。
+**Spec Date**: 2026-04-18 (v2, 重写自 v1 的 turns/chars dual-threshold 方案)
+**Scope**: 精细化上下文管理：按消息**位置分层**（Hot/Warm/Cold）+ **tool-result 衰减**（便宜）+ **token-accurate 预算**追踪 + **cold-segment compaction**（兜底）。取代现有 `chat-history.ts:17` 的 `.slice(-20)` 硬切。
 **Parent**: `docs/superpowers/specs/2026-04-18-agent-harness-diagnostic.md` Phase 2
-**Paired spec**: `2026-04-18-memory-v2.md`（本 spec 的 session_summaries 输出格式依赖 Memory v2 的 markdown + frontmatter 定义）
+**Paired spec**: `2026-04-18-memory-v2.md`（复用 session_summaries 存储格式）
 
-## 目的
+## 为什么重写
 
-当前 `server/src/routes/chat-history.ts`：
-```ts
-export function loadHistory(...): ModelMessage[] {
-  // ...
-  return raw.slice(-20)
-}
-```
+v1 用"回合数 / 字符数双阈值"触发 single-shot compact。以下三个认知让它变粗糙：
 
-20 条消息硬切。写长篇小说到 ch30 时，ch01-ch15 的讨论、迭代、用户纠错全部沉底失踪。
+1. **1M 模型普及**：GLM-5.5 / DeepSeek V3.2 / Claude Opus 4.6 都上了 200K-1M window。按 30 轮 / 40k 字触发 compact 太激进，无故损失细节
+2. **上下文成本大头不在消息本身，而在 tool-call 返回**：Agent 20 轮前 `read_file('ch05.md')` 8000 字，这 8000 字从此每轮都吃 token 费。写到 ch30 时光 `read_file` 历史能堆 50k+ 字废料
+3. **prompt cache 友好度**：compact 是整段 rewriting → 破坏 cache prefix；tool-result 衰减是尾向头单点替换 → cache 失效只一次
 
-本 spec 引入 Claude Code 风格的**回合数 + 字符数双阈值触发 + fork-LLM 摘要 + 状态重注入**——压缩后 Agent 仍能无缝续写，最近工作流不断。
+**所以 v2 的核心口号**：
+> 老内容不是消息变老，是它们的 tool-call payload 变无用。衰减 payload，保留消息骨架；非到火烧眉毛不做 compact。
 
-## 核心决策一览
+## 核心决策
 
 | # | 决策 | 选择 |
 |---|---|---|
-| 1 | 触发 | 双阈值：回合 > N **或** 字符 > M（`response.usage.total_tokens` 可做 bonus 校准） |
-| 2 | 保留策略 | 最后 K 条原样 + 前面压成一条 `[会话摘要]` |
-| 3 | 状态重注入 | 最近 read_file/read_outline 返回内容 + active skill + plot ledger（免重注 — 动态 section） |
-| 4 | Compact LLM | 复用 `EDITORIAL_MODEL`（和 Memory v2 extract 同款） |
-| 5 | PTL fallback | 剥洋葱：总结本身超 token → 删最旧 20% 重试（≤ 3 次） |
-| 6 | 熔断器 | 连续 3 次失败停止该会话 autocompact |
-| 7 | 会话摘要持久化 | 写 `books/{bookId}/session_summaries/{ts}.md`（Memory v2 格式，不走审批） |
+| 1 | 上下文追踪信号 | `response.usage.total_tokens`（AI SDK 回传，精准；不用 tiktoken） |
+| 2 | 触发模型 | 3-tier 预算阶梯 × 模型感知 ceiling（200K / 1M） |
+| 3 | 主要机制 | **Tool-result 衰减**（便宜，无 LLM call，cache 友好） |
+| 4 | 兜底机制 | Cold-segment summary compact（贵，仅 > 80% 预算时） |
+| 5 | 分层依据 | 消息**相对位置**（Hot 尾 10 条 / Warm 11-30 / Cold 31+）；**非绝对时间** |
+| 6 | 用户消息 | Importance-preserved：任何阶段不做 payload 衰减，只在 Cold 阶段可被 block summary 吸收 |
+| 7 | 会话摘要落盘 | 写 `books/{id}/session_summaries/*.md`（Memory v2 格式） |
+| 8 | 禁用开关 | 新增 settings `contextManager: 'auto' | 'decay_only' | 'disabled'` |
 
-## 架构
+## 上下文预算阶梯
 
-```
-┌─── author-chat SSE route ─────────────────────────────────────┐
-│                                                                 │
-│  POST /api/v1/author-chat/:bookId/send                         │
-│    1. loadHistory(bookId) → messages[]                          │
-│    2. ► ContextManager.shouldCompact(messages, ledger)  [NEW]   │
-│       ▼ if true:                                                │
-│       3.1 compact(messages) → { summary, keptMessages }         │
-│       3.2 saveSessionSummary(bookId, summary) → md file         │
-│       3.3 messages = [summaryMsg, ...keptMessages]              │
-│    4. SessionState := new (per-request)                         │
-│    5. runAgentStream({ messages, sessionState, ... })           │
-│       ▼ during stream:                                          │
-│       6. afterToolCall hook 记录 read_file/read_outline 结果  │
-│          → sessionState.recentReads.push({file, content})      │
-│       7. beforeToolCall 查 load_skill 保存 active skill        │
-│          → sessionState.activeSkill = ...                      │
-│       ▼ when compact fires next time (next turn):              │
-│       8. state re-injection: {summaryMsg} 还附带                │
-│          {sessionState.recentReads / activeSkill}               │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
+### 模型感知 ceiling
 
-## 触发逻辑
-
-### 阈值配置
-
-新文件 `server/src/context/thresholds.ts`：
+新文件 `server/src/context/model-window.ts`：
 
 ```typescript
-export interface CompactThresholds {
-  maxTurns: number       // 一个 turn = user+assistant 往返。默认 30
-  maxChars: number       // messages 序列化后的总字符数。默认 40000
-  safetyMarginRatio: number  // 0.9：留 10% buffer 给当前回合的消息增长
-  usageTokenThreshold?: number  // 可选：若 response.usage.total_tokens 超此值也触发
-}
-
-export const DEFAULT_THRESHOLDS: CompactThresholds = {
-  maxTurns: 30,
-  maxChars: 40000,
-  safetyMarginRatio: 0.9,
-  usageTokenThreshold: 120000,  // 保守估，200k 窗口的模型
+// 识别 1M 上下文模型（参考 Claude Code has1mContext）
+export function getModelContextWindow(model: string): number {
+  if (/\[1m\]/i.test(model)) return 1_000_000
+  if (/claude-opus-4\.\d.*1m/i.test(model)) return 1_000_000
+  if (/glm-5\.\d/i.test(model)) return 1_000_000      // GLM-5 系都是 1M
+  if (/deepseek-v3\.\d/i.test(model)) return 200_000   // DeepSeek V3 128-200K
+  if (/claude-opus|claude-sonnet/i.test(model)) return 200_000
+  return 200_000  // 保守默认
 }
 ```
 
-### 触发函数
-
-新文件 `server/src/context/compact-trigger.ts`：
+### 预算阶梯
 
 ```typescript
-export function shouldCompact(
-  messages: ModelMessage[],
-  thresholds: CompactThresholds = DEFAULT_THRESHOLDS,
-  lastUsage?: { total_tokens?: number },
-): { should: boolean; reason?: string } {
-  const turns = countTurns(messages)  // count pairs of user → assistant
-  const chars = serializedChars(messages)  // JSON.stringify(messages).length
-  const tokens = lastUsage?.total_tokens
-
-  if (turns >= thresholds.maxTurns * thresholds.safetyMarginRatio)
-    return { should: true, reason: `turns ${turns} >= ${thresholds.maxTurns}` }
-  if (chars >= thresholds.maxChars * thresholds.safetyMarginRatio)
-    return { should: true, reason: `chars ${chars} >= ${thresholds.maxChars}` }
-  if (tokens && thresholds.usageTokenThreshold && tokens >= thresholds.usageTokenThreshold)
-    return { should: true, reason: `tokens ${tokens} >= ${thresholds.usageTokenThreshold}` }
-
-  return { should: false }
+export interface ContextBudgetTier {
+  name: 'green' | 'yellow' | 'orange' | 'red'
+  ratio: number   // of getModelContextWindow(model)
+  action: 'none' | 'decay_tool_results' | 'decay_and_cold_compact' | 'force_compact_and_warn'
 }
+
+export const BUDGET_TIERS: ContextBudgetTier[] = [
+  { name: 'green',  ratio: 0.30, action: 'none' },
+  { name: 'yellow', ratio: 0.60, action: 'decay_tool_results' },
+  { name: 'orange', ratio: 0.80, action: 'decay_and_cold_compact' },
+  { name: 'red',    ratio: 1.00, action: 'force_compact_and_warn' },
+]
 ```
 
-## Compact Pipeline
+**决策流程**（每轮 assistant message 结束后运行）：
+1. 读 `lastResponseUsage.total_tokens`
+2. 算 `ratio = tokens / getModelContextWindow(model)`
+3. 匹配最高命中的 tier，执行对应 action
+4. 如果 `contextManager === 'decay_only'`，则 orange/red 阶段退化为只 decay，不做 cold compact
+5. 如果 `contextManager === 'disabled'`，什么都不做（但 UI 仍显示 ratio 提示）
 
-### 主流程
+## 3-Tier 消息分层
 
-新文件 `server/src/context/compact-pipeline.ts`：
-
-```typescript
-export interface CompactResult {
-  summaryMessage: ModelMessage   // 插入到 messages 头部的摘要消息
-  keptMessages: ModelMessage[]   // 原样保留的最后 K 条
-  summaryText: string            // 纯文本，可供 session_summary 落盘
-  stats: { before: { turns: number; chars: number }, after: { turns: number; chars: number } }
-}
-
-export async function compactConversation(
-  messages: ModelMessage[],
-  llmConfig: LLMConfig,
-  sessionState: SessionState,
-  lastK: number = 12,
-): Promise<CompactResult> {
-  // 1. 拆分: keptMessages = 最后 lastK 条, toCompact = 前面的
-  // 2. stripImages(toCompact) —— 把 image blocks 替换成 "[image]"
-  // 3. renderTemplate('compact_summary.j2', { messages: toCompact }) → summaryPrompt
-  // 4. 尝试 generateText({ model, prompt: summaryPrompt, maxTokens: 4000 })
-  //    → ptl fallback 包裹，超 token 时剥洋葱重试
-  // 5. 构造 summaryMessage (role: system or user-scoped 根据 AI SDK 支持):
-  //      role: 'system',
-  //      content: [
-  //        '# 会话摘要（自动压缩，覆盖前 N 轮）',
-  //        summaryText,
-  //        '',
-  //        '# 最近工作台状态',
-  //        renderRecentReads(sessionState),
-  //        renderActiveSkill(sessionState),
-  //      ].join('\n')
-  // 6. return { summaryMessage, keptMessages, summaryText, stats }
-}
-```
-
-### PTL Fallback（Prompt Too Long 剥洋葱）
-
-`server/src/context/ptl-fallback.ts`：
+每次处理 messages 前，按**尾部相对位置**划分：
 
 ```typescript
-export async function generateWithPtlRetry(
-  prompt: string,
-  llmConfig: LLMConfig,
-  maxRetries: number = 3,
-): Promise<{ text: string; retries: number }> {
-  let current = prompt
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      const r = await generateText({ model: createProvider(llmConfig), prompt: current, maxOutputTokens: 4000 })
-      return { text: r.text, retries: attempt }
-    } catch (e: any) {
-      const isPtl = isPromptTooLongError(e)
-      if (!isPtl || attempt >= maxRetries) throw e
-      // 剥洋葱：删掉 prompt 开头的 20%（但保护 "# 会话摘要" header）
-      current = truncateHead20Percent(current)
-    }
+export interface MessageZones {
+  hot: ModelMessage[]    // 最后 10 条 — 完整保留
+  warm: ModelMessage[]   // 11-30 — tool-result payload 可衰减
+  cold: ModelMessage[]   // 31+ — 可进入 summary compact
+}
+
+export function zoneMessages(messages: ModelMessage[]): MessageZones {
+  const n = messages.length
+  return {
+    hot: messages.slice(Math.max(0, n - 10)),
+    warm: messages.slice(Math.max(0, n - 30), Math.max(0, n - 10)),
+    cold: messages.slice(0, Math.max(0, n - 30)),
   }
-  throw new Error('unreachable')
 }
 ```
 
-### 熔断器
+**注意**：分层是**计算出的视图**，不是持久化状态。每轮重新计算——消息位置随新消息推进自然迁移。
 
-新文件 `server/src/context/circuit-breaker.ts`：
+## Tool-Result 衰减（主要机制）
+
+### 规则
+
+`server/src/context/decay.ts`：
 
 ```typescript
-interface BreakerState {
-  consecutiveFailures: number
-  tripped: boolean
-  lastFailureAt?: string
+const LARGE_RESULT_TOOLS = {
+  read_file: { minChars: 2000, placeholder: (args, len) => `[read_file('${args.path}'): ${len} chars, see session summary if needed]` },
+  read_outline: { minChars: 2000, placeholder: (args, len) => `[read_outline: ${len} chars snapshot, available via read_outline()]` },
+  read_graph: { minChars: 3000, placeholder: (args, len) => `[read_graph: ${len} chars DAG snapshot, available via read_graph()]` },
+  search_lore: { minChars: 1500, placeholder: (args, len) => `[search_lore('${args.query}'): ${len} chars of matches]` },
 }
 
-// 持久化到 books/{bookId}/compact_breaker.json（薄文件，恢复用）
-// 每次 compact 失败 +1；成功归零；≥ 3 次 tripped=true 停止自动 compact 直到用户重置
+const PRESERVE_ALWAYS = new Set([
+  'submit_to_editorial',  // 审稿反馈影响后续决策
+  'save_draft',            // 短返回，无需衰减
+  'save_outline',
+  'save_lore',
+  'confirm_path',
+  'prune_branch',
+  'query_unresolved_setups',  // 返回值直接指导下一章创作
+])
+
+export function decayToolResults(messages: ModelMessage[], zones: MessageZones): ModelMessage[] {
+  // 只对 warm 段里的 tool-result 消息做衰减
+  // hot 段永不动；cold 段走 compact（见下节）
+  // ...
+}
 ```
 
-前端在 Settings 或工具栏加一个"重置压缩熔断"按钮，tripped 时显示红点。
+### 衰减行为
 
-## State Re-injection
+- 匹配到的 tool-result 消息 content 被替换为占位符字符串
+- **保留 tool_use id / tool_name / args**——LLM 仍知道"我以前调过这个工具"
+- 衰减**一次性**：衰减过的消息不会再被衰减（标记 `_decayed: true`，避免重复替换）
+- 衰减是**破坏性的**：原内容不可恢复（若 Agent 真需要，再调一次工具即可）
 
-### SessionState 追踪
+### 对 Editorial 结果的特殊处理
 
-新文件 `server/src/context/session-state.ts`：
+`submit_to_editorial` 的返回可能上万字（5 审稿人 × 详细 issues）。但它是 Agent 决策的核心依据，不能衰减。**退化策略**：仅在消息进入 Cold 段时才会被 summary 吸收——之前永远保留。
+
+## Cold-Segment Compaction（兜底机制）
+
+仅在 `action === 'decay_and_cold_compact'` 或 `'force_compact_and_warn'` 时触发。
+
+### 流程
+
+`server/src/context/cold-compact.ts`：
+
+```typescript
+export async function compactColdSegment(
+  cold: ModelMessage[],
+  warm: ModelMessage[],
+  hot: ModelMessage[],
+  sessionState: SessionState,
+  llmConfig: LLMConfig,
+): Promise<{
+  newMessages: ModelMessage[]
+  summaryText: string
+  stats: { compacted: number; kept: number }
+}> {
+  // 1. stripImages(cold) 剔除 image payloads
+  // 2. 保留 cold 里的 user message 不压缩（importance-preserved），
+  //    把每条 user message 作为锚点，其他压缩
+  // 3. renderTemplate('cold_summary.j2', { coldMessages: cold }) → prompt
+  // 4. generateWithPtlRetry(prompt, llmConfig) → summaryText
+  // 5. 生成一条 summary ModelMessage:
+  //      role: 'system',
+  //      content: `# 会话摘要（已压缩 ${cold.length} 条早期消息）\n\n${summaryText}`
+  // 6. newMessages = [summaryMessage, ...warm, ...hot]
+  //    但 warm 仍保留（它的 tool-result 已经衰减过）——不再压缩
+  // 7. saveSessionSummary(bookId, summaryText) → Memory v2 markdown
+  // 8. return
+}
+```
+
+### PTL Fallback 和熔断器
+
+保留 v1 的设计（简化版）：
+
+- `generateWithPtlRetry`：summary prompt 超 token → 剥洋葱（删开头 20%）重试，≤ 3 次
+- Circuit breaker: 连续 3 次失败 → 停止自动 cold compact，UI 红 banner + 手动重置
+
+## Prompt Cache 考量
+
+### 原则
+
+- **系统提示永远稳定**（memory + plot ledger 是动态但每轮重算；可接受缓存未命中）
+- **消息列表的头部**（`[summaryMessage, ...warm[0..5]]`）**尽量稳定**
+- **衰减是尾→头单点替换**：只第一次衰减时 cache 从该点失效；之后稳定
+- **Cold compact 是大事件**：会导致 cache prefix 整个重建——可接受（每 50+ 轮才发生一次）
+
+### 验证
+
+实现后用 `providerMetadata.anthropic.cacheReadInputTokens`（Vercel AI SDK 暴露）观察命中率。衰减后的下一轮应 `cacheReadInputTokens > 0`；cold compact 后的下一轮应等于 0（重建）。
+
+## 数据结构
+
+### SessionState（不变，v1 保留）
 
 ```typescript
 export interface RecentRead {
-  tool: string          // 'read_file' / 'read_outline' / 'read_graph' / 'search_lore' / 'read_tree'
+  tool: string
   args: any
-  excerpt: string       // 工具返回的前 500 字
+  excerpt: string  // 工具返回前 500 字
   timestamp: number
 }
 
 export interface SessionState {
-  recentReads: RecentRead[]      // cap 5 entries, FIFO
-  activeSkill: {                 // 最近一次 load_skill
-    name: string
-    body: string                 // skill body，截断到 2000 字
-  } | null
-}
-
-export function createSessionState(): SessionState {
-  return { recentReads: [], activeSkill: null }
-}
-
-export function updateSessionStateAfterToolCall(
-  state: SessionState,
-  toolName: string,
-  args: any,
-  result: string,
-): void {
-  // Read tools → append to recentReads (cap 5)
-  const READ_TOOLS = ['read_file', 'read_outline', 'read_graph', 'search_lore']
-  if (READ_TOOLS.includes(toolName)) {
-    state.recentReads.push({
-      tool: toolName, args, excerpt: result.slice(0, 500), timestamp: Date.now(),
-    })
-    while (state.recentReads.length > 5) state.recentReads.shift()
-  }
-  // load_skill → update activeSkill
-  if (toolName === 'load_skill') {
-    state.activeSkill = { name: args.name, body: result.slice(0, 2000) }
-  }
+  recentReads: RecentRead[]      // cap 5, FIFO
+  activeSkill: { name: string; body: string } | null
+  /** decay bookkeeping — message.id → decayed: true */
+  decayedMessageIds: Set<string>
 }
 ```
 
-### 集成到 runAgentStream
+### ContextManagerDecision
 
-`server/src/agent/agent-loop.ts` 修改：
-- 在 `AgentRunOptions` 加 `sessionState?: SessionState`（可选，外层 route 构造）
-- `composedHooks` 增加一个 hook 更新 sessionState：
-  ```ts
-  const sessionStateHook: ToolHooks = {
-    async afterToolCall(name, args, result) {
-      updateSessionStateAfterToolCall(sessionState, name, args, result)
-    },
-  }
-  ```
-
-### Re-inject 格式（注入到 summaryMessage）
-
-```
-# 最近工作台状态
-
-## 刚读过的文件
-- read_outline() @ 2 分钟前 → "..前 500 字.."
-- read_file('04_Drafts/ch05.md') @ 5 分钟前 → "..前 500 字.."
-
-## 激活的 skill
-iceberg_writing:
-  (2000 字内容)
-
-(plot_ledger 由 prompt-builder 独立动态注入，不在此重复)
-```
-
-## 持久化会话摘要
-
-Compact 完成后，除了放进当前 messages，还落盘到 Memory v2 格式：
+每轮产出：
 
 ```typescript
-// In compact-pipeline.ts after compact completes:
-const summaryFile = path.join(
-  bookDir, 'session_summaries',
-  `${new Date().toISOString().replace(/[:.]/g, '-')}.md`,
-)
-const frontmatter = {
-  id: `sess_${nanoid()}`,
-  scope: 'session',
-  type: 'compact_summary',
-  confidence: 0.7,
-  tags: ['auto-compact', `book-${bookId}`],
-  source: 'context_compact',
-  source_event: `compact_${new Date().toISOString()}`,
-  status: 'active',
-  created_at: new Date().toISOString(),
-  book_id: bookId,
+export interface ContextDecision {
+  tier: 'green' | 'yellow' | 'orange' | 'red'
+  tokensUsed: number
+  windowSize: number
+  ratio: number
+  action: 'none' | 'decay_tool_results' | 'decay_and_cold_compact' | 'force_compact_and_warn'
+  decayedCount?: number          // 本轮衰减了几条
+  compactedCount?: number         // 本轮 cold compact 了几条
+  newMessagesCount?: number       // compact 后 messages 总数
 }
-fs.writeFileSync(summaryFile, `---\n${yamlStringify(frontmatter)}---\n\n${summaryText}`)
 ```
 
-**复用 Memory v2 的 recall 机制**：Memory v2 的 `buildMarkdownMemoryContext` 会扫 `books/{id}/session_summaries/*.md`（按 mtime 降序取最近 3 个），自动进入 system prompt 的"记忆"section。这样压缩过的历史既在当前 messages 有摘要消息，**也在**system prompt 的记忆层被长期保留——双重保险。
+落盘到 `books/{bookId}/context_log.jsonl`，每行一个 decision。可观测性 gold。
 
-## 数据模型
+## 集成
 
-### 新文件
+### author-chat SSE route 改造
 
-- `books/{bookId}/session_summaries/{ts}.md` —— 见上
-- `books/{bookId}/compact_breaker.json` —— 熔断器状态
-- `books/{bookId}/compact_log.jsonl` —— 每次 compact 的前后对比日志（stats + reason）
+```typescript
+// server/src/routes/author-chat.ts (pseudo)
+const rawMessages = loadHistoryFull(bookId)   // 不再 .slice(-20)
+const sessionState = createSessionState()
 
-### 修改文件
+// 上一轮的 usage 从 lastMessage.metadata 或单独的 books/{id}/usage_track.json 读
+const lastUsage = readLastUsage(bookId)
+const decision = evaluateContextDecision(rawMessages, model, lastUsage, settings.contextManager)
 
-- `server/src/routes/chat-history.ts` —— `loadHistory` 不再硬切 20，改成"读全部 + 把 compact 过的 summary message 混回去"
-- `server/src/agent/agent-loop.ts` —— 接受 `sessionState`，注入 tool hook
-- `server/src/routes/author-chat.ts` —— 调用 `shouldCompact` 前置检查
+let processedMessages = rawMessages
+
+if (decision.action === 'decay_tool_results' || decision.action === 'decay_and_cold_compact') {
+  const zones = zoneMessages(processedMessages)
+  processedMessages = decayToolResults(processedMessages, zones)
+  decision.decayedCount = countDecayed(processedMessages, rawMessages)
+}
+
+if (decision.action === 'decay_and_cold_compact' || decision.action === 'force_compact_and_warn') {
+  const zones = zoneMessages(processedMessages)
+  if (zones.cold.length > 0) {
+    const { newMessages, summaryText, stats } = await compactColdSegment(...)
+    processedMessages = newMessages
+    decision.compactedCount = stats.compacted
+  }
+}
+
+// Run agent
+const stream = runAgentStream({ messages: processedMessages, sessionState, ... })
+
+// Stream post-hook: update SessionState (via afterToolCall) + record usage + write decision log
+```
+
+### chat-history.ts 改造
+
+- 删除 `loadHistory` 的 `.slice(-20)`，改成 `loadHistoryFull`
+- `saveHistory` 仍保留 `.slice(-50)` 落盘上限（避免 history 文件无限增长；配合 cold compact 就够了——old 内容已在 session_summaries 留存）
+
+### prompt-builder 不变
+
+memory section（含 session_summaries 来自 Memory v2）继续动态注入。
 
 ## UI / 可观测性
 
 ### 用户可见信号
 
-- **Compact 时机**：AuthorChat 出一条淡色分隔条 "📚 已压缩前 N 轮对话（共 M 字）"
-- **熔断触发**：红色 toast + 顶部 banner "自动压缩暂停，请检查熔断状态并重置"
-- **Session summary 查看**：Memory Library 的"激活"tab 下面有一个"Session summaries"组，按时间排序
+**AuthorChat 顶部状态条**（非侵入式小条）：
+```
+🟢 Context · 8% used · 2k/120k tokens
+```
+颜色随 tier：green / yellow(⚠️) / orange(⚠️⚠️) / red(🚨) 。鼠标 hover 显示 decision 详情。
 
-### 调试端点
+**Compaction 事件提示**（单次）：
+- Tool decay：当轮 footer 小字："本轮衰减了 3 条工具结果（节省 ~8k token）"
+- Cold compact：插入分隔条 "📚 已压缩 N 条早期消息到会话摘要"（Memory Library 可见）
 
-`GET /api/v1/books/:bookId/debug/context-state`
-返回：
+**Red tier banner**：
+> "Context 已达 100%。下一轮将强制 compact，可能影响最近上下文。如需精确控制，请切换到上下文更大的模型或点击手动 compact。"
+
+### 用户设置
+
+新增 `GET/PUT /api/v1/settings`（现有）的字段：
 ```json
 {
-  "current_turns": 23,
-  "current_chars": 28340,
-  "breaker": { "consecutiveFailures": 0, "tripped": false },
-  "last_compact_at": "2026-04-18T12:34:56Z",
-  "last_compact_stats": { "before": { "turns": 30, "chars": 42000 }, "after": { "turns": 13, "chars": 5800 } }
+  "contextManager": "auto" | "decay_only" | "disabled",
+  "contextBudgetCustom": {
+    "green": 0.30, "yellow": 0.60, "orange": 0.80
+  }
 }
 ```
 
-## 整合与风险
+默认 `auto`。对 1M 模型用户，`decay_only` 是理想选择（保留所有消息骨架，只省 tool payload 钱）。
 
-### 和 Memory v2 的接口明细
+### 调试端点
 
-| 共享点 | 提供方 | 消费方 |
-|---|---|---|
-| Markdown + YAML frontmatter 格式 | Memory v2 | Context session_summaries |
-| `session_summaries/*.md` 路径 | Context（写）/ Memory v2（读） | Memory v2 recall 时扫入 |
-| `withFileLock(path)` 并发保护 | Phase 1 housekeeping（已加） | 两者共享 |
-| `EDITORIAL_MODEL` config | 已有 | 两者都复用 |
-| Forked-LLM `generateText` pattern | 本 spec 的 `generateWithPtlRetry` | Memory v2 的 extractor 不需要 PTL（输入天然短），但模式可参考 |
+`GET /api/v1/books/:bookId/debug/context-state` 返回当前 decision + 最近 5 条 context_log 条目。
 
-### 性能影响
+## 和 Memory v2 的接口
 
-- **每轮增加检查**：`shouldCompact` 是纯 JS 计算，<1ms
-- **Compact 本身**：仅在触发时才花一次 LLM call，成本 ~200-500 token in, ~2000 out
-- **Storage**：每次 compact 加一个 ~3KB 的 markdown 文件。50 次 compact = 150KB，可忽略
-
-### 风险
-
-1. **Summary 质量**：压缩掉的细节可能 Agent 后续需要但回忆不起来。缓解：最后 K 条保留、session_summary 存盘后 recall 仍可读、PTL fallback 保证至少有东西
-2. **压缩过度**：双阈值调得太紧 → 频繁 compact → 每次都花 LLM 钱。缓解：thresholds 默认保守（30 轮 / 40k 字），可按实际观察调
-3. **熔断误杀**：连续 3 次失败全部停自动 compact——用户不知道。缓解：UI 红 banner + 调试端点
-4. **State re-injection 失效场景**：Agent compact 之后正好需要某个没被 recentReads 追踪到的文件。缓解：Agent 发现缺信息会自己再 `read_file` 一次，Phase 2 不强解决
-5. **非标 role 兼容**：`summaryMessage.role='system'` 插在 user/assistant 中间，部分 provider 可能拒。缓解：退化成 `role: 'user'` 并在 content 里明显标记 `# 会话摘要（系统自动）`
-
-## 不在范围
-
-- **Rewriting 旧的 `chat-history.ts:17` 的 -20 slice**：会彻底替换，但仍保留最后 50 条落盘上限（`saveHistory` 的 `.slice(-50)`）
-- **Token 精确估算**：不引入 tiktoken；字符数 + usage 回传双通道已够
-- **Cross-session summary consolidation**：session_summaries 不做合并压缩（Phase 3+）
-- **预测式 compact**（根据当前消息增长率预测何时该 compact）——YAGNI
-- **用户自定义 compact 阈值**：配置在代码常量里，日后再出 Settings UI
+不变（v1 同步）：
+- Cold compact 产出写 `books/{id}/session_summaries/*.md`，Memory v2 格式
+- Memory v2 recall 扫 session_summaries 时按 mtime 降序取最近 3 个
+- `withFileLock` 和 `EDITORIAL_MODEL` 两处共享
 
 ## 验收标准
 
-1. 连续发送 40 轮消息后，第 31 轮开始自动触发 compact（默认 maxTurns=30）
-2. Compact 完成后：前端 UI 显示分隔条 + session_summaries 下出现新 `.md`
-3. Agent 在 compact 后的下一轮仍能引用 ch05 的某个讨论点（证明 state re-injection + session_summary 起作用）
-4. 故意构造 PTL 场景（单条 user message 超 30k 字），熔断器不会立刻触发（先 PTL retry 3 次），最终优雅失败
-5. 熔断器 tripped 后，自动 compact 停止；前端 banner 可见；用户点"重置"后恢复
-6. `withFileLock` 保证两个并发 compact（理论不可能，但测试要覆盖）不会撕裂 session_summaries
-7. 测试覆盖：shouldCompact / stripImages / PTL fallback / circuit breaker / session state updater，≥ 12 个新测试
+1. 设置 `contextManager: 'auto'`、1M 模型、连续 50 轮后：
+   - tier 从 green 升到 yellow 后，warm 段的 `read_file` 结果内容被占位符替换
+   - tokens ratio 不再单调增长（衰减生效）
+2. 达到 orange（> 60% window）后：触发 cold compact，session_summaries 下出新 `.md`
+3. `disabled` 模式下：任何 tier 都不改 messages，只 UI 显示 warning
+4. `decay_only` 模式下：orange/red 不触发 cold compact，只衰减
+5. 衰减消息保留 tool_use / tool_name / args，LLM 可通过新调一次同工具恢复内容
+6. `cacheReadInputTokens` 观察：衰减后一轮 > 0；cold compact 后一轮 = 0
+7. PTL 场景（单条 user 30k 字）：剥洋葱 retry 正常；3 次失败后熔断器 tripped
+8. 用户消息永不 payload 衰减（even in warm）
+9. 测试覆盖：zoneMessages / decay rules / tier evaluation / PTL / circuit breaker / session state，≥ 15 个新测试
+
+## 不在范围
+
+- **Tiktoken 精确估算**：靠 `usage.total_tokens` 已够
+- **Prompt cache 主动管理**（Anthropic cache control 显式设置）：SDK 默认策略够用
+- **Chapter-aware 衰减**（切章主动衰减前章 tool calls）：Phase 3+
+- **用户自定义 tier 阈值比例**：spec 里预留 `contextBudgetCustom` 字段但 UI 不暴露
+- **Cold compact 增量**（把多次 cold compact 的 summary 再合并）：Phase 3+ — 每次独立一个 `.md` 文件够
+- **Tool-call args 级缓存**（用 redis 缓存 read_file 返回，同 args 免再调）：和 Agent harness 无关，走独立优化
 
 ## 依赖 / 接口
 
-- 依赖 Memory v2 的 markdown 格式（session_summaries 复用）
+- 依赖 Memory v2 的 markdown + YAML frontmatter
 - 依赖 Phase 1 housekeeping 的 `withFileLock`
-- 被 Phase 3 (subagent runtime) 继承：subagent 的 context 也可用本 spec 的 compact
+- 提供给 Phase 3 (subagent runtime)：subagent 可复用相同 budget tier 机制
+- 需要 Vercel AI SDK 回传 `usage.total_tokens`（已有；`providerMetadata` 是可选增强）
