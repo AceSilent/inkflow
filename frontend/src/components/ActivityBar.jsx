@@ -1,4 +1,4 @@
-import { FolderOpen, Lightbulb, PenTool, ListTree, BookOpen, Settings } from 'lucide-react'
+import { FolderOpen, Lightbulb, PenTool, ListTree, BookOpen, GitBranch, Settings } from 'lucide-react'
 import { useI18n } from '../hooks/useI18n'
 
 const items = [
@@ -6,6 +6,7 @@ const items = [
   { id: 'brainstorm', icon: Lightbulb, labelKey: 'nav.brainstorm' },
   { id: 'author-chat', icon: PenTool, labelKey: 'nav.authorChat' },
   { id: 'outline', icon: ListTree, labelKey: 'nav.outline' },
+  { id: 'plot-graph', icon: GitBranch, labelKey: 'nav.plotGraph' },
   { id: 'chapter', icon: BookOpen, labelKey: 'nav.chapter' },
 ]
 

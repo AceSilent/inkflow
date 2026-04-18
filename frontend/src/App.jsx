@@ -7,6 +7,7 @@ import { TabBar } from './components/TabBar'
 import { BrainstormPanel } from './components/BrainstormPanel'
 import { AuthorChatPanel } from './components/AuthorChatPanel'
 import { OutlineView } from './components/OutlineView'
+import { PlotGraphView } from './components/PlotGraphView'
 import { ChapterWorkbench } from './components/ChapterWorkbench'
 import { SettingsPanel } from './components/SettingsPanel'
 import { NewBookModal } from './components/NewBookModal'
@@ -47,6 +48,7 @@ export default function App() {
       brainstorm: ['brainstorm', 'tab.brainstorm'],
       'author-chat': ['author-chat', 'tab.authorChat'],
       outline: ['outline', 'tab.outline'],
+      'plot-graph': ['plot-graph', 'tab.plotGraph'],
       settings: ['settings', 'tab.settings'],
     };
     if (tabMap[panel]) openTab(tabMap[panel][0], tabMap[panel][1]);
@@ -73,6 +75,13 @@ export default function App() {
       case 'author-chat': return <AuthorChatPanel currentBook={currentBook} addToast={addToast} onLoreUpdated={refreshData} />;
       case 'outline':
         return <OutlineView
+          currentBook={currentBook}
+          addToast={addToast}
+          dataVersion={dataVersion}
+          onChapterOpen={(ch) => handleSceneSelect({ type: 'chapter', id: ch.id, label: ch.label })}
+        />;
+      case 'plot-graph':
+        return <PlotGraphView
           currentBook={currentBook}
           addToast={addToast}
           dataVersion={dataVersion}

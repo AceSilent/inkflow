@@ -230,9 +230,15 @@ const zh = {
   // Nav additions
   'nav.inbox': '收件箱',
   'nav.outline': '大纲编辑',
+  'nav.plotGraph': '剧情图',
   'tab.inbox': '收件箱',
   'tab.outline': '大纲编辑',
+  'tab.plotGraph': '剧情图',
   'tab.authorChat': '作者对话',
+
+  // Plot Graph
+  'plotGraph.addNode': '节点',
+  'plotGraph.unresolved': '伏笔未回收',
 
   // New Book Modal
   'newBook.title': '创建新书',
@@ -552,9 +558,15 @@ const en = {
   // Nav additions
   'nav.inbox': 'Inbox',
   'nav.outline': 'Outline Editor',
+  'nav.plotGraph': 'Plot Graph',
   'tab.inbox': 'Inbox',
   'tab.outline': 'Outline Editor',
+  'tab.plotGraph': 'Plot Graph',
   'tab.authorChat': 'Author Chat',
+
+  // Plot Graph
+  'plotGraph.addNode': 'Node',
+  'plotGraph.unresolved': 'unresolved setups',
 
   // New Book Modal
   'newBook.title': 'Create New Book',
