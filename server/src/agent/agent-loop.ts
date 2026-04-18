@@ -11,10 +11,30 @@
  *   - Mode-aware prompt selection
  *   - Rich ToolContext propagation
  */
+import path from 'path'
 import { streamText, stepCountIs, type ModelMessage } from 'ai'
-import { type ToolRegistry, type ToolContext, type ToolHooks } from '../tools/base-tool.js'
+import { composeHooks, type ToolRegistry, type ToolContext, type ToolHooks, type BlockedToolCall } from '../tools/base-tool.js'
 import { buildAuthorPrompt, buildBrainstormPrompt } from './prompt-builder.js'
 import { type LLMConfig, type ProviderProgressCallback, createProvider } from '../llm/provider.js'
+import { blockWhileUserEditing } from '../stats/tips/block-while-user-editing.js'
+
+/**
+ * Adapter: wraps the plan-shaped `blockWhileUserEditing` hook
+ * ({ interceptToolCall({toolName, args}) => Promise<string | null> })
+ * into our ToolHooks composition (interceptToolCall(name, args, ctx) =>
+ * BlockedToolCall | null). Registered alongside reviewPrevChapter (which
+ * lives in stats/tips/index.ts and is composed at the route level).
+ */
+function blockWhileUserEditingHook(bookId: string, dataDir: string): ToolHooks {
+  const inner = blockWhileUserEditing(path.join(dataDir, bookId))
+  return {
+    async interceptToolCall(name, args): Promise<BlockedToolCall | null> {
+      const msg = await inner.interceptToolCall?.({ toolName: name, args })
+      if (msg) return { block: true, message: msg }
+      return null
+    },
+  }
+}
 
 /** Minimal shape of the streamText result used by callers (SSE route + Feishu bridge). */
 export interface AgentStreamResult {
@@ -78,11 +98,15 @@ export function runAgentStream(options: AgentRunOptions): AgentStreamResult {
     { role: 'user' as const, content: userMessage },
   ]
 
+  // Always compose in block-while-user-editing so Agent save_draft is gated
+  // on the workbench lock regardless of which route invokes the agent loop.
+  const composedHooks = composeHooks(blockWhileUserEditingHook(bookId, dataDir), hooks)
+
   return streamText({
     model,
     system: systemPrompt,
     messages,
-    tools: toolRegistry.toVercelTools(ctx, hooks),
+    tools: toolRegistry.toVercelTools(ctx, composedHooks),
     stopWhen: stepCountIs(maxSteps),
     temperature: 0.7,
     abortSignal,
