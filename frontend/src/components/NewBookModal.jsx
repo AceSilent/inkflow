@@ -142,7 +142,7 @@ export function NewBookModal({ onClose, onCreated, addToast }) {
                 onChange={e => set('targetWords', parseInt(e.target.value) || 500000)}
                 style={{ width: 120 }}
               />
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t('newBook.targetWordsHint')}</span>
+              <span style={{ fontSize: 11, color: 'var(--ink-muted)' }}>{t('newBook.targetWordsHint')}</span>
             </div>
           </div>
         </div>

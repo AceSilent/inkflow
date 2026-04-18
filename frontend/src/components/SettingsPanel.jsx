@@ -83,7 +83,7 @@ export function SettingsPanel({ addToast, theme, toggleTheme }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {settings.providers.map((provider, i) => (
             <div key={provider.id} style={{ 
-              background: 'var(--bg-surface)', 
+              background: 'var(--bg-elevated)', 
               border: '1px solid var(--border-subtle)', 
               borderRadius: 'var(--radius-lg)', 
               padding: 16 
@@ -156,7 +156,7 @@ export function SettingsPanel({ addToast, theme, toggleTheme }) {
         </div>
       </Section>
 
-      <div style={{ position: 'sticky', bottom: 0, padding: '16px 0', background: 'var(--bg-editor)', display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--border-subtle)', marginTop: 24 }}>
+      <div style={{ position: 'sticky', bottom: 0, padding: '16px 0', background: 'var(--bg)', display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--border-subtle)', marginTop: 24 }}>
         <button className="btn btn-primary btn-lg" onClick={handleSave}><Save size={14} /> {t('settings.save') || 'Save Changes'}</button>
       </div>
     </div>

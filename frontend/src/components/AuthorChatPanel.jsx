@@ -356,7 +356,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
 
   if (!bookId) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', fontSize: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--ink-muted)', fontSize: 14 }}>
         {t('authorChat.noBook')}
       </div>
     )
@@ -372,7 +372,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <PenTool size={18} style={{ color: 'var(--accent)' }} />
           <span style={{ fontSize: 13, fontWeight: 600 }}>作者 Agent</span>
-          <span style={{ fontSize: 10, color: 'var(--text-muted)', background: 'var(--bg-elevated)', padding: '2px 6px', borderRadius: 4 }}>
+          <span style={{ fontSize: 10, color: 'var(--ink-muted)', background: 'var(--bg-elevated)', padding: '2px 6px', borderRadius: 4 }}>
             17 tools · streaming
           </span>
         </div>
@@ -383,7 +383,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
             style={{
               background: snapsOpen ? 'var(--bg-elevated)' : 'none',
               border: '1px solid var(--border-subtle)',
-              cursor: 'pointer', color: 'var(--text-secondary)',
+              cursor: 'pointer', color: 'var(--ink-secondary)',
               padding: '3px 8px', borderRadius: 6,
               display: 'flex', alignItems: 'center', gap: 4, fontSize: 11,
             }}
@@ -397,11 +397,11 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
               background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)',
               borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.18)', padding: 6,
             }}>
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', padding: '4px 8px 6px' }}>
+              <div style={{ fontSize: 10, color: 'var(--ink-muted)', padding: '4px 8px 6px' }}>
                 快照（最近 {snapshots.length} 个，最多保留 10 个）
               </div>
               {snapshots.length === 0 && (
-                <div style={{ padding: '12px 8px', fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>
+                <div style={{ padding: '12px 8px', fontSize: 11, color: 'var(--ink-muted)', textAlign: 'center' }}>
                   暂无快照（每次发消息前会自动创建）
                 </div>
               )}
@@ -413,16 +413,16 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
                     display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
                     width: '100%', textAlign: 'left', padding: '6px 8px', marginBottom: 2,
                     border: '1px solid transparent', borderRadius: 6, background: 'transparent',
-                    cursor: 'pointer', color: 'var(--text-primary)', gap: 2,
+                    cursor: 'pointer', color: 'var(--ink)', gap: 2,
                   }}
                   onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(59,130,246,0.08)'; e.currentTarget.style.borderColor = 'rgba(59,130,246,0.30)' }}
                   onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'transparent' }}
                 >
-                  <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                  <div style={{ fontSize: 10, color: 'var(--ink-muted)' }}>
                     {new Date(s.created_at).toLocaleString()}
                   </div>
                   <div style={{
-                    fontSize: 12, lineHeight: 1.4, color: 'var(--text-primary)',
+                    fontSize: 12, lineHeight: 1.4, color: 'var(--ink)',
                     overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box',
                     WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
                   }}>
@@ -433,7 +433,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
             </div>
           )}
           <button onClick={handleClear} title="清空对话"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4, borderRadius: 4 }}>
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-muted)', padding: 4, borderRadius: 4 }}>
             <Trash2 size={14} />
           </button>
         </div>
@@ -442,7 +442,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
       {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
         {messages.length === 0 && !streamingMsg && (
-          <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: 40, fontSize: 13, lineHeight: 2 }}>
+          <div style={{ textAlign: 'center', color: 'var(--ink-muted)', marginTop: 40, fontSize: 13, lineHeight: 2 }}>
             <PenTool size={32} style={{ marginBottom: 8, color: 'var(--accent)' }} />
             <div>{t('authorChat.directChat')}</div>
             <div style={{ fontSize: 11 }}>{t('authorChat.capabilities')}</div>
@@ -463,14 +463,14 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
         {/* Live streaming message */}
         {streamingMsg && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 3 }}><PenTool size={9} /> {t('authorChat.author')}</div>
+            <div style={{ fontSize: 10, color: 'var(--ink-muted)', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 3 }}><PenTool size={9} /> {t('authorChat.author')}</div>
 
             {/* Idle heartbeat banner — server reports no LLM tokens for >15s. Cleared on next chunk. */}
             {!streamingMsg.retry && streamingMsg.idleMs >= 15000 && (
               <div style={{
                 maxWidth: '85%', padding: '6px 10px', borderRadius: 8, marginBottom: 4,
                 background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.30)',
-                fontSize: 11, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6,
+                fontSize: 11, color: 'var(--ink-secondary)', display: 'flex', alignItems: 'center', gap: 6,
               }}>
                 <Loader size={11} style={{ animation: 'spin 1.5s linear infinite', color: '#3b82f6' }} />
                 <span>等待 LLM 响应中… 已 {Math.round(streamingMsg.idleMs / 1000)}s（thinking + 长上下文较慢，请稍候）</span>
@@ -482,7 +482,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
               <div style={{
                 maxWidth: '85%', padding: '6px 10px', borderRadius: 8, marginBottom: 4,
                 background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.35)',
-                fontSize: 11, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6,
+                fontSize: 11, color: 'var(--ink-secondary)', display: 'flex', alignItems: 'center', gap: 6,
               }}>
                 <Loader size={11} style={{ animation: 'spin 1.5s linear infinite', color: '#f59e0b' }} />
                 <span>
@@ -504,7 +504,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
                     <div key={j} className="markdown-chat" style={{
                       padding: '10px 14px', borderRadius: 12,
                       fontSize: 13, lineHeight: 1.6, wordBreak: 'break-word',
-                      background: 'var(--bg-elevated)', color: 'var(--text-primary)',
+                      background: 'var(--bg-elevated)', color: 'var(--ink)',
                       borderBottomLeftRadius: 4,
                     }}>
                       <ReactMarkdown>{seg.text}</ReactMarkdown>
@@ -522,7 +522,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
             ) : (
               <div style={{
                 padding: '10px 14px', borderRadius: 12, background: 'var(--bg-elevated)',
-                fontSize: 13, color: 'var(--text-muted)', borderBottomLeftRadius: 4,
+                fontSize: 13, color: 'var(--ink-muted)', borderBottomLeftRadius: 4,
                 display: 'flex', alignItems: 'center', gap: 6
               }}>
                 <Loader size={12} style={{ animation: 'spin 1.5s linear infinite' }} />
@@ -545,14 +545,14 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
           {attachments.map((a, i) => (
             <div key={i} style={{
               display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px',
-              borderRadius: 6, background: 'var(--bg-surface)', fontSize: 11,
+              borderRadius: 6, background: 'var(--bg-elevated)', fontSize: 11,
               border: '1px solid var(--border-subtle)'
             }}>
               <FileText size={11} style={{ color: 'var(--accent)' }} />
               <span style={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</span>
-              <span style={{ color: 'var(--text-muted)', fontSize: 9 }}>{(a.size / 1024).toFixed(1)}KB</span>
+              <span style={{ color: 'var(--ink-muted)', fontSize: 9 }}>{(a.size / 1024).toFixed(1)}KB</span>
               <button onClick={() => removeAttachment(i)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--text-muted)', display: 'flex' }}>
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--ink-muted)', display: 'flex' }}>
                 <X size={11} />
               </button>
             </div>
@@ -570,7 +570,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
         <button onClick={() => fileInputRef.current?.click()} title={t('authorChat.attachFile')}
           style={{
             background: 'none', border: '1px solid var(--border-subtle)', cursor: 'pointer',
-            color: 'var(--text-muted)', padding: '6px 8px', borderRadius: 8, display: 'flex', alignItems: 'center'
+            color: 'var(--ink-muted)', padding: '6px 8px', borderRadius: 8, display: 'flex', alignItems: 'center'
           }}>
           <Paperclip size={16} />
         </button>
@@ -579,7 +579,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
           style={{
             flex: 1, resize: 'none', padding: '8px 12px', borderRadius: 8,
             border: '1px solid var(--border-subtle)', background: 'var(--bg-elevated)',
-            color: 'var(--text-primary)', fontSize: 13, outline: 'none', fontFamily: 'inherit', lineHeight: 1.5,
+            color: 'var(--ink)', fontSize: 13, outline: 'none', fontFamily: 'inherit', lineHeight: 1.5,
           }}
         />
         {loading ? (
@@ -598,7 +598,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
             style={{
               padding: '8px 16px', borderRadius: 8, border: 'none', cursor: 'pointer',
               background: (input.trim() || attachments.length > 0) ? 'var(--accent)' : 'var(--bg-elevated)',
-              color: (input.trim() || attachments.length > 0) ? 'white' : 'var(--text-muted)',
+              color: (input.trim() || attachments.length > 0) ? 'white' : 'var(--ink-muted)',
               display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 600, transition: 'all 0.2s'
             }}>
             <Send size={14} /> {t('authorChat.send')}
@@ -622,7 +622,7 @@ function StreamingToolCard({ segment }) {
       display: 'flex', alignItems: 'center', gap: 6,
     }}>
       <Wrench size={10} style={{ color: '#00BCD4', flexShrink: 0 }} />
-      <code style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--text-primary)' }}>{segment.name}</code>
+      <code style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--ink)' }}>{segment.name}</code>
       {segment.status === 'running'
         ? <Loader size={10} style={{ animation: 'spin 1.5s linear infinite', color: '#00BCD4' }} />
         : <Check size={10} style={{ color: '#4CAF50' }} />
@@ -663,7 +663,7 @@ function ThinkingCard({ segment, t }) {
           padding: '8px 12px', borderRadius: 8, marginTop: 4,
           background: 'linear-gradient(135deg, rgba(139,92,246,0.08), rgba(59,130,246,0.08))',
           border: '1px solid rgba(139,92,246,0.15)', fontSize: 11, lineHeight: 1.6,
-          color: 'var(--text-muted)', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+          color: 'var(--ink-muted)', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
           maxHeight: 300, overflowY: 'auto',
         }}>
           {segment.text || '(空)'}
@@ -686,7 +686,7 @@ function OptionsCard({ segment, disabled, onSelect }) {
       display: 'flex', flexDirection: 'column', gap: 6,
     }}>
       {segment.description && (
-        <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+        <div style={{ fontSize: 12, color: 'var(--ink-secondary)', lineHeight: 1.5 }}>
           {segment.description}
         </div>
       )}
@@ -702,7 +702,7 @@ function OptionsCard({ segment, disabled, onSelect }) {
               borderRadius: 6,
               border: '1px solid var(--border-subtle)',
               background: 'var(--bg-elevated)',
-              color: 'var(--text-primary)',
+              color: 'var(--ink)',
               cursor: disabled ? 'default' : 'pointer',
               opacity: disabled ? 0.55 : 1,
               fontSize: 12,
@@ -747,12 +747,12 @@ function ToolCallCard({ segment }) {
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         {segment.result ? (
-          expanded ? <ChevronDown size={10} style={{ color: 'var(--text-muted)' }} /> : <ChevronRight size={10} style={{ color: 'var(--text-muted)' }} />
+          expanded ? <ChevronDown size={10} style={{ color: 'var(--ink-muted)' }} /> : <ChevronRight size={10} style={{ color: 'var(--ink-muted)' }} />
         ) : null}
         <Wrench size={10} style={{ color: '#00BCD4', flexShrink: 0 }} />
-        <code style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--text-primary)' }}>{segment.name}</code>
+        <code style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--ink)' }}>{segment.name}</code>
         {segment.argsPreview && (
-          <span style={{ color: 'var(--text-muted)', fontSize: 10, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span style={{ color: 'var(--ink-muted)', fontSize: 10, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             ({segment.argsPreview})
           </span>
         )}
@@ -760,7 +760,7 @@ function ToolCallCard({ segment }) {
       </div>
       {expanded && segment.result && (
         <pre style={{
-          margin: '4px 0 0 20px', fontSize: 10, color: 'var(--text-muted)',
+          margin: '4px 0 0 20px', fontSize: 10, color: 'var(--ink-muted)',
           whiteSpace: 'pre-wrap', wordBreak: 'break-word',
           maxHeight: 200, overflowY: 'auto',
           padding: '4px 0', borderTop: '1px solid var(--border-subtle)', marginTop: 4
@@ -781,7 +781,7 @@ function MessageBubble({ msg, onOptionSelect, optionsDisabled }) {
       display: 'flex', flexDirection: 'column',
       alignItems: isUser ? 'flex-end' : 'flex-start',
     }}>
-      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 3 }}>
+      <div style={{ fontSize: 10, color: 'var(--ink-muted)', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 3 }}>
         {isUser ? <><User size={9} /> {t('authorChat.you')}</> : <><PenTool size={9} /> {t('authorChat.author')}</>}
       </div>
 
@@ -815,7 +815,7 @@ function MessageBubble({ msg, onOptionSelect, optionsDisabled }) {
               <div key={i} className="markdown-chat" style={{
                 padding: '10px 14px', borderRadius: 12,
                 fontSize: 13, lineHeight: 1.6, wordBreak: 'break-word',
-                background: 'var(--bg-elevated)', color: 'var(--text-primary)',
+                background: 'var(--bg-elevated)', color: 'var(--ink)',
                 borderBottomLeftRadius: 4,
               }}>
                 <ReactMarkdown>{seg.text}</ReactMarkdown>
@@ -837,7 +837,7 @@ function MessageBubble({ msg, onOptionSelect, optionsDisabled }) {
           whiteSpace: isUser ? 'pre-wrap' : 'normal',
           wordBreak: 'break-word',
           background: isUser ? 'var(--accent)' : 'var(--bg-elevated)',
-          color: isUser ? 'white' : 'var(--text-primary)',
+          color: isUser ? 'white' : 'var(--ink)',
           borderBottomRightRadius: isUser ? 4 : 12,
           borderBottomLeftRadius: isUser ? 12 : 4,
         }}>
