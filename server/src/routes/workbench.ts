@@ -12,6 +12,7 @@ import {
   createAnnotationSchema,
   updateAnnotationSchema,
   setStatusBodySchema,
+  sendAnnotationsBodySchema,
   type Annotation,
   type ChapterStatus,
 } from './schemas.js'
@@ -46,6 +47,23 @@ function loadAnnotations(file: string): Annotation[] {
 
 function nanoId(): string {
   return 'ann_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4)
+}
+
+function buildAnnotationPrompt(chId: string, _draftText: string, annotations: Annotation[]): string {
+  const lines: string[] = [
+    `请根据以下批注修改第 ${chId} 章（原文在 04_Drafts/${chId}.md）。`,
+    '',
+  ]
+  annotations.forEach((a, i) => {
+    lines.push(`【批注 ${i + 1}】引用："${a.quote}"`)
+    if (a.source === 'adopted_review' && a.source_reviewer) {
+      lines.push(`  （采纳自 ${a.source_reviewer}）`)
+    }
+    lines.push(`  评论：${a.comment}`)
+    lines.push('')
+  })
+  lines.push('请修改后用 save_draft 保存新版本，然后告知哪些批注已处理。')
+  return lines.join('\n')
 }
 
 export const workbenchRoutes: FastifyPluginAsync<WorkbenchOptions> = async (app, opts) => {
@@ -137,6 +155,42 @@ export const workbenchRoutes: FastifyPluginAsync<WorkbenchOptions> = async (app,
       }
       writeJson(file, status)
       return reply.send(status)
+    } catch (e) {
+      return reply.code(400).send({ error: String(e) })
+    }
+  })
+
+  // Batch-send selected annotations to the Author Agent. This route does NOT
+  // directly invoke the Agent — it composes a prompt from the chosen
+  // annotations, marks them as `sent` with a shared batch_id, and returns the
+  // prompt text. The frontend then POSTs that prompt to the existing SSE chat
+  // endpoint (`/api/v1/author-chat/:bookId/send`) to drive the Agent run.
+  app.post('/books/:bookId/chapters/:chId/send-annotations', async (req, reply) => {
+    const { bookId, chId } = req.params as { bookId: string; chId: string }
+    try {
+      const body = sendAnnotationsBodySchema.parse(req.body)
+      const safeBook = sanitizePathSegment(bookId, 'bookId')
+      const safeCh = sanitizePathSegment(chId, 'chapterId')
+      const annFile = annotationsFile(dataDir, bookId, chId)
+      const all = loadAnnotations(annFile)
+      const chosen = all.filter((a) => body.annotation_ids.includes(a.id))
+      if (chosen.length === 0) {
+        return reply.code(400).send({ error: 'No matching annotations found' })
+      }
+      const draftFile = path.join(dataDir, safeBook, '04_Drafts', `${safeCh}.md`)
+      const draftText = fs.existsSync(draftFile) ? fs.readFileSync(draftFile, 'utf8') : ''
+      const batchId =
+        'batch_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
+      const promptText = buildAnnotationPrompt(chId, draftText, chosen)
+      const now = new Date().toISOString()
+      const chosenIds = new Set(chosen.map((a) => a.id))
+      const updated: Annotation[] = all.map((a) =>
+        chosenIds.has(a.id)
+          ? { ...a, status: 'sent' as const, sent_batch_id: batchId, sent_at: now }
+          : a,
+      )
+      writeJson(annFile, updated)
+      return reply.send({ batch_id: batchId, prompt: promptText, count: chosen.length })
     } catch (e) {
       return reply.code(400).send({ error: String(e) })
     }
