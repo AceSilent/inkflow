@@ -23,6 +23,8 @@ interface PrevCheck {
   reviewPath: string
   reviewExists: boolean
   passed: boolean
+  /** User manual override via chapter_status_{prevId}.json; takes priority over review file. */
+  userDecision: 'approved' | 'rejected' | null
 }
 
 function checkPrevChapter(ctx: RuleContext, args: any): PrevCheck | null {
@@ -36,15 +38,37 @@ function checkPrevChapter(ctx: RuleContext, args: any): PrevCheck | null {
 
   const padded = String(num - 1).padStart(m[1].length, '0')
   const prevId = `ch${padded}`
-  const reviewPath = path.join(ctx.dataDir, ctx.bookId, '04_Drafts', `review_${prevId}.json`)
+  const bookDir = path.join(ctx.dataDir, ctx.bookId)
+
+  // User manual override wins over review file.
+  let userDecision: 'approved' | 'rejected' | null = null
+  const statusFile = path.join(bookDir, '04_Drafts', `chapter_status_${prevId}.json`)
+  if (fs.existsSync(statusFile)) {
+    try {
+      const status = JSON.parse(fs.readFileSync(statusFile, 'utf-8'))
+      if (status?.user_decision === 'approved' || status?.user_decision === 'rejected') {
+        userDecision = status.user_decision
+      }
+    } catch {
+      // bad JSON — fall through to review-file logic
+    }
+  }
+
+  const reviewPath = path.join(bookDir, '04_Drafts', `review_${prevId}.json`)
   if (!fs.existsSync(reviewPath)) {
-    return { prevId, reviewPath, reviewExists: false, passed: false }
+    return { prevId, reviewPath, reviewExists: false, passed: false, userDecision }
   }
   try {
     const json = JSON.parse(fs.readFileSync(reviewPath, 'utf-8'))
-    return { prevId, reviewPath, reviewExists: true, passed: json?.overall_pass === true }
+    return {
+      prevId,
+      reviewPath,
+      reviewExists: true,
+      passed: json?.overall_pass === true,
+      userDecision,
+    }
   } catch {
-    return { prevId, reviewPath, reviewExists: true, passed: false }
+    return { prevId, reviewPath, reviewExists: true, passed: false, userDecision }
   }
 }
 
@@ -53,7 +77,18 @@ export function reviewPrevChapter(ctx: RuleContext): ToolHooks {
     beforeToolCall(name, args) {
       if (name !== 'save_draft') return
       const check = checkPrevChapter(ctx, args)
-      if (!check || check.passed) return
+      if (!check) return
+      // User override: approved → allow (no tip); rejected → emit rejection tip.
+      if (check.userDecision === 'approved') return
+      if (check.userDecision === 'rejected') {
+        fireOnce(ctx, `review_prev_${check.prevId}`, {
+          severity: 'warning',
+          title: `${check.prevId} 被用户手动拒绝，已拦截`,
+          message: `前一章 ${check.prevId} 被用户手动拒绝。请修订后重新提交审核或取得用户通过，再写下一章。`,
+        })
+        return
+      }
+      if (check.passed) return
       // Tip is informational — the actual block happens in interceptToolCall.
       const why = !check.reviewExists
         ? `${check.prevId} 没有 review 文件`
@@ -67,7 +102,16 @@ export function reviewPrevChapter(ctx: RuleContext): ToolHooks {
     interceptToolCall(name, args): BlockedToolCall | undefined {
       if (name !== 'save_draft') return
       const check = checkPrevChapter(ctx, args)
-      if (!check || check.passed) return
+      if (!check) return
+      // User manual override wins over the review file.
+      if (check.userDecision === 'approved') return
+      if (check.userDecision === 'rejected') {
+        return {
+          block: true,
+          message: `[BLOCKED] 前一章 ${check.prevId} 被用户手动拒绝，请修订后重新提交审核或取得用户通过。`,
+        }
+      }
+      if (check.passed) return
       const why = !check.reviewExists
         ? `${check.prevId} 还没有 review 文件（尚未审稿）`
         : `${check.prevId} 审稿未通过（overall_pass=false）`
