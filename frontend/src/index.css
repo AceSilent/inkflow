@@ -704,3 +704,42 @@ button { font-family: var(--font-body); cursor: pointer; }
   background: none; border: 1px solid var(--border-subtle);
   padding: 2px 8px; font-size: 10px; cursor: pointer;
 }
+
+/* ─── OutlineView (Task 4) ─────────────────────────────────────────── */
+.outline-view {
+  height: 100%; overflow-y: auto;
+  background: var(--bg);
+  padding: 0;
+}
+.outline-topbar {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 28px; border-bottom: 1px solid var(--border-strong);
+  background: var(--bg-elevated);
+}
+.outline-doc { padding: 28px 36px; max-width: 900px; margin: 0 auto; }
+.outline-doc .display-hero { margin-bottom: 4px; }
+.outline-doc .book-synopsis { margin-bottom: 24px; text-indent: 2em; }
+.outline-volume { margin-top: 20px; }
+.vol-head {
+  display: flex; align-items: baseline; gap: 12px;
+  padding-bottom: 6px; border-bottom: 1px solid var(--border-strong);
+  margin-bottom: 8px;
+}
+.vol-num { color: var(--accent); }
+.vol-synopsis {
+  font-family: var(--font-body); font-size: var(--fs-small);
+  text-indent: 2em; color: var(--ink-secondary); margin: 0 0 10px;
+}
+.chapter-row {
+  display: grid; grid-template-columns: 50px 1fr auto;
+  gap: 10px; padding: 8px 0; align-items: baseline;
+  border-bottom: 1px solid var(--border-subtle);
+  cursor: pointer;
+}
+.chapter-row:hover { background: var(--accent-soft); }
+.chapter-num { color: var(--accent); }
+.chapter-body .chapter-title { font-family: var(--font-display); font-size: var(--fs-body); }
+.chapter-body .chapter-summary { font-size: var(--fs-label); color: var(--ink-secondary); line-height: 1.55; margin-top: 2px; }
+.chapter-status { color: var(--ink-secondary); }
+.chapter-status.draft { color: var(--warning); }
+.chapter-status.done { color: var(--success); }

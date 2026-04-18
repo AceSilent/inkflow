@@ -6,7 +6,7 @@ import { Sidebar } from './components/Sidebar'
 import { TabBar } from './components/TabBar'
 import { BrainstormPanel } from './components/BrainstormPanel'
 import { AuthorChatPanel } from './components/AuthorChatPanel'
-import { OutlineTreeEditor } from './components/OutlineTreeEditor'
+import { OutlineView } from './components/OutlineView'
 import { ChapterWorkbench } from './components/ChapterWorkbench'
 import { SettingsPanel } from './components/SettingsPanel'
 import { NewBookModal } from './components/NewBookModal'
@@ -71,7 +71,13 @@ export default function App() {
     switch (activeTab) {
       case 'brainstorm': return <BrainstormPanel addToast={addToast} currentBook={currentBook} onDataChanged={refreshData} />;
       case 'author-chat': return <AuthorChatPanel currentBook={currentBook} addToast={addToast} onLoreUpdated={refreshData} />;
-      case 'outline': return <OutlineTreeEditor addToast={addToast} currentBook={currentBook} dataVersion={dataVersion} />;
+      case 'outline':
+        return <OutlineView
+          currentBook={currentBook}
+          addToast={addToast}
+          dataVersion={dataVersion}
+          onChapterOpen={(ch) => handleSceneSelect({ type: 'chapter', id: ch.id, label: ch.label })}
+        />;
       case 'settings': return <SettingsPanel addToast={addToast} theme={theme} toggleTheme={toggleTheme} />;
       default:
         if (activeTab.startsWith('chapter-') && activeChapter) {
