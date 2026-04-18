@@ -21,6 +21,8 @@ import { composeHooks, type ToolHooks } from '../tools/base-tool.js'
 import { createSnapshot } from '../snapshots/snapshots.js'
 import { processContext, type ContextMode } from '../context/decision.js'
 import { createSessionState, updateSessionStateAfterToolCall } from '../context/session-state.js'
+import { loadBreakerState } from '../context/circuit-breaker.js'
+import { getModelContextWindow, evaluateBudgetTier } from '../context/model-window.js'
 
 /**
  * Resolve LLM config from settings.json (provider/model selector).
@@ -89,6 +91,51 @@ export async function authorChatRoutes(app: FastifyInstance) {
         const { dataDir } = loadConfig()
         saveHistory(dataDir, bookId, [])
         return { status: 'ok' }
+      } catch (err: any) {
+        reply.code(400)
+        return { error: err.message }
+      }
+    }
+  )
+
+  // GET context state — debug/observability for context manager tier
+  app.get<{ Params: { bookId: string } }>(
+    '/api/v1/books/:bookId/debug/context-state',
+    async (request, reply) => {
+      try {
+        const safeBook = sanitizePathSegment(request.params.bookId, 'bookId')
+        const { dataDir } = loadConfig()
+        const bookDir = path.join(dataDir, safeBook)
+        const usageFile = path.join(bookDir, 'last_usage.json')
+        const breakerState = loadBreakerState(bookDir)
+        let tokensUsed = 0
+        if (fs.existsSync(usageFile)) {
+          try {
+            tokensUsed = JSON.parse(fs.readFileSync(usageFile, 'utf8')).total_tokens ?? 0
+          } catch { /* malformed usage file — treat as zero */ }
+        }
+        const settings = getSettings(dataDir)
+        const model = settings.authorModel ?? ''
+        const windowSize = getModelContextWindow(model)
+        const tier = evaluateBudgetTier(tokensUsed, windowSize)
+
+        let lastDecision: unknown = null
+        const logFile = path.join(bookDir, 'context_log.jsonl')
+        if (fs.existsSync(logFile)) {
+          try {
+            const lines = fs.readFileSync(logFile, 'utf8').trim().split('\n').filter(Boolean)
+            if (lines.length > 0) lastDecision = JSON.parse(lines[lines.length - 1])
+          } catch { /* malformed log — treat as no decision */ }
+        }
+
+        return {
+          current_tier: tier.name,
+          current_ratio: tier.ratio,
+          tokens_used: tokensUsed,
+          window_size: windowSize,
+          breaker_tripped: breakerState.tripped,
+          last_decision: lastDecision,
+        }
       } catch (err: any) {
         reply.code(400)
         return { error: err.message }

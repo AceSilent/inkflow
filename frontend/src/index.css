@@ -983,3 +983,17 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
 .memory-card-body { font-family: var(--font-body); font-size: 12px; line-height: 1.6; white-space: pre-wrap; }
 .memory-actions { margin-top: 8px; display: flex; gap: 6px; }
 .memory-actions button { padding: 3px 10px; font-size: 11px; border: 1px solid var(--border-subtle); background: var(--bg); cursor: pointer; }
+
+/* ─── Context Status Bar ─── */
+.context-status-bar {
+  padding: 4px 12px;
+  font-family: var(--font-label);
+  font-size: 10px;
+  background: var(--bg-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex; gap: 12px; align-items: center;
+}
+.context-red-banner {
+  color: var(--danger);
+  font-weight: 600;
+}

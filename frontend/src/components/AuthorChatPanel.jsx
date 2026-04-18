@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { Send, Trash2, Wrench, Paperclip, X, FileText, ChevronDown, ChevronRight, Brain, PenTool, User, Loader, Check, History, Square } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { useI18n } from '../hooks/useI18n'
+import { ContextStatusBar } from './ContextStatusBar'
 
 export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
   const { t } = useI18n()
@@ -384,6 +385,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <ContextStatusBar bookId={currentBook?.book_id} />
       {/* Header */}
       <div style={{
         padding: '10px 16px', borderBottom: '1px solid var(--border-subtle)',
