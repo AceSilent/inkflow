@@ -93,6 +93,18 @@ Two-tier memory architecture:
 - `project-memory.ts` — Per-book project memory (plot progress, character arcs)
 - `context-builder.ts` — Assembles memory into system prompt injection
 
+### Memory v2 (`server/src/memory/{markdown-io,memory-service,extractor,recall}.ts`)
+
+Markdown layer alongside existing JSON:
+
+- Storage: `global/memories/{_pending,user_preferences,craft_skills,anti_patterns,_archived}/*.md` (cross-book, sibling of `books/`) + `books/{id}/memories/*.md` (per-book) + `books/{id}/session_summaries/*.md` (compact output).
+- Each memory is a `.md` file with YAML frontmatter (id / scope / type / confidence / tags / source / status / created_at).
+- Auto-extract via EDITORIAL_MODEL fires fire-and-forget on author-chat SSE done + editorial return. Failures log, never block main path.
+- All auto-extracted items land in `_pending/`; user approves via Memory Library UI.
+- `/remember <text>` slash command in AuthorChat writes directly to active `user_preferences/`.
+- Recall: `buildMarkdownMemoryContext` in `recall.ts`. Dump-all with confidence sort + scope budget (project 50% / global 30% / session 20%), char budget 3000.
+- Existing 8 JSON memory files untouched (hot path for editorial reviewers).
+
 ### Design System (`frontend/src/design-tokens.css` + `typography.css`)
 
 "Literary Journal" aesthetic with two themes (Light: cream paper + ink + oxide-red accents; Dark: espresso + parchment + brick red + gold "Library Espresso"). All colors and fonts defined as CSS variables in `design-tokens.css`. Signature components (`.drop-cap`, `.rail-label`, `.epigraph`, `.wordmark`, `.label-sc`, `.display-hero`, `.display-heading`) in `typography.css`. Fonts: Fraunces (display) + Noto Serif SC (body), preloaded from Google Fonts in `index.html`. `useTheme` defaults to light. See `docs/superpowers/specs/2026-04-18-design-system.md` and `docs/superpowers/plans/2026-04-18-design-system.md`.
@@ -140,6 +152,14 @@ Fastify is configured with `ignoreTrailingSlash: true`. All POST/PUT bodies vali
 - `POST / PATCH / DELETE /api/v1/books/:bookId/plot-graph/nodes[/:id]`
 - `POST / DELETE /api/v1/books/:bookId/plot-graph/edges[/:id]`
 - `GET /api/v1/books/:bookId/plot-graph/unresolved-setups`
+
+**memory.ts** — Memory v2 endpoints:
+- `GET /api/v1/memory/{pending,active,archived}` — list by status
+- `GET /api/v1/memory/:id` — read single
+- `POST /api/v1/memory/:id/{approve,reject,archive,restore}` — state transitions
+- `PATCH /api/v1/memory/:id` — inline edit body / confidence / tags
+- `DELETE /api/v1/memory/:id`
+- `POST /api/v1/memory/remember` — direct active write (used by /remember slash command)
 
 ### LLM Provider (`server/src/llm/provider.ts`)
 
