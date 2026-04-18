@@ -6,6 +6,7 @@ import { Loader, Check, RefreshCw, Send } from 'lucide-react'
 import { useI18n } from '../hooks/useI18n'
 import { toRoman } from '../utils/roman'
 import { MilkdownEditor } from './workbench/MilkdownEditor'
+import { CommentFeed } from './workbench/CommentFeed'
 
 export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, dataVersion }) {
   const { t } = useI18n()
@@ -27,7 +28,7 @@ export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, da
       try {
         const [draftR, reviewR, annR, statusR] = await Promise.all([
           fetch(`/api/v1/books/${bookId}/chapters/${chapterId}`).then(r => r.json()).catch(() => null),
-          fetch(`/api/v1/books/${bookId}/chapters/${chapterId}/review`).then(r => r.ok ? r.json() : null).catch(() => null),
+          fetch(`/api/v1/books/${bookId}/chapters/${chapterId}/reviews`).then(r => r.ok ? r.json() : null).catch(() => null),
           fetch(`/api/v1/books/${bookId}/chapters/${chapterId}/annotations`).then(r => r.json()).catch(() => []),
           fetch(`/api/v1/books/${bookId}/chapters/${chapterId}/status`).then(r => r.json()).catch(() => ({ user_decision: null })),
         ])
@@ -124,19 +125,20 @@ export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, da
         </div>
       </div>
 
-      {/* Right feed placeholder (Task 12) */}
+      {/* Right feed — unified CommentFeed (Task 12) */}
       <aside className="workbench-feed">
-        <div className="label-sc" style={{ color: 'var(--accent)' }}>── Marginalia ──</div>
-        {review && review.feedbacks?.map((fb, i) => (
-          <div key={i} style={{ marginTop: 8, fontSize: 11 }}>
-            <strong>{fb.reviewer}</strong>: {fb.quick_comment}
-          </div>
-        ))}
-        {annotations.map(a => (
-          <div key={a.id} style={{ marginTop: 8, fontSize: 11 }}>
-            <strong>我:</strong> {a.comment}
-          </div>
-        ))}
+        <CommentFeed
+          review={review}
+          annotations={annotations}
+          onJump={(_quote) => { /* TODO Task 13 */ }}
+          onAdopt={(_item) => { /* TODO Task 13 */ }}
+          onIgnore={(_id) => { /* TODO Task 13 */ }}
+          onDelete={async (annId) => {
+            await fetch(`/api/v1/books/${bookId}/chapters/${chapterId}/annotations/${annId}`, { method: 'DELETE' })
+            setAnnotations(prev => prev.filter(a => a.id !== annId))
+          }}
+          onSendBatch={() => { /* TODO Task 17 */ }}
+        />
       </aside>
     </div>
   )
