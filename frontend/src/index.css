@@ -572,3 +572,48 @@ button { font-family: var(--font-body); cursor: pointer; }
   color: var(--ink-secondary); font-style: italic;
 }
 .markdown-chat a { color: var(--accent); text-decoration: underline; }
+
+/* ===== Chapter Workbench shell (Task 10) ===== */
+.workbench {
+  display: grid;
+  grid-template-columns: 40px 1fr 230px;
+  height: 100%;
+  background: var(--bg);
+}
+.workbench-rail {
+  padding: 16px 4px;
+  border-right: 1px solid var(--border-subtle);
+}
+.workbench-main {
+  display: flex; flex-direction: column;
+  min-width: 0;
+}
+.workbench-topbar {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--border-strong);
+}
+.workbench-title { display: flex; gap: 12px; align-items: baseline; }
+.workbench-writing-badge {
+  font-family: var(--font-label);
+  font-size: 10px; color: var(--accent);
+  display: inline-flex; align-items: center; gap: 4px;
+  margin-left: 8px;
+}
+.workbench-actions { display: flex; gap: 6px; }
+.workbench-editor {
+  flex: 1; padding: 20px 28px; overflow-y: auto;
+}
+.workbench-statusbar {
+  display: flex; justify-content: space-between;
+  padding: 8px 18px; border-top: 1px solid var(--border-subtle);
+  color: var(--ink-secondary);
+}
+.workbench-feed {
+  padding: 14px 14px;
+  border-left: 1px solid var(--border-subtle);
+  overflow-y: auto;
+}
+.workbench[data-locked="true"] .workbench-editor { opacity: 0.35; pointer-events: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.anim-spin { animation: spin 1.2s linear infinite; }

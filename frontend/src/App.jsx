@@ -7,7 +7,7 @@ import { TabBar } from './components/TabBar'
 import { BrainstormPanel } from './components/BrainstormPanel'
 import { AuthorChatPanel } from './components/AuthorChatPanel'
 import { OutlineTreeEditor } from './components/OutlineTreeEditor'
-import { ChapterEditor } from './components/ChapterEditor'
+import { ChapterWorkbench } from './components/ChapterWorkbench'
 import { SettingsPanel } from './components/SettingsPanel'
 import { NewBookModal } from './components/NewBookModal'
 import { ToastContainer } from './components/Toast'
@@ -75,7 +75,7 @@ export default function App() {
       case 'settings': return <SettingsPanel addToast={addToast} theme={theme} toggleTheme={toggleTheme} />;
       default:
         if (activeTab.startsWith('chapter-') && activeChapter) {
-          return <ChapterEditor bookId={currentBook?.book_id} chapterId={activeChapter.id} chapterLabel={activeChapter.label} addToast={addToast} dataVersion={dataVersion} />;
+          return <ChapterWorkbench bookId={currentBook?.book_id} chapterId={activeChapter.id} chapterLabel={activeChapter.label} addToast={addToast} dataVersion={dataVersion} />;
         }
         return <BrainstormPanel addToast={addToast} currentBook={currentBook} onDataChanged={refreshData} />;
     }
