@@ -231,10 +231,18 @@ const zh = {
   'nav.inbox': '收件箱',
   'nav.outline': '大纲编辑',
   'nav.plotGraph': '剧情图',
+  'nav.memoryLibrary': '记忆库',
   'tab.inbox': '收件箱',
   'tab.outline': '大纲编辑',
   'tab.plotGraph': '剧情图',
   'tab.authorChat': '作者对话',
+  'tab.memoryLibrary': '记忆库',
+
+  // Memory Library
+  'memory.pending': '待审核',
+  'memory.active': '已激活',
+  'memory.archived': '已归档',
+  'memory.addManual': '📝 手动添加记忆',
 
   // Plot Graph
   'plotGraph.addNode': '节点',
@@ -559,10 +567,18 @@ const en = {
   'nav.inbox': 'Inbox',
   'nav.outline': 'Outline Editor',
   'nav.plotGraph': 'Plot Graph',
+  'nav.memoryLibrary': 'Memory',
   'tab.inbox': 'Inbox',
   'tab.outline': 'Outline Editor',
   'tab.plotGraph': 'Plot Graph',
   'tab.authorChat': 'Author Chat',
+  'tab.memoryLibrary': 'Memory Library',
+
+  // Memory Library
+  'memory.pending': 'Pending',
+  'memory.active': 'Active',
+  'memory.archived': 'Archived',
+  'memory.addManual': '📝 Add memory manually',
 
   // Plot Graph
   'plotGraph.addNode': 'Node',

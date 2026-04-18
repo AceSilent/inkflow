@@ -9,6 +9,7 @@ import { AuthorChatPanel } from './components/AuthorChatPanel'
 import { OutlineView } from './components/OutlineView'
 import { PlotGraphView } from './components/PlotGraphView'
 import { ChapterWorkbench } from './components/ChapterWorkbench'
+import { MemoryLibrary } from './components/MemoryLibrary'
 import { SettingsPanel } from './components/SettingsPanel'
 import { NewBookModal } from './components/NewBookModal'
 import { ToastContainer } from './components/Toast'
@@ -49,6 +50,7 @@ export default function App() {
       'author-chat': ['author-chat', 'tab.authorChat'],
       outline: ['outline', 'tab.outline'],
       'plot-graph': ['plot-graph', 'tab.plotGraph'],
+      'memory-library': ['memory-library', 'tab.memoryLibrary'],
       settings: ['settings', 'tab.settings'],
     };
     if (tabMap[panel]) openTab(tabMap[panel][0], tabMap[panel][1]);
@@ -87,6 +89,7 @@ export default function App() {
           dataVersion={dataVersion}
           onChapterOpen={(ch) => handleSceneSelect({ type: 'chapter', id: ch.id, label: ch.label })}
         />;
+      case 'memory-library': return <MemoryLibrary addToast={addToast} />;
       case 'settings': return <SettingsPanel addToast={addToast} theme={theme} toggleTheme={toggleTheme} />;
       default:
         if (activeTab.startsWith('chapter-') && activeChapter) {

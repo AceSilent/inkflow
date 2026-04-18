@@ -970,3 +970,16 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   font-size: 11px;
 }
 .unresolved-item:hover { background: var(--accent-soft); }
+
+/* ─── Memory Library ─── */
+.memory-library { height: 100%; overflow-y: auto; background: var(--bg); }
+.memory-topbar { display: flex; justify-content: space-between; align-items: center; padding: 14px 28px; border-bottom: 1px solid var(--border-strong); background: var(--bg-elevated); }
+.memory-tabs { display: flex; gap: 0; }
+.memory-tabs .memory-tab { padding: 4px 12px; background: none; border: 1px solid var(--border-subtle); font-family: var(--font-label); font-size: 11px; cursor: pointer; color: var(--ink-secondary); }
+.memory-tabs .memory-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.memory-content { padding: 16px 28px; max-width: 900px; margin: 0 auto; }
+.memory-card { padding: 12px; margin-bottom: 10px; background: var(--bg-elevated); border-left: 3px solid var(--accent); border: 1px solid var(--border-subtle); }
+.memory-card-head { display: flex; justify-content: space-between; margin-bottom: 6px; }
+.memory-card-body { font-family: var(--font-body); font-size: 12px; line-height: 1.6; white-space: pre-wrap; }
+.memory-actions { margin-top: 8px; display: flex; gap: 6px; }
+.memory-actions button { padding: 3px 10px; font-size: 11px; border: 1px solid var(--border-subtle); background: var(--bg); cursor: pointer; }

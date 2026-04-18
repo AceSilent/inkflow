@@ -1,0 +1,129 @@
+import { useState, useEffect, useCallback } from 'react'
+import { Loader, Brain } from 'lucide-react'
+import { useI18n } from '../hooks/useI18n'
+
+export function MemoryLibrary({ addToast }) {
+  const { t } = useI18n()
+  const [activeTab, setActiveTab] = useState('pending')
+  const [counts, setCounts] = useState({ pending: 0, active: 0, archived: 0 })
+  const [items, setItems] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  const reload = useCallback(async () => {
+    setLoading(true)
+    try {
+      const [p, a, x] = await Promise.all([
+        fetch('/api/v1/memory/pending').then(r => r.ok ? r.json() : []).catch(() => []),
+        fetch('/api/v1/memory/active').then(r => r.ok ? r.json() : []).catch(() => []),
+        fetch('/api/v1/memory/archived').then(r => r.ok ? r.json() : []).catch(() => []),
+      ])
+      setCounts({
+        pending: Array.isArray(p) ? p.length : 0,
+        active: Array.isArray(a) ? a.length : 0,
+        archived: Array.isArray(x) ? x.length : 0,
+      })
+      const current = activeTab === 'pending' ? p : activeTab === 'active' ? a : x
+      setItems(Array.isArray(current) ? current : [])
+    } finally {
+      setLoading(false)
+    }
+  }, [activeTab])
+
+  useEffect(() => { reload() }, [reload])
+
+  if (loading) {
+    return (
+      <div style={{ padding: 40, textAlign: 'center' }}>
+        <Loader size={20} className="anim-spin" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="memory-library">
+      <div className="memory-topbar">
+        <div className="label-sc" style={{ color: 'var(--accent)' }}>— Memory Library —</div>
+        <div className="memory-tabs">
+          {['pending', 'active', 'archived'].map(k => (
+            <button
+              key={k}
+              className={`memory-tab ${activeTab === k ? 'active' : ''}`}
+              onClick={() => setActiveTab(k)}
+            >
+              {t(`memory.${k}`)} ({counts[k]})
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="memory-content">
+        {items.length === 0 && (
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--ink-muted)' }}>
+            <Brain size={32} opacity={0.3} />
+            <p>暂无记忆</p>
+          </div>
+        )}
+        {items.map(m => (
+          <MemoryCard key={m.frontmatter.id} entry={m} tab={activeTab} onAction={reload} addToast={addToast} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function MemoryCard({ entry, tab, onAction, addToast }) {
+  const { frontmatter: fm, body } = entry
+  return (
+    <div className="memory-card">
+      <div className="memory-card-head">
+        <span className="label-sc" style={{ color: 'var(--accent)' }}>{fm.type}</span>
+        <span className="label-sc" style={{ color: 'var(--ink-muted)' }}>
+          conf {Number(fm.confidence).toFixed(2)} · {fm.scope} · {fm.source}
+        </span>
+      </div>
+      <div className="memory-card-body">{String(body || '').replace(/^#[^\n]*\n+/, '').trim()}</div>
+      <MemoryActions id={fm.id} tab={tab} onAction={onAction} addToast={addToast} />
+    </div>
+  )
+}
+
+function MemoryActions({ id, tab, onAction, addToast }) {
+  async function call(path, method = 'POST') {
+    try {
+      const r = await fetch(`/api/v1/memory/${id}${path}`, { method })
+      if (r.ok) {
+        addToast?.('已处理', 'success')
+        onAction()
+      } else {
+        addToast?.('失败', 'error')
+      }
+    } catch (e) {
+      addToast?.(e.message, 'error')
+    }
+  }
+  if (tab === 'pending') {
+    return (
+      <div className="memory-actions">
+        <button onClick={() => call('/approve')}>✓ 采用</button>
+        <button onClick={() => call('/reject', 'POST')}>✗ 丢弃</button>
+      </div>
+    )
+  }
+  if (tab === 'active') {
+    return (
+      <div className="memory-actions">
+        <button onClick={() => call('/archive')}>归档</button>
+        <button onClick={() => call('', 'DELETE')}>删除</button>
+      </div>
+    )
+  }
+  if (tab === 'archived') {
+    return (
+      <div className="memory-actions">
+        <button onClick={() => call('/restore')}>恢复激活</button>
+        <button onClick={() => call('', 'DELETE')}>彻底删除</button>
+      </div>
+    )
+  }
+  return null
+}
