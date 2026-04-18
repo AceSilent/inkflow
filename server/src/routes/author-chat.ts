@@ -185,11 +185,9 @@ export async function authorChatRoutes(app: FastifyInstance) {
               catch { return undefined }
             })()
           : undefined
-        // `contextManager` lives in settings.json but isn't in AppSettings' static
-        // shape yet (T10 adds it). Read it off the settings object via a cast and
-        // default to 'auto' so existing deployments get the full pipeline.
-        const settingsForContext = getSettings(dataDir) as unknown as { contextManager?: ContextMode }
-        const contextMode: ContextMode = settingsForContext.contextManager ?? 'auto'
+        // `contextManager` is part of AppSettings (T10); default to 'auto' so
+        // existing deployments without the field set get the full pipeline.
+        const contextMode: ContextMode = getSettings(dataDir).contextManager ?? 'auto'
 
         const { newMessages, decision } = await processContext({
           messages: history,

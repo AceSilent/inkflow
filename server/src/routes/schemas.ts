@@ -38,6 +38,12 @@ export const saveSettingsBody = z.object({
   providers: z.array(providerSchema).max(10),
   authorModel: z.string().max(200),
   editorModel: z.string().max(200),
+  contextManager: z.enum(['auto', 'decay_only', 'disabled']).optional(),
+  contextBudgetCustom: z.object({
+    green: z.number().min(0).max(1).optional(),
+    yellow: z.number().min(0).max(1).optional(),
+    orange: z.number().min(0).max(1).optional(),
+  }).optional(),
 })
 
 // ── Data schemas ──

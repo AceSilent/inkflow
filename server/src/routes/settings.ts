@@ -20,16 +20,27 @@ export interface ProviderConfig {
   models: string[]
 }
 
+export type ContextManagerMode = 'auto' | 'decay_only' | 'disabled'
+
+export interface ContextBudgetCustom {
+  green?: number
+  yellow?: number
+  orange?: number
+}
+
 export interface AppSettings {
   providers: ProviderConfig[]
   authorModel: string
   editorModel: string
+  contextManager?: ContextManagerMode
+  contextBudgetCustom?: ContextBudgetCustom
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
   providers: [],
   authorModel: '',
   editorModel: '',
+  contextManager: 'auto',
 }
 
 // ── Key masking ──
@@ -52,6 +63,8 @@ export function getSettings(dataDir: string): AppSettings {
     providers: raw.providers ?? [],
     authorModel: raw.authorModel ?? '',
     editorModel: raw.editorModel ?? '',
+    contextManager: raw.contextManager ?? 'auto',
+    ...(raw.contextBudgetCustom ? { contextBudgetCustom: raw.contextBudgetCustom } : {}),
   }
 }
 
