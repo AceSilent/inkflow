@@ -82,6 +82,10 @@ Two-tier memory architecture:
 - `project-memory.ts` — Per-book project memory (plot progress, character arcs)
 - `context-builder.ts` — Assembles memory into system prompt injection
 
+### Design System (`frontend/src/design-tokens.css` + `typography.css`)
+
+"Literary Journal" aesthetic with two themes (Light: cream paper + ink + oxide-red accents; Dark: espresso + parchment + brick red + gold "Library Espresso"). All colors and fonts defined as CSS variables in `design-tokens.css`. Signature components (`.drop-cap`, `.rail-label`, `.epigraph`, `.wordmark`, `.label-sc`, `.display-hero`, `.display-heading`) in `typography.css`. Fonts: Fraunces (display) + Noto Serif SC (body), preloaded from Google Fonts in `index.html`. `useTheme` defaults to light. See `docs/superpowers/specs/2026-04-18-design-system.md` and `docs/superpowers/plans/2026-04-18-design-system.md`.
+
 ### API Routes (`server/src/routes/`)
 
 Fastify is configured with `ignoreTrailingSlash: true`. All POST/PUT bodies validated via Zod schemas in `schemas.ts`. Route modules:
