@@ -7,7 +7,13 @@
  */
 import type { FastifyPluginAsync } from 'fastify'
 import path from 'path'
-import { createAnnotationSchema, updateAnnotationSchema, type Annotation } from './schemas.js'
+import {
+  createAnnotationSchema,
+  updateAnnotationSchema,
+  setStatusBodySchema,
+  type Annotation,
+  type ChapterStatus,
+} from './schemas.js'
 import { sanitizePathSegment } from '../utils/path-sanitizer.js'
 import { ensureDir, safeReadJson, writeJson } from '../utils/file-io.js'
 
@@ -19,6 +25,12 @@ function annotationsFile(dataDir: string, bookId: string, chId: string): string 
   const safeBook = sanitizePathSegment(bookId, 'bookId')
   const safeCh = sanitizePathSegment(chId, 'chapterId')
   return path.join(dataDir, safeBook, '04_Drafts', `annotations_${safeCh}.json`)
+}
+
+function statusFile(dataDir: string, bookId: string, chId: string): string {
+  const safeBook = sanitizePathSegment(bookId, 'bookId')
+  const safeCh = sanitizePathSegment(chId, 'chapterId')
+  return path.join(dataDir, safeBook, '04_Drafts', `chapter_status_${safeCh}.json`)
 }
 
 function loadAnnotations(file: string): Annotation[] {
@@ -87,6 +99,37 @@ export const workbenchRoutes: FastifyPluginAsync<WorkbenchOptions> = async (app,
       const next = list.filter((a) => a.id !== annId)
       writeJson(file, next)
       return reply.code(204).send()
+    } catch (e) {
+      return reply.code(400).send({ error: String(e) })
+    }
+  })
+
+  app.get('/books/:bookId/chapters/:chId/status', async (req, reply) => {
+    const { bookId, chId } = req.params as { bookId: string; chId: string }
+    try {
+      const file = statusFile(dataDir, bookId, chId)
+      const existing = safeReadJson<ChapterStatus>(file)
+      if (existing) return reply.send(existing)
+      return reply.send({ chapter_id: chId, user_decision: null })
+    } catch (e) {
+      return reply.code(400).send({ error: String(e) })
+    }
+  })
+
+  app.put('/books/:bookId/chapters/:chId/status', async (req, reply) => {
+    const { bookId, chId } = req.params as { bookId: string; chId: string }
+    try {
+      const body = setStatusBodySchema.parse(req.body)
+      const file = statusFile(dataDir, bookId, chId)
+      ensureDir(path.dirname(file))
+      const status: ChapterStatus = {
+        chapter_id: chId,
+        user_decision: body.user_decision,
+        decided_at: body.user_decision ? new Date().toISOString() : undefined,
+        note: body.note,
+      }
+      writeJson(file, status)
+      return reply.send(status)
     } catch (e) {
       return reply.code(400).send({ error: String(e) })
     }
