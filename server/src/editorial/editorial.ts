@@ -109,8 +109,7 @@ function formatOutlineContext(outline: unknown, chapterId: string): string {
   return parts.join('\n\n')
 }
 
-function loadEditorialContext(dataDir: string, bookId: string, chapterId: string): Pick<EditorialContext, 'charactersInfo' | 'worldLore' | 'outlineContext'> {
-  const bookDir = path.join(dataDir, bookId)
+function loadEditorialContextByDir(bookDir: string, chapterId: string): Pick<EditorialContext, 'charactersInfo' | 'worldLore' | 'outlineContext'> {
   const characters = safeReadJson(path.join(bookDir, '01_Global_Settings', 'characters.json'))
   const worldLore = safeReadJson(path.join(bookDir, '01_Global_Settings', 'world_lore.json'))
   const outline = safeReadJson(path.join(bookDir, '02_Outlines', 'outline.json'))
@@ -162,7 +161,20 @@ export function persistReview(
   chapterId: string,
   result: EditorialResult,
 ): PersistResult {
-  const reviewPath = path.join(ensureDir(path.join(dataDir, bookId, '04_Drafts')), `review_${chapterId}.json`)
+  return persistReviewToDir(path.join(dataDir, bookId), chapterId, result)
+}
+
+/**
+ * Same as persistReview, but takes a pre-joined bookDir. Used by
+ * runEditorialPipelineForChapter where the caller (e.g. the workbench route)
+ * already has bookDir and shouldn't need to split it back into dataDir + bookId.
+ */
+function persistReviewToDir(
+  bookDir: string,
+  chapterId: string,
+  result: EditorialResult,
+): PersistResult {
+  const reviewPath = path.join(ensureDir(path.join(bookDir, '04_Drafts')), `review_${chapterId}.json`)
 
   // Load previous round's state for convergence tracking.
   const prev = safeReadJson<{ revision_round?: number; issue_history?: IssueHistory }>(reviewPath)
@@ -202,6 +214,109 @@ export function persistReview(
   return { revision_round, persistent_issues }
 }
 
+/**
+ * Result returned by runEditorialPipelineForChapter — the bare EditorialResult
+ * plus the persistence metadata the caller needs for convergence messaging.
+ *
+ * We extend EditorialResult rather than returning a tuple so that callers which
+ * only care about the review data (e.g. the workbench /resubmit-review route)
+ * can just return the whole object as JSON without juggling two shapes.
+ */
+export interface RunEditorialPipelineResult extends EditorialResult {
+  revision_round: number
+  persistent_issues: PersistResult['persistent_issues']
+}
+
+export interface RunEditorialPipelineForChapterArgs {
+  /** `{dataDir}/{bookId}` — already sanitised and joined by the caller. */
+  bookDir: string
+  chapterId: string
+  draftText: string
+  bookTone?: string
+  bookGenre?: string
+  povCharacter?: string
+  setting?: string
+  sceneTarget?: string
+  logicChain?: string
+  emotionalArc?: string
+  focusPoint?: string
+}
+
+/**
+ * Core editorial flow factored out of `submitToEditorialTool.execute` so both
+ * the tool and HTTP routes (e.g. workbench /resubmit-review) can invoke it
+ * without duplicating context loading, pipeline execution, and persistence.
+ *
+ * Side effects:
+ *   - Writes 04_Drafts/review_{chapterId}.json (via persistReviewToDir)
+ *   - On pass, updates project memory via persistChapterSummary
+ *
+ * Does NOT:
+ *   - Enforce the save_draft-first guard (caller decides — the tool wants it,
+ *     the workbench route has already verified the draft file exists)
+ *   - Format the Author-facing summary string (that's tool-specific UX)
+ */
+export async function runEditorialPipelineForChapter(
+  args: RunEditorialPipelineForChapterArgs,
+): Promise<RunEditorialPipelineResult> {
+  const {
+    bookDir, chapterId, draftText,
+    bookTone, bookGenre, povCharacter, setting,
+    sceneTarget, logicChain, emotionalArc, focusPoint,
+  } = args
+
+  const promptsDir = path.resolve(
+    path.dirname(new URL(import.meta.url).pathname).replace(/^\/([A-Z]:)/, '$1'),
+    '../../../prompts'
+  )
+
+  // bookDir is `{dataDir}/{bookId}` by construction; split it back for helpers
+  // that haven't been migrated to a bookDir-only signature yet.
+  const dataDir = path.dirname(bookDir)
+  const bookId = path.basename(bookDir)
+
+  const llmConfig = editorialLLMConfig(dataDir)
+  const loaded = loadEditorialContextByDir(bookDir, chapterId)
+
+  const result: EditorialResult = await runEditorialPipeline(
+    draftText,
+    {
+      bookTone, bookGenre,
+      povCharacter, setting,
+      sceneTarget, logicChain, emotionalArc, focusPoint,
+      ...loaded,
+    },
+    llmConfig,
+    promptsDir,
+  )
+
+  const persist = persistReviewToDir(bookDir, chapterId, result)
+
+  // Once a chapter clears editorial, fold its summary + character states into
+  // project memory so the next chapter sees the updated continuity context.
+  // Awaited (not fire-and-forget) so the next agent call reads fresh memory;
+  // failures are swallowed — a memory-summary failure must not downgrade a
+  // "chapter passed" result to a 500.
+  if (result.overall_pass) {
+    try {
+      await persistChapterSummary({
+        dataDir, bookId, chapterId,
+        draftText,
+        llmConfig,
+        promptsDir,
+      })
+    } catch {
+      // swallow — do not let summary persistence break the editorial flow
+    }
+  }
+
+  return {
+    ...result,
+    revision_round: persist.revision_round,
+    persistent_issues: persist.persistent_issues,
+  }
+}
+
 export const submitToEditorialTool: ToolDefinition = {
   name: 'submit_to_editorial',
   description: [
@@ -230,11 +345,6 @@ export const submitToEditorialTool: ToolDefinition = {
     draft_text, chapter_id, book_tone, book_genre,
     pov_character, setting, scene_target, logic_chain, emotional_arc, focus_point,
   }, ctx) => {
-    const promptsDir = path.resolve(
-      path.dirname(new URL(import.meta.url).pathname).replace(/^\/([A-Z]:)/, '$1'),
-      '../../../prompts'
-    )
-
     // Guard 1: draft_text must pass the same "not an empty shell" floor as save_draft.
     // Prevents the agent from calling submit_to_editorial with a placeholder and
     // getting a free ✅ before save_draft has been run at all.
@@ -244,54 +354,29 @@ export const submitToEditorialTool: ToolDefinition = {
 
     // Guard 2: the corresponding saved draft must exist. This forces the flow
     // save_draft → submit_to_editorial and blocks submitting un-persisted text.
-    const draftPath = path.join(ctx.dataDir, ctx.bookId, '04_Drafts', `${chapter_id}.md`)
+    const bookDir = path.join(ctx.dataDir, ctx.bookId)
+    const draftPath = path.join(bookDir, '04_Drafts', `${chapter_id}.md`)
     if (!fs.existsSync(draftPath)) {
       return `Error: 未找到 04_Drafts/${chapter_id}.md。先用 save_draft 保存 ${chapter_id} 的正文，再调 submit_to_editorial——不要绕过 save_draft 直接送审。`
     }
 
-    const llmConfig = editorialLLMConfig(ctx.dataDir)
-    const loaded = loadEditorialContext(ctx.dataDir, ctx.bookId, chapter_id)
-
     try {
-      const result: EditorialResult = await runEditorialPipeline(
-        draft_text,
-        {
-          bookTone: book_tone,
-          bookGenre: book_genre,
-          povCharacter: pov_character,
-          setting,
-          sceneTarget: scene_target,
-          logicChain: logic_chain,
-          emotionalArc: emotional_arc,
-          focusPoint: focus_point,
-          ...loaded,
-        },
-        llmConfig,
-        promptsDir,
-      )
-
-      // Auto-persist review results + track convergence across rounds.
-      let persist: PersistResult | null = null
-      if (chapter_id && ctx.bookId && ctx.dataDir) {
-        persist = persistReview(ctx.dataDir, ctx.bookId, chapter_id, result)
-      }
-
-      // Once a chapter clears the editorial gate, fold its summary +
-      // character states into project memory so future chapters get the
-      // continuity context. We await this (rather than fire-and-forget) so
-      // the agent's next call already sees the updated memory — the slight
-      // latency is worth deterministic memory state. Failure is logged but
-      // does not break the editorial result; chapter is still "passed".
-      if (result.overall_pass && chapter_id && ctx.bookId && ctx.dataDir) {
-        await persistChapterSummary({
-          dataDir: ctx.dataDir,
-          bookId: ctx.bookId,
-          chapterId: chapter_id,
-          draftText: draft_text,
-          llmConfig,
-          promptsDir,
-        })
-      }
+      // Delegate the actual pipeline run + persistence to the shared helper so
+      // the HTTP resubmit-review route (which doesn't go through the Author
+      // Agent) runs exactly the same code path as the agent tool.
+      const result = await runEditorialPipelineForChapter({
+        bookDir,
+        chapterId: chapter_id,
+        draftText: draft_text,
+        bookTone: book_tone,
+        bookGenre: book_genre,
+        povCharacter: pov_character,
+        setting,
+        sceneTarget: scene_target,
+        logicChain: logic_chain,
+        emotionalArc: emotional_arc,
+        focusPoint: focus_point,
+      })
 
       // Inline tool result for Author — strip `thinking` from each feedback to
       // keep the agent's context lean. Full thinking traces stay in the
@@ -303,8 +388,8 @@ export const submitToEditorialTool: ToolDefinition = {
       // summary pointing the agent at request_guidance() instead of another
       // blind rewrite. Without this, agent loops forever on unsolvable items.
       let summary = result.merged_summary
-      if (persist && persist.persistent_issues.length > 0) {
-        const lines = persist.persistent_issues.map(p =>
+      if (result.persistent_issues.length > 0) {
+        const lines = result.persistent_issues.map(p =>
           `  · ${p.fingerprint}  (已累计 ${p.count} 轮)`
         )
         summary = [
@@ -318,8 +403,8 @@ export const submitToEditorialTool: ToolDefinition = {
 
       return JSON.stringify({
         overall_pass: result.overall_pass,
-        revision_round: persist?.revision_round ?? 1,
-        persistent_issues: persist?.persistent_issues ?? [],
+        revision_round: result.revision_round,
+        persistent_issues: result.persistent_issues,
         summary,
         feedbacks: leanFeedbacks,
       }, null, 2)

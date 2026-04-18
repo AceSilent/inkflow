@@ -142,6 +142,44 @@ export const workbenchRoutes: FastifyPluginAsync<WorkbenchOptions> = async (app,
     }
   })
 
+  // Re-submit an already-saved draft to the Editorial department WITHOUT going
+  // through the Author Agent — used by the workbench "Re-review" button so a
+  // human can re-run the same 5-reviewer pipeline after editing the draft
+  // directly. The Agent path (submit_to_editorial tool) runs exactly the same
+  // runEditorialPipelineForChapter() helper, so both entry points converge.
+  //
+  // Dynamic import of ../editorial/editorial.js is deliberate: it lets vitest
+  // `vi.doMock()` intercept the pipeline function per-test without having to
+  // plumb a dependency-injection hook through the Fastify options.
+  app.post('/books/:bookId/chapters/:chId/resubmit-review', async (req, reply) => {
+    const { bookId, chId } = req.params as { bookId: string; chId: string }
+    try {
+      const safeBook = sanitizePathSegment(bookId, 'bookId')
+      const safeCh = sanitizePathSegment(chId, 'chapterId')
+      const bookDir = path.join(dataDir, safeBook)
+      const draftFile = path.join(bookDir, '04_Drafts', `${safeCh}.md`)
+      if (!fs.existsSync(draftFile)) {
+        return reply.code(400).send({ error: `Draft ${safeCh}.md not found.` })
+      }
+      const draftText = fs.readFileSync(draftFile, 'utf8')
+      const meta = safeReadJson<{ tone?: string; genre?: string }>(
+        path.join(bookDir, '00_Config', 'book_meta.json'),
+      ) ?? {}
+
+      const { runEditorialPipelineForChapter } = await import('../editorial/editorial.js')
+      const result = await runEditorialPipelineForChapter({
+        bookDir,
+        chapterId: safeCh,
+        draftText,
+        bookTone: meta.tone,
+        bookGenre: meta.genre,
+      })
+      return reply.code(200).send(result)
+    } catch (e) {
+      return reply.code(400).send({ error: String(e) })
+    }
+  })
+
   app.post('/books/:bookId/chapters/:chId/workbench-lock', async (req, reply) => {
     const { bookId, chId } = req.params as { bookId: string; chId: string }
     try {
