@@ -47,12 +47,16 @@ export const chapterIdParam = z.object({
   chapterId: z.string().min(1).max(128),
 })
 
-export const outlineBody = z.object({
-  id: z.string().max(128),
-  label: z.string().max(500),
-  type: z.literal('book'),
-  children: z.array(z.any()).max(1000),
-})
+export const outlineBody = z
+  .object({
+    id: z.string().max(128),
+    label: z.string().max(500),
+    type: z.literal('book'),
+    children: z.array(z.any()).max(1000),
+    epigraph: z.string().max(2000).optional(),
+    synopsis: z.string().max(10000).optional(),
+  })
+  .passthrough()
 
 // ── Workbench schemas ──
 

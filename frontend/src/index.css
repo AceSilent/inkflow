@@ -743,3 +743,31 @@ button { font-family: var(--font-body); cursor: pointer; }
 .chapter-status { color: var(--ink-secondary); }
 .chapter-status.draft { color: var(--warning); }
 .chapter-status.done { color: var(--success); }
+
+/* ─── EditableField (Task 5) ─────────────────────────────────────── */
+.editable-display {
+  cursor: text;
+  border-bottom: 1px dashed transparent;
+  transition: border-color 100ms;
+}
+.editable-display:hover { border-bottom-color: var(--border-subtle); }
+.editable-display.empty {
+  color: var(--ink-muted);
+  font-style: italic;
+}
+.editable-input {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  color: var(--ink);
+  padding: 4px 6px;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  font-style: inherit;
+  font-weight: inherit;
+  width: 100%;
+  box-sizing: border-box;
+  outline: none;
+}
+.editable-input:focus { border-color: var(--accent); }
+textarea.editable-input { resize: vertical; font-family: var(--font-body); }

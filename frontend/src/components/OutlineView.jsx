@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Loader, Check, FileText, RefreshCw } from 'lucide-react'
 import { useI18n } from '../hooks/useI18n'
 import { toRoman } from '../utils/roman'
+import { EditableField } from './outline/EditableField'
 
 function useDerivedChapterStatus(bookId, chId) {
   const [status, setStatus] = useState('-') // '-' | 'Draft' | 'Done'
@@ -27,19 +28,37 @@ function useDerivedChapterStatus(bookId, chId) {
   return status
 }
 
-function ChapterRow({ bookId, chNode, index, onClick }) {
+function ChapterRow({ bookId, chNode, index, onOpen, onPatch }) {
   const status = useDerivedChapterStatus(bookId, chNode.id)
   const statusClass = status === 'Done' ? 'done' : status === 'Draft' ? 'draft' : ''
   return (
-    <div className="chapter-row" onClick={() => onClick?.(chNode)}>
+    <div className="chapter-row">
       <div className="chapter-num label-sc">{toRoman(index + 1)}.</div>
-      <div className="chapter-body">
-        <div className="chapter-title">{chNode.label}</div>
-        {chNode.summary && <div className="chapter-summary">{chNode.summary}</div>}
+      <div className="chapter-body" onClick={(e) => e.stopPropagation()}>
+        <div className="chapter-title">
+          <EditableField
+            value={chNode.label}
+            onSave={(v) => onPatch({ label: v })}
+            placeholder="— 点此添加章标题 —"
+          />
+        </div>
+        <div className="chapter-summary">
+          <EditableField
+            multiline
+            value={chNode.summary}
+            onSave={(v) => onPatch({ summary: v })}
+            placeholder="— 点此添加章摘要 —"
+          />
+        </div>
       </div>
-      <div className={`chapter-status label-sc ${statusClass}`}>
+      <div
+        className={`chapter-status label-sc ${statusClass}`}
+        onClick={() => onOpen?.(chNode)}
+        style={{ cursor: 'pointer' }}
+        title="打开章节工作台"
+      >
         {status === 'Done' && <Check size={10} style={{ marginRight: 3, verticalAlign: 'middle' }} />}
-        {status}
+        {status} ↗
       </div>
     </div>
   )
@@ -61,7 +80,6 @@ function FreeformFallback({ data }) {
 export function OutlineView({ currentBook, addToast, onChapterOpen, dataVersion }) {
   const { t } = useI18n()
   void t
-  void addToast
   const [outline, setOutline] = useState(null)
   const [loading, setLoading] = useState(Boolean(currentBook))
 
@@ -85,6 +103,40 @@ export function OutlineView({ currentBook, addToast, onChapterOpen, dataVersion 
   useEffect(() => {
     loadOutline(currentBook?.book_id)
   }, [currentBook, dataVersion, loadOutline])
+
+  const saveOutline = useCallback(async (updated) => {
+    setOutline(updated)
+    if (!currentBook?.book_id) return
+    try {
+      const r = await fetch(`/api/v1/books/${currentBook.book_id}/outline`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated),
+      })
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}))
+        addToast?.(`保存失败：${err.error ?? r.status}`, 'error')
+      }
+    } catch (e) {
+      addToast?.(`保存失败：${e.message}`, 'error')
+    }
+  }, [currentBook, addToast])
+
+  const patchBook = (patch) => saveOutline({ ...outline, ...patch })
+
+  const patchVolume = (volIdx, patch) => {
+    const next = { ...outline, children: [...outline.children] }
+    next.children[volIdx] = { ...next.children[volIdx], ...patch }
+    saveOutline(next)
+  }
+
+  const patchChapter = (volIdx, chIdx, patch) => {
+    const next = { ...outline, children: [...outline.children] }
+    const vol = { ...next.children[volIdx], children: [...next.children[volIdx].children] }
+    vol.children[chIdx] = { ...vol.children[chIdx], ...patch }
+    next.children[volIdx] = vol
+    saveOutline(next)
+  }
 
   if (loading) {
     return (
@@ -115,24 +167,57 @@ export function OutlineView({ currentBook, addToast, onChapterOpen, dataVersion 
       <div className="outline-doc">
         {hasStructure ? (
           <>
-            <h1 className="display-hero">{outline.label || '（未命名）'}</h1>
-            {outline.epigraph && <div className="epigraph">{outline.epigraph}</div>}
-            {outline.synopsis && <p className="drop-cap book-synopsis">{outline.synopsis}</p>}
+            <h1 className="display-hero">
+              <EditableField
+                value={outline.label}
+                onSave={(v) => patchBook({ label: v })}
+                placeholder="（未命名）"
+              />
+            </h1>
+            <div className="epigraph">
+              <EditableField
+                value={outline.epigraph}
+                onSave={(v) => patchBook({ epigraph: v })}
+                placeholder="— 点此添加题词 —"
+              />
+            </div>
+            <p className="drop-cap book-synopsis">
+              <EditableField
+                multiline
+                value={outline.synopsis}
+                onSave={(v) => patchBook({ synopsis: v })}
+                placeholder="— 点此添加全书梗概 —"
+              />
+            </p>
 
             {outline.children.map((vol, volIdx) => (
               <section key={vol.id} className="outline-volume">
                 <div className="vol-head">
                   <span className="vol-num label-sc">Vol. {toRoman(volIdx + 1)}</span>
-                  <span className="vol-title display-heading">{vol.label}</span>
+                  <span className="vol-title display-heading">
+                    <EditableField
+                      value={vol.label}
+                      onSave={(v) => patchVolume(volIdx, { label: v })}
+                      placeholder="（卷名）"
+                    />
+                  </span>
                 </div>
-                {vol.synopsis && <p className="vol-synopsis">{vol.synopsis}</p>}
+                <p className="vol-synopsis">
+                  <EditableField
+                    multiline
+                    value={vol.synopsis}
+                    onSave={(v) => patchVolume(volIdx, { synopsis: v })}
+                    placeholder="— 点此添加卷梗概 —"
+                  />
+                </p>
                 {(vol.children || []).map((ch, chIdx) => (
                   <ChapterRow
                     key={ch.id}
                     bookId={currentBook.book_id}
                     chNode={ch}
                     index={chIdx}
-                    onClick={(node) => onChapterOpen?.(node)}
+                    onOpen={(node) => onChapterOpen?.(node)}
+                    onPatch={(patch) => patchChapter(volIdx, chIdx, patch)}
                   />
                 ))}
               </section>
