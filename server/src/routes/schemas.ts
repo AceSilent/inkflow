@@ -103,3 +103,49 @@ export const setStatusBodySchema = z.object({
 export const sendAnnotationsBodySchema = z.object({
   annotation_ids: z.array(z.string()).min(1),
 })
+
+// ── Plot graph schemas ──
+
+export const NODE_TYPES = ['event', 'setup', 'payoff', 'decision', 'turning_point', 'convergence'] as const
+export const EDGE_TYPES = ['causes', 'triggers', 'enables', 'blocks', 'pays-off', 'parallel'] as const
+export const NODE_STATUSES = ['draft', 'confirmed', 'pruned', 'alternative'] as const
+
+export const plotNodeSchema = z.object({
+  id: z.string().min(1),
+  type: z.enum(NODE_TYPES),
+  title: z.string(),
+  description: z.string(),
+  references: z.array(z.string()),
+  characters: z.array(z.string()),
+  status: z.enum(NODE_STATUSES),
+  pruned_reason: z.string().optional(),
+  created_at: z.string(),
+})
+export type PlotNode = z.infer<typeof plotNodeSchema>
+
+export const plotEdgeSchema = z.object({
+  id: z.string().min(1),
+  from: z.string().min(1),
+  to: z.string().min(1),
+  type: z.enum(EDGE_TYPES),
+  note: z.string().optional(),
+})
+export type PlotEdge = z.infer<typeof plotEdgeSchema>
+
+export const addPlotNodeBodySchema = z.object({
+  type: z.enum(NODE_TYPES),
+  title: z.string().min(1),
+  description: z.string().default(''),
+  references: z.array(z.string()).default([]),
+  characters: z.array(z.string()).default([]),
+  status: z.enum(NODE_STATUSES).default('draft'),
+})
+
+export const addEdgeBodySchema = z.object({
+  from: z.string().min(1),
+  to: z.string().min(1),
+  type: z.enum(EDGE_TYPES),
+  note: z.string().optional(),
+}).refine(v => v.from !== v.to, { message: 'self-loop not allowed (from === to)' })
+
+export const updatePlotNodeBodySchema = plotNodeSchema.partial().omit({ id: true, created_at: true })
