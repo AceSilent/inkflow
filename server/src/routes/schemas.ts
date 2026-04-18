@@ -53,3 +53,49 @@ export const outlineBody = z.object({
   type: z.literal('book'),
   children: z.array(z.any()).max(1000),
 })
+
+// ── Workbench schemas ──
+
+export const annotationSchema = z.object({
+  id: z.string().min(1),
+  quote: z.string(),
+  anchor_start: z.number().int().nonnegative(),
+  anchor_end: z.number().int().nonnegative(),
+  comment: z.string(),
+  source: z.enum(['user', 'adopted_review']),
+  source_reviewer: z.string().optional(),
+  status: z.enum(['open', 'sent', 'resolved', 'ignored']),
+  sent_batch_id: z.string().optional(),
+  created_at: z.string(),
+  sent_at: z.string().optional(),
+  resolved_at: z.string().optional(),
+})
+export type Annotation = z.infer<typeof annotationSchema>
+
+export const createAnnotationSchema = annotationSchema.omit({
+  id: true,
+  status: true,
+  created_at: true,
+  sent_batch_id: true,
+  sent_at: true,
+  resolved_at: true,
+})
+
+export const updateAnnotationSchema = annotationSchema.partial().omit({ id: true, created_at: true })
+
+export const chapterStatusSchema = z.object({
+  chapter_id: z.string().regex(/^ch\d{1,4}$/i),
+  user_decision: z.enum(['approved', 'rejected']).nullable(),
+  decided_at: z.string().optional(),
+  note: z.string().optional(),
+})
+export type ChapterStatus = z.infer<typeof chapterStatusSchema>
+
+export const setStatusBodySchema = z.object({
+  user_decision: z.enum(['approved', 'rejected']).nullable(),
+  note: z.string().optional(),
+})
+
+export const sendAnnotationsBodySchema = z.object({
+  annotation_ids: z.array(z.string()).min(1),
+})
