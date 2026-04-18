@@ -10,7 +10,6 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
   const [loading, setLoading] = useState(false)
   const [attachments, setAttachments] = useState([])
   const [streamingMsg, setStreamingMsg] = useState(null) // {thinking, segments[], thinkingDone, phase}
-  const [expandedThinking, setExpandedThinking] = useState({})
   const [snapshots, setSnapshots] = useState([])
   const [snapsOpen, setSnapsOpen] = useState(false)
   const chatEndRef = useRef(null)
@@ -31,7 +30,6 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (!data?.messages) return
-        const thinkingState = {}
         const restored = data.messages.map((m, i) => {
           const id = m.id || Date.now() + i
           const out = { ...m, id }
@@ -69,7 +67,6 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
           return out
         })
         setMessages(restored)
-        setExpandedThinking(prev => ({ ...prev, ...thinkingState }))
         // Seed sent-history from the user messages we just loaded so the
         // arrow-key recall works across sessions / refreshes.
         sentHistory.current = restored
@@ -322,7 +319,6 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
     if (!bookId) return
     await fetch(`/api/v1/author-chat/${bookId}/history`, { method: 'DELETE' })
     setMessages([])
-    setExpandedThinking({})
   }
 
   const handleKeyDown = (e) => {
@@ -356,10 +352,6 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
       }
       return
     }
-  }
-
-  const toggleThinking = (msgId) => {
-    setExpandedThinking(prev => ({ ...prev, [msgId]: !prev[msgId] }))
   }
 
   if (!bookId) {
@@ -463,8 +455,6 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
           <MessageBubble
             key={msg.id || i}
             msg={msg}
-            isExpanded={expandedThinking[msg.id]}
-            onToggleThinking={() => toggleThinking(msg.id)}
             onOptionSelect={(opt) => handleSend(opt)}
             optionsDisabled={loading}
           />
@@ -782,7 +772,7 @@ function ToolCallCard({ segment }) {
 
 // ── Message Bubble Component ──
 
-function MessageBubble({ msg, isExpanded, onToggleThinking, onOptionSelect, optionsDisabled }) {
+function MessageBubble({ msg, onOptionSelect, optionsDisabled }) {
   const { t } = useI18n()
   const isUser = msg.role === 'user'
 
