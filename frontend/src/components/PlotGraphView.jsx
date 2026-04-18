@@ -1,10 +1,11 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Loader, Plus } from 'lucide-react'
 import { useI18n } from '../hooks/useI18n'
 import { toRoman } from '../utils/roman'
 import { AddNodeModal } from './plotgraph/AddNodeModal'
 import { NodeDetailDrawer } from './plotgraph/NodeDetailDrawer'
 import { UnresolvedSetupsPopover } from './plotgraph/UnresolvedSetupsPopover'
+import { EdgesOverlay } from './plotgraph/EdgesOverlay'
 
 const NODE_COLORS = {
   event: 'var(--ink)',
@@ -28,6 +29,7 @@ export function PlotGraphView({ currentBook, addToast, onChapterOpen, dataVersio
   const [detailNodeId, setDetailNodeId] = useState(null)
   const [addNodeOpen, setAddNodeOpen] = useState(false)
   const [unresolvedPopoverOpen, setUnresolvedPopoverOpen] = useState(false)
+  const timelineRef = useRef(null)
 
   const reload = useCallback(async () => {
     if (!currentBook) { setLoading(false); return }
@@ -103,8 +105,8 @@ export function PlotGraphView({ currentBook, addToast, onChapterOpen, dataVersio
         </div>
       </div>
 
-      <div className="plot-timeline-scroll">
-        <div className="plot-timeline">
+      <div className="plot-timeline-scroll" ref={timelineRef}>
+        <div className="plot-timeline" style={{ position: 'relative' }}>
           {columns.map(([chId, nodes]) => (
             <div key={chId} className="plot-col" data-ch={chId}>
               <div
@@ -117,6 +119,7 @@ export function PlotGraphView({ currentBook, addToast, onChapterOpen, dataVersio
                 <div
                   key={n.id}
                   className={`plot-node plot-node-${n.type}`}
+                  data-node-id={n.id}
                   data-status={n.status}
                   onClick={() => setDetailNodeId(n.id)}
                   style={{ borderLeftColor: NODE_COLORS[n.type] }}
@@ -127,10 +130,9 @@ export function PlotGraphView({ currentBook, addToast, onChapterOpen, dataVersio
               ))}
             </div>
           ))}
+          <EdgesOverlay edges={graph?.edges ?? []} containerRef={timelineRef} />
         </div>
       </div>
-
-      {/* SVG edges overlay is wired in a later task (T11). */}
 
       <NodeDetailDrawer
         open={!!detailNode}
