@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Loader, Brain } from 'lucide-react'
 import { useI18n } from '../hooks/useI18n'
+import { AddMemoryModal } from './memory/AddMemoryModal'
 
 export function MemoryLibrary({ addToast }) {
   const { t } = useI18n()
@@ -8,6 +9,7 @@ export function MemoryLibrary({ addToast }) {
   const [counts, setCounts] = useState({ pending: 0, active: 0, archived: 0 })
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
+  const [addOpen, setAddOpen] = useState(false)
 
   const reload = useCallback(async () => {
     setLoading(true)
@@ -54,6 +56,9 @@ export function MemoryLibrary({ addToast }) {
             </button>
           ))}
         </div>
+        <button className="btn btn-sm" onClick={() => setAddOpen(true)}>
+          {t('memory.addManual')}
+        </button>
       </div>
 
       <div className="memory-content">
@@ -67,6 +72,21 @@ export function MemoryLibrary({ addToast }) {
           <MemoryCard key={m.frontmatter.id} entry={m} tab={activeTab} onAction={reload} addToast={addToast} />
         ))}
       </div>
+
+      <AddMemoryModal
+        open={addOpen}
+        onCancel={() => setAddOpen(false)}
+        onSubmit={async ({ text, scope }) => {
+          const body = { text, scope, type: 'preference', tags: [] }
+          const r = await fetch('/api/v1/memory/remember', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          })
+          if (r.ok) { addToast?.('已记住', 'success'); setAddOpen(false); reload() }
+          else addToast?.('失败', 'error')
+        }}
+      />
     </div>
   )
 }
