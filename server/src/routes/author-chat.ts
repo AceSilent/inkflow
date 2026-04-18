@@ -258,6 +258,12 @@ export async function authorChatRoutes(app: FastifyInstance) {
           app.log.warn({ err: logErr, bookId }, '[author-chat] context_log append failed')
         }
 
+        // Surface the context-manager decision to the frontend so it can show
+        // inline notices ("decayed N tool results", "compacted M early messages").
+        // Using the existing `sse()` helper keeps the type-field event shape
+        // (there are no named SSE events in this stream).
+        sse({ type: 'context', decision })
+
         // Session-state hook: update recentReads / activeSkill after each tool
         // call so cold-compact on the NEXT turn has accurate workbench state.
         // Composed alongside the existing stats + tips hooks.

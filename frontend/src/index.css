@@ -997,3 +997,13 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   color: var(--danger);
   font-weight: 600;
 }
+.context-notice {
+  text-align: center;
+  padding: 6px 12px;
+  margin: 8px 0;
+  background: var(--accent-soft);
+  color: var(--ink-secondary);
+  font-family: var(--font-label);
+  font-size: 10px;
+  border: 1px dashed var(--border-subtle);
+}

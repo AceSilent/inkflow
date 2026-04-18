@@ -294,6 +294,25 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
               setStreamingMsg(prev => ({
                 ...prev, segments: [...segments, { type: 'content', text: currentContentBuf }]
               }))
+            } else if (evt.type === 'context') {
+              // Context-manager decision from the backend. Surface decay / cold-compact
+              // actions as inline system notices so the user understands why earlier
+              // turns may look trimmed or summarized. Pure info — no state mutation.
+              const d = evt.decision ?? evt
+              if (d.decayedCount > 0) {
+                setMessages(prev => [...prev, {
+                  id: `ctx_dec_${Date.now()}`,
+                  role: 'system_notice',
+                  content: `本轮衰减了 ${d.decayedCount} 条工具结果（节省 token）`,
+                }])
+              }
+              if (d.compactedCount > 0) {
+                setMessages(prev => [...prev, {
+                  id: `ctx_cp_${Date.now()}`,
+                  role: 'system_notice',
+                  content: `📚 已压缩 ${d.compactedCount} 条早期消息到会话摘要`,
+                }])
+              }
             } else if (evt.type === 'done') {
               // Stream complete — refresh lore if tools were used
               if (evt.tools_used?.length > 0 && onLoreUpdated) {
@@ -473,14 +492,21 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
         )}
 
         {/* Committed messages */}
-        {messages.map((msg, i) => (
-          <MessageBubble
-            key={msg.id || i}
-            msg={msg}
-            onOptionSelect={(opt) => handleSend(opt)}
-            optionsDisabled={loading}
-          />
-        ))}
+        {messages.map((msg, i) => {
+          // Context-manager notices (decay / cold-compact) render as a slim
+          // centered line rather than a chat bubble — they're metadata, not speech.
+          if (msg.role === 'system_notice') {
+            return <div key={msg.id || i} className="context-notice">{msg.content}</div>
+          }
+          return (
+            <MessageBubble
+              key={msg.id || i}
+              msg={msg}
+              onOptionSelect={(opt) => handleSend(opt)}
+              optionsDisabled={loading}
+            />
+          )
+        })}
 
         {/* Live streaming message */}
         {streamingMsg && (
