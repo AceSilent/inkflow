@@ -12,10 +12,12 @@ import { type FastifyInstance } from 'fastify'
 import fs from 'fs'
 import path from 'path'
 import { sanitizePathSegment } from '../utils/path-sanitizer.js'
-import { safeReadJson, writeJson } from '../utils/file-io.js'
+import { safeReadJson, writeJson, ensureDir } from '../utils/file-io.js'
 import { collectChapters, findChapterById } from '../utils/outline.js'
 import { outlineBody } from './schemas.js'
 import { loadStats } from '../stats/tool-stats.js'
+import { archivePriorDraft } from '../tools/draft-history.js'
+import { createBackup } from '../tools/safety.js'
 
 // ── Helper functions (exported for direct testing) ──
 
@@ -225,6 +227,32 @@ export async function dataRoutes(app: FastifyInstance): Promise<void> {
         return { error: 'Chapter not found' }
       }
       return detail
+    }
+  )
+
+  // PUT /api/v1/books/:bookId/chapters/:chapterId/draft — manual save from workbench
+  app.put<{
+    Params: { bookId: string; chapterId: string }
+    Body: { content: string }
+  }>(
+    '/api/v1/books/:bookId/chapters/:chapterId/draft',
+    async (request, reply) => {
+      const bookId = sanitizePathSegment(request.params.bookId, 'bookId')
+      const chapterId = sanitizePathSegment(request.params.chapterId, 'chapterId')
+      const body = request.body
+      if (!body || typeof body.content !== 'string') {
+        reply.code(400)
+        return { error: 'content required' }
+      }
+      const bookDir = path.join(dataDir(), bookId)
+      const draftFile = path.join(bookDir, '04_Drafts', `${chapterId}.md`)
+      ensureDir(path.dirname(draftFile))
+      // Archive the prior draft into .draft_history/ and drop a .bak alongside
+      // the file — same safety story as save_draft uses.
+      archivePriorDraft(bookDir, draftFile)
+      createBackup(draftFile)
+      fs.writeFileSync(draftFile, body.content, 'utf-8')
+      return { ok: true, bytes: Buffer.byteLength(body.content, 'utf-8') }
     }
   )
 

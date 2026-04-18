@@ -1,10 +1,11 @@
+// Shell component (Task 10) + Milkdown editor + Ctrl+S save (Task 11).
+// Remaining placeholders (batch actions) are wired in Task 17.
 /* eslint-disable no-unused-vars */
-// Shell component (Task 10) — placeholders for Tasks 11 (editor/save) and 17 (actions).
-// Unused imports/state retained verbatim per plan so later tasks wire in without churn.
 import { useState, useEffect, useCallback } from 'react'
 import { Loader, Check, RefreshCw, Send } from 'lucide-react'
 import { useI18n } from '../hooks/useI18n'
 import { toRoman } from '../utils/roman'
+import { MilkdownEditor } from './workbench/MilkdownEditor'
 
 export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, dataVersion }) {
   const { t } = useI18n()
@@ -43,6 +44,37 @@ export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, da
     return () => { cancelled = true }
   }, [bookId, chapterId, dataVersion])
 
+  // Manual save (Ctrl/Cmd+S) — posts current markdown to the draft PUT route.
+  const handleSave = useCallback(async () => {
+    if (!dirty) return
+    try {
+      const r = await fetch(`/api/v1/books/${bookId}/chapters/${chapterId}/draft`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content }),
+      })
+      if (r.ok) {
+        setDirty(false)
+        addToast?.('已保存', 'success')
+      } else {
+        addToast?.('保存失败', 'error')
+      }
+    } catch {
+      addToast?.('保存失败', 'error')
+    }
+  }, [dirty, content, bookId, chapterId, addToast])
+
+  useEffect(() => {
+    function onKey(e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault()
+        handleSave()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [handleSave])
+
   if (loading) {
     return (
       <div style={{ padding: 40, textAlign: 'center' }}>
@@ -75,11 +107,14 @@ export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, da
           </div>
         </div>
 
-        {/* Editor placeholder (Task 11) */}
+        {/* Editor — Milkdown wrapper (Task 11). key remounts on chapter switch. */}
         <div className="workbench-editor">
-          <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'var(--font-body)', fontSize: 'var(--fs-body)' }}>
-            {content || <em style={{ color: 'var(--ink-muted)' }}>（尚无草稿）</em>}
-          </pre>
+          <MilkdownEditor
+            key={chapterId}
+            initial={content}
+            readOnly={locked}
+            onChange={(md) => { setContent(md); setDirty(true) }}
+          />
         </div>
 
         {/* Status bar */}
