@@ -26,10 +26,10 @@ describe('zoneByTokens', () => {
   })
 
   it('long context split into 3 zones', () => {
-    // 40 medium messages (~40k tokens total) + 10 short
+    // 80 medium (~80k tok) + enough oldest shorts to overflow hot/warm gaps + 10 short newest
     const msgs: ModelMessage[] = [
-      ...Array.from({ length: 5 }, () => short),      // oldest
-      ...Array.from({ length: 40 }, () => medium),    // ~40k tok middle
+      ...Array.from({ length: 1000 }, () => short),   // oldest — enough to overflow remaining hot/warm budget
+      ...Array.from({ length: 80 }, () => medium),    // ~80k tok middle
       ...Array.from({ length: 10 }, () => short),     // newest
     ]
     const { hot, warm, cold } = zoneByTokens(msgs)
@@ -38,6 +38,8 @@ describe('zoneByTokens', () => {
     expect(hot[hot.length - 1]).toBe(short)
     // Cold should include the oldest short messages
     expect(cold[0]).toBe(short)
+    // Sanity: cold must be non-empty
+    expect(cold.length).toBeGreaterThan(0)
   })
 
   it('a single huge message alone can fill Hot+Warm', () => {
