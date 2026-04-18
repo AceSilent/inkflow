@@ -6,6 +6,7 @@
  * adopted editorial issues are materialised into this same list.
  */
 import type { FastifyPluginAsync } from 'fastify'
+import fs from 'fs'
 import path from 'path'
 import {
   createAnnotationSchema,
@@ -31,6 +32,12 @@ function statusFile(dataDir: string, bookId: string, chId: string): string {
   const safeBook = sanitizePathSegment(bookId, 'bookId')
   const safeCh = sanitizePathSegment(chId, 'chapterId')
   return path.join(dataDir, safeBook, '04_Drafts', `chapter_status_${safeCh}.json`)
+}
+
+function lockFile(dataDir: string, bookId: string, chId: string): string {
+  const safeBook = sanitizePathSegment(bookId, 'bookId')
+  const safeCh = sanitizePathSegment(chId, 'chapterId')
+  return path.join(dataDir, safeBook, '04_Drafts', `workbench_lock_${safeCh}`)
 }
 
 function loadAnnotations(file: string): Annotation[] {
@@ -130,6 +137,33 @@ export const workbenchRoutes: FastifyPluginAsync<WorkbenchOptions> = async (app,
       }
       writeJson(file, status)
       return reply.send(status)
+    } catch (e) {
+      return reply.code(400).send({ error: String(e) })
+    }
+  })
+
+  app.post('/books/:bookId/chapters/:chId/workbench-lock', async (req, reply) => {
+    const { bookId, chId } = req.params as { bookId: string; chId: string }
+    try {
+      const file = lockFile(dataDir, bookId, chId)
+      ensureDir(path.dirname(file))
+      fs.writeFileSync(file, new Date().toISOString(), 'utf8')
+      return reply.code(201).send({ locked: true })
+    } catch (e) {
+      return reply.code(400).send({ error: String(e) })
+    }
+  })
+
+  app.delete('/books/:bookId/chapters/:chId/workbench-lock', async (req, reply) => {
+    const { bookId, chId } = req.params as { bookId: string; chId: string }
+    try {
+      const file = lockFile(dataDir, bookId, chId)
+      try {
+        if (fs.existsSync(file)) fs.unlinkSync(file)
+      } catch {
+        // swallow — idempotent
+      }
+      return reply.code(204).send()
     } catch (e) {
       return reply.code(400).send({ error: String(e) })
     }
