@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { BookOpen, User, Globe, FileText, Settings, ChevronRight, ChevronDown } from 'lucide-react'
+import { BookOpen, ChevronRight, ChevronDown } from 'lucide-react'
 import { useI18n } from '../hooks/useI18n'
 import { AuthorChatPanel } from './AuthorChatPanel.jsx'
 
@@ -79,23 +79,20 @@ function LoreEntry({ label, value, isComplex, depth }) {
   )
 }
 
-const emptyLore = { title: '', genre: '', tone: '', protagonist: '', worldSetting: '', synopsis: '', targetWords: 500000 }
-const emptyLoreFiles = { world_setting: null, characters: null, outline: null }
+const emptyLoreFiles = { world_setting: null, characters: null }
 
 export function BrainstormPanel({ addToast, currentBook, onDataChanged }) {
   const { t } = useI18n()
 
-  // Lore Book State — now includes all lore files
-  const [lore, setLore] = useState(emptyLore)
+  // Lore Book State — world_setting + characters files
   const [loreFiles, setLoreFiles] = useState(emptyLoreFiles)
-  const [loreSection, setLoreSection] = useState('meta') // 'meta' | 'world' | 'chars' | 'outline'
+  const [loreSection, setLoreSection] = useState('world') // 'world' | 'chars'
   const [prevBookId, setPrevBookId] = useState(undefined)
 
   // Reset lore state on book change (during render, avoids useEffect cascading renders)
   const bookId = currentBook?.book_id
   if (bookId !== prevBookId) {
     setPrevBookId(bookId)
-    setLore(emptyLore)
     setLoreFiles(emptyLoreFiles)
   }
 
@@ -106,20 +103,9 @@ export function BrainstormPanel({ addToast, currentBook, onDataChanged }) {
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (!data) return
-        const m = data.meta || {}
-        setLore({
-          title: m.title || '',
-          genre: m.genre || '',
-          tone: m.tone || '',
-          protagonist: m.protagonist || '',
-          worldSetting: m.world_setting || '',
-          synopsis: m.synopsis || '',
-          targetWords: m.target_words || 500000,
-        })
         setLoreFiles({
           world_setting: data.world_setting || null,
           characters: data.characters || null,
-          outline: data.outline || null,
         })
       })
       .catch(() => {})
@@ -150,7 +136,7 @@ export function BrainstormPanel({ addToast, currentBook, onDataChanged }) {
           <div style={{ flex: 1, padding: '12px 16px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
             {/* Section Tabs */}
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-              {[['meta', t('brainstorm.meta')],['world', t('brainstorm.world')],['chars', t('brainstorm.chars')],['outline', t('brainstorm.outlineTab')]].map(([key, label]) => (
+              {[['world', t('brainstorm.world')],['chars', t('brainstorm.chars')]].map(([key, label]) => (
                 <button key={key} onClick={() => setLoreSection(key)} style={{
                   padding: '4px 10px', borderRadius: 4, fontSize: 11, border: 'none', cursor: 'pointer',
                   background: loreSection === key ? 'var(--accent)' : 'var(--bg-subtle)',
@@ -159,28 +145,6 @@ export function BrainstormPanel({ addToast, currentBook, onDataChanged }) {
                 }}>{label}</button>
               ))}
             </div>
-
-            {/* Meta Section */}
-            {loreSection === 'meta' && (
-              <>
-                <div className="field">
-                  <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Settings size={12}/> {t('brainstorm.bookTitle')}</label>
-                  <input className="input" value={lore.title} onChange={e => setLore(prev => ({ ...prev, title: e.target.value }))} />
-                </div>
-                <div className="field">
-                  <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><User size={12}/> {t('brainstorm.protagonist')}</label>
-                  <textarea className="textarea" rows={3} value={lore.protagonist} onChange={e => setLore(prev => ({ ...prev, protagonist: e.target.value }))} />
-                </div>
-                <div className="field">
-                  <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Globe size={12}/> {t('brainstorm.worldSetting')}</label>
-                  <textarea className="textarea" rows={3} value={lore.worldSetting} onChange={e => setLore(prev => ({ ...prev, worldSetting: e.target.value }))} />
-                </div>
-                <div className="field">
-                  <label className="field-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}><FileText size={12}/> {t('brainstorm.synopsis')}</label>
-                  <textarea className="textarea" rows={3} value={lore.synopsis} onChange={e => setLore(prev => ({ ...prev, synopsis: e.target.value }))} />
-                </div>
-              </>
-            )}
 
             {/* World Setting Section */}
             {loreSection === 'world' && (
@@ -200,17 +164,6 @@ export function BrainstormPanel({ addToast, currentBook, onDataChanged }) {
                   <LoreJsonViewer data={loreFiles.characters} />
                 ) : (
                   <div style={{ color: 'var(--ink-muted)', textAlign: 'center', padding: 20 }}>{t('brainstorm.noChars')}<br/>{t('brainstorm.willAutoGen')}</div>
-                )}
-              </div>
-            )}
-
-            {/* Outline Section */}
-            {loreSection === 'outline' && (
-              <div style={{ fontSize: 12, color: 'var(--ink-secondary)', lineHeight: 1.8 }}>
-                {loreFiles.outline ? (
-                  <LoreJsonViewer data={loreFiles.outline} />
-                ) : (
-                  <div style={{ color: 'var(--ink-muted)', textAlign: 'center', padding: 20 }}>{t('brainstorm.noOutline')}<br/>{t('brainstorm.willAutoGen')}</div>
                 )}
               </div>
             )}

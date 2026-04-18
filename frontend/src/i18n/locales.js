@@ -318,17 +318,10 @@ const zh = {
   'chapter.reviewerAiTone': 'AI腔调',
 
   // Brainstorm Lore
-  'brainstorm.meta': '基础',
   'brainstorm.world': '世界观',
   'brainstorm.chars': '角色',
-  'brainstorm.outlineTab': '大纲',
-  'brainstorm.bookTitle': '书名',
-  'brainstorm.protagonist': '主角设定',
-  'brainstorm.worldSetting': '世界观',
-  'brainstorm.synopsis': '核心梗概',
   'brainstorm.noLore': '暂无世界观设定数据',
   'brainstorm.noChars': '暂无角色设定数据',
-  'brainstorm.noOutline': '暂无大纲数据',
   'brainstorm.willAutoGen': 'Agent讨论后会自动生成',
 
   // Outline Editor
@@ -646,17 +639,10 @@ const en = {
   'chapter.reviewerAiTone': 'AI Tone',
 
   // Brainstorm Lore
-  'brainstorm.meta': 'Basics',
   'brainstorm.world': 'World',
   'brainstorm.chars': 'Characters',
-  'brainstorm.outlineTab': 'Outline',
-  'brainstorm.bookTitle': 'Book Title',
-  'brainstorm.protagonist': 'Protagonist',
-  'brainstorm.worldSetting': 'World Setting',
-  'brainstorm.synopsis': 'Core Synopsis',
   'brainstorm.noLore': 'No world setting data yet',
   'brainstorm.noChars': 'No character data yet',
-  'brainstorm.noOutline': 'No outline data yet',
   'brainstorm.willAutoGen': 'Auto-generated after Agent discussion',
 
   // Outline Editor
