@@ -4,6 +4,7 @@
  */
 import { loadCoreMemory, getWritingPrinciples, getUserPreferences } from './core-memory.js'
 import { loadProjectMemory } from './project-memory.js'
+import { buildMarkdownMemoryContext } from './recall.js'
 
 export function buildMemoryContext(dataDir: string, bookId: string): string {
   const parts: string[] = []
@@ -74,6 +75,10 @@ export function buildMemoryContext(dataDir: string, bookId: string): string {
       project.character_states as Record<string, Array<{ chapter_id: string; state: string }>>,
     )}`)
   }
+
+  // ── Markdown memory layer (Memory v2) ──
+  const mdMemory = buildMarkdownMemoryContext(dataDir, bookId)
+  if (mdMemory) parts.push(mdMemory)
 
   return parts.join('\n\n')
 }
