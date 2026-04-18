@@ -93,7 +93,7 @@ export function NewBookModal({ onClose, onCreated, addToast }) {
         {/* Header */}
         <div className="director-header">
           <BookOpen size={16} style={{ color: 'var(--accent)' }} />
-          <span>{t('newBook.title')}</span>
+          <span className="display-heading">{t('newBook.title')}</span>
           <button className="btn-icon" onClick={onClose} style={{ marginLeft: 'auto' }}>
             <X size={14} />
           </button>

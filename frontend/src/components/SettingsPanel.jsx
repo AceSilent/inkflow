@@ -166,7 +166,7 @@ export function SettingsPanel({ addToast, theme, toggleTheme }) {
 function Section({ title, children }) {
   return (
     <div style={{ marginBottom: 28 }}>
-      <h3 style={{ fontSize: 13, fontWeight: 600, paddingBottom: 8, marginBottom: 16, borderBottom: '1px solid var(--border-subtle)' }}>{title}</h3>
+      <h3 className="label-sc" style={{ fontSize: 13, fontWeight: 600, paddingBottom: 8, marginBottom: 16, borderBottom: '1px solid var(--border-subtle)' }}>{title}</h3>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>{children}</div>
     </div>
   )
