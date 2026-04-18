@@ -4,6 +4,8 @@
  * Replaces Python's author_chat.py entirely.
  * Uses Vercel AI SDK's fullStream for SSE events (text-delta, tool-call, tool-result).
  */
+import fs from 'fs'
+import path from 'path'
 import { type FastifyInstance } from 'fastify'
 import { type ModelMessage } from 'ai'
 import { runAgentStream } from '../agent/agent-loop.js'
@@ -15,8 +17,10 @@ import { getSettings } from './settings.js'
 import { loadHistoryFull, saveHistory } from './chat-history.js'
 import { createStatsHooks } from '../stats/tool-stats.js'
 import { createTipHooks } from '../stats/tips/index.js'
-import { composeHooks } from '../tools/base-tool.js'
+import { composeHooks, type ToolHooks } from '../tools/base-tool.js'
 import { createSnapshot } from '../snapshots/snapshots.js'
+import { processContext, type ContextMode } from '../context/decision.js'
+import { createSessionState, updateSessionStateAfterToolCall } from '../context/session-state.js'
 
 /**
  * Resolve LLM config from settings.json (provider/model selector).
@@ -166,13 +170,65 @@ export async function authorChatRoutes(app: FastifyInstance) {
             return rest as ModelMessage
           })
 
+        // ── Context manager: evaluate budget tier + decay/compact as needed ──
+        // Uses last turn's total_tokens (persisted on clean stream end below) to
+        // pick a tier; on first turn of a session the file is absent so tokens=0
+        // and we stay in the green (no-op) tier. Decision is always logged to
+        // context_log.jsonl even when it's a no-op, so the debug panel has a
+        // consistent audit trail.
+        const bookDir = path.join(dataDir, bookId)
+        const sessionState = createSessionState()
+        const usageFile = path.join(bookDir, 'last_usage.json')
+        const lastUsage = fs.existsSync(usageFile)
+          ? (() => {
+              try { return JSON.parse(fs.readFileSync(usageFile, 'utf8')) as { total_tokens?: number } }
+              catch { return undefined }
+            })()
+          : undefined
+        // `contextManager` lives in settings.json but isn't in AppSettings' static
+        // shape yet (T10 adds it). Read it off the settings object via a cast and
+        // default to 'auto' so existing deployments get the full pipeline.
+        const settingsForContext = getSettings(dataDir) as unknown as { contextManager?: ContextMode }
+        const contextMode: ContextMode = settingsForContext.contextManager ?? 'auto'
+
+        const { newMessages, decision } = await processContext({
+          messages: history,
+          model: llmConfig.model,
+          lastUsage,
+          sessionState,
+          bookDir,
+          llmConfig,
+          mode: contextMode,
+        })
+
+        // Append decision to context_log.jsonl (fire-and-forget; log is purely
+        // for diagnostics so a write error must not kill the chat turn).
+        try {
+          fs.appendFileSync(
+            path.join(bookDir, 'context_log.jsonl'),
+            JSON.stringify({ ts: new Date().toISOString(), ...decision }) + '\n',
+            'utf8',
+          )
+        } catch (logErr) {
+          app.log.warn({ err: logErr, bookId }, '[author-chat] context_log append failed')
+        }
+
+        // Session-state hook: update recentReads / activeSkill after each tool
+        // call so cold-compact on the NEXT turn has accurate workbench state.
+        // Composed alongside the existing stats + tips hooks.
+        const sessionStateHook: ToolHooks = {
+          async afterToolCall(name, args, result) {
+            updateSessionStateAfterToolCall(sessionState, name, args, result)
+          },
+        }
+
         sse({ type: 'status', phase: 'agent_loop' })
 
         const result = runAgentStream({
           bookId,
           dataDir,
           userMessage: message,
-          history,
+          history: newMessages,
           llmConfig,
           toolRegistry,
           mode,
@@ -180,6 +236,7 @@ export async function authorChatRoutes(app: FastifyInstance) {
           hooks: composeHooks(
             createStatsHooks(dataDir, bookId),
             createTipHooks(dataDir, bookId, (evt) => sse(evt)),
+            sessionStateHook,
           ),
           onProgress: (evt) => {
             if (evt.type === 'retry') {
@@ -411,6 +468,27 @@ export async function authorChatRoutes(app: FastifyInstance) {
         }
 
         streamDone = true
+
+        // Persist usage so the NEXT turn's processContext has a real token
+        // count to classify the budget tier against. Only on successful
+        // completions (abort/error leave the file untouched — re-using the
+        // previous turn's count is safer than writing a partial figure).
+        if (streamSucceeded) {
+          try {
+            const usage: any = await result.usage
+            const total = usage?.totalTokens ?? usage?.total_tokens
+            if (typeof total === 'number' && total > 0) {
+              fs.writeFileSync(
+                path.join(bookDir, 'last_usage.json'),
+                JSON.stringify({ total_tokens: total }),
+                'utf8',
+              )
+            }
+          } catch (usageErr) {
+            app.log.warn({ err: usageErr, bookId }, '[author-chat] usage persist failed')
+          }
+        }
+
         sse({ type: 'done', tools_used: toolsUsed, has_thinking: fullThinking.length > 0 })
 
         // Fire-and-forget memory extraction — failure must NEVER affect main response.
