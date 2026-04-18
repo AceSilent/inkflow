@@ -1,7 +1,7 @@
 // Shell component (Task 10) + Milkdown editor + Ctrl+S save (Task 11).
 // Remaining placeholders (batch actions) are wired in Task 17.
 /* eslint-disable no-unused-vars */
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Loader, Check, RefreshCw, Send } from 'lucide-react'
 import { useI18n } from '../hooks/useI18n'
 import { useWorkbenchSSE } from '../hooks/useWorkbenchSSE'
@@ -9,6 +9,7 @@ import { toRoman } from '../utils/roman'
 import { MilkdownEditor } from './workbench/MilkdownEditor'
 import { CommentFeed } from './workbench/CommentFeed'
 import { AnnotationPopover } from './workbench/AnnotationPopover'
+import { DiffModal } from './workbench/DiffModal'
 
 export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, dataVersion }) {
   const { t } = useI18n()
@@ -21,6 +22,14 @@ export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, da
   const [status, setStatus] = useState({ user_decision: null })
   // Task 13 — selection-driven popover state: {text, start, end, anchor:{x,y}}
   const [selection, setSelection] = useState(null)
+  // Task 16 — track the last Agent-authored edit so we can show a banner +
+  // diff modal. `recentAgentEdit = { rev, oldText }`.
+  const [recentAgentEdit, setRecentAgentEdit] = useState(null)
+  const [diffOpen, setDiffOpen] = useState(false)
+  // Ref mirror of `content` — the SSE callback captures a stale closure
+  // otherwise; the ref gives us the latest value without re-subscribing.
+  const contentRef = useRef('')
+  useEffect(() => { contentRef.current = content }, [content])
 
   const chNum = parseInt(chapterId.replace(/^ch/i, ''), 10) || 0
 
@@ -118,11 +127,16 @@ export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, da
     bookId,
     chapterId,
     onChapterWriteStart: () => setLocked(true),
-    onChapterWriteDone: () => {
+    onChapterWriteDone: async () => {
+      // Use the ref to dodge the stale-closure on `content`.
+      const prevContent = contentRef.current
       setLocked(false)
-      fetch(`/api/v1/books/${bookId}/chapters/${chapterId}`)
-        .then(r => r.json())
-        .then(d => setContent(d?.content ?? ''))
+      const r = await fetch(`/api/v1/books/${bookId}/chapters/${chapterId}`).then(x => x.json()).catch(() => null)
+      const newContent = r?.content ?? ''
+      setContent(newContent)
+      if (prevContent && prevContent !== newContent) {
+        setRecentAgentEdit({ rev: Date.now() % 1000, oldText: prevContent })
+      }
     },
     onOtherChapterWrite: (otherChId) => {
       addToast?.(`Author 正在写 ${otherChId} → [点此跳转]`, 'info')
@@ -160,6 +174,22 @@ export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, da
             <button className="btn btn-sm"><Check size={12} /> 用户通过</button>
           </div>
         </div>
+
+        {/* Task 16 — banner shown after an Agent-authored save overwrites the
+            chapter. Clicking "查看修改" opens the DiffModal below. */}
+        {recentAgentEdit && (
+          <div className="workbench-banner">
+            Agent 刚改了此章（第 {recentAgentEdit.rev} 版） ·
+            <button onClick={() => setDiffOpen(true)} style={{ marginLeft: 8 }}>查看修改</button>
+            <button onClick={() => setRecentAgentEdit(null)} style={{ marginLeft: 8 }}>忽略</button>
+          </div>
+        )}
+        <DiffModal
+          open={diffOpen}
+          oldText={recentAgentEdit?.oldText}
+          newText={content}
+          onClose={() => setDiffOpen(false)}
+        />
 
         {/* Editor — Milkdown wrapper (Task 11). key remounts on chapter switch.
             `.workbench-editor` has `position: relative` so the popover can

@@ -691,3 +691,16 @@ button { font-family: var(--font-body); cursor: pointer; }
 }
 .approval-modal h3 { margin: 0 0 10px; }
 .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* ─── Agent-edited banner (Task 16) ─── */
+.workbench-banner {
+  background: var(--accent-soft);
+  color: var(--ink);
+  padding: 6px 12px;
+  font-size: 11px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.workbench-banner button {
+  background: none; border: 1px solid var(--border-subtle);
+  padding: 2px 8px; font-size: 10px; cursor: pointer;
+}
