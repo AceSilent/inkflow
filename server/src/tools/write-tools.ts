@@ -75,6 +75,7 @@ export const saveOutlineTool: ToolDefinition = {
     ']}',
     "type 必须是 'book'/'volume'/'chapter'/'scene' 之一。chapter 的 id 必须是 'ch{N}' 形式（与 save_draft 的 ch{N}.md 对齐，UI 才能配对）。",
     '不要塞 free-form JSON（title/intro/characters/worldview 这些是设定，应走 save_lore）。',
+    '可选字段：book 节点 epigraph（题词）与 synopsis（全书梗概）；volume 节点 synopsis（卷梗概）；chapter 节点 summary（章摘要）。',
   ].join('\n'),
   parameters: z.object({
     outline_json: z.string().describe('大纲 JSON 字符串，必须是规范章节树（见 description）'),
@@ -131,6 +132,26 @@ function validateOutlineNode(node: any, where: string): string | null {
   }
   if (node.type === 'chapter' && !/^ch\d{1,4}$/i.test(node.id)) {
     return `${where} (chapter): id must be 'ch{N}' (e.g. 'ch01'), got '${node.id}' — must align with save_draft's ch{N}.md`
+  }
+  // Optional narrative fields — scoped by node type.
+  if (node.epigraph !== undefined) {
+    if (node.type !== 'book') {
+      return `${where}: 'epigraph' only allowed on book type, got ${node.type}`
+    }
+    if (typeof node.epigraph !== 'string') {
+      return `${where}: 'epigraph' must be a string`
+    }
+  }
+  if (node.synopsis !== undefined) {
+    if (node.type !== 'book' && node.type !== 'volume') {
+      return `${where}: 'synopsis' only allowed on book or volume, got ${node.type}`
+    }
+    if (typeof node.synopsis !== 'string') {
+      return `${where}: 'synopsis' must be a string`
+    }
+  }
+  if (node.summary !== undefined && typeof node.summary !== 'string') {
+    return `${where}: 'summary' must be a string`
   }
   if (node.children !== undefined) {
     if (!Array.isArray(node.children)) {
