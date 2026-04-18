@@ -122,6 +122,9 @@ Fastify is configured with `ignoreTrailingSlash: true`. All POST/PUT bodies vali
 - `POST /api/v1/books/:bookId/chapters/:chId/resubmit-review` — direct editorial re-run
 - `POST /api/v1/books/:bookId/chapters/:chId/send-annotations` — compose prompt + mark annotations sent
 
+**outline.ts** — Outline-specific endpoints:
+- `POST /api/v1/books/:bookId/outline/renumber` — cascade-rename chapter IDs to match outline order
+
 ### LLM Provider (`server/src/llm/provider.ts`)
 
 Creates a Vercel AI SDK model from `LLMConfig`. Key considerations:
