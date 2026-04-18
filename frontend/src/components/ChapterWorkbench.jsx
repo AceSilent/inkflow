@@ -81,6 +81,7 @@ export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, da
       })
       if (r.ok) {
         setDirty(false)
+        fetch(`/api/v1/books/${bookId}/chapters/${chapterId}/workbench-lock`, { method: 'DELETE' })
         addToast?.('已保存', 'success')
       } else {
         addToast?.('保存失败', 'error')
@@ -204,6 +205,31 @@ export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, da
     return () => window.removeEventListener('keydown', onKey)
   }, [handleSave])
 
+  // Task 18 — workbench lock lifecycle. Each time `dirty` is truthy we POST
+  // the lock endpoint; the server writes/refreshes `workbench_lock_{chId}`
+  // with a new timestamp, which the `block-while-user-editing` hook reads.
+  useEffect(() => {
+    if (dirty) {
+      fetch(`/api/v1/books/${bookId}/chapters/${chapterId}/workbench-lock`, { method: 'POST' })
+    }
+  }, [dirty, bookId, chapterId])
+
+  // Task 18 — keep the lock fresh on a 5-minute heartbeat while dirty.
+  useEffect(() => {
+    if (!dirty) return
+    const timer = setInterval(() => {
+      fetch(`/api/v1/books/${bookId}/chapters/${chapterId}/workbench-lock`, { method: 'POST' })
+    }, 5 * 60 * 1000)
+    return () => clearInterval(timer)
+  }, [dirty, bookId, chapterId])
+
+  // Task 18 — release the lock on unmount (chapter switch / workbench close).
+  useEffect(() => {
+    return () => {
+      fetch(`/api/v1/books/${bookId}/chapters/${chapterId}/workbench-lock`, { method: 'DELETE' })
+    }
+  }, [bookId, chapterId])
+
   // Task 13 — detect text selections inside `.workbench-editor` and surface
   // a popover anchored to the bottom of the selection rect. Markdown source
   // offsets are out-of-scope for MVP (see plan Risk 1) — anchor_start/end = 0.
@@ -279,7 +305,9 @@ export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, da
         <div className="workbench-topbar">
           <div className="workbench-title">
             <span className="label-sc" style={{ color: 'var(--accent)' }}>Ch. {toRoman(chNum)}</span>
-            <span className="display-heading">{chapterLabel}</span>
+            <span className="display-heading">
+              {chapterLabel}{dirty && <span style={{ color: 'var(--accent)', marginLeft: 6 }}>●</span>}
+            </span>
             {locked && <span className="workbench-writing-badge"><Loader size={12} className="anim-spin" /> Agent 写作中</span>}
           </div>
           <div className="workbench-actions">
