@@ -13,14 +13,16 @@ import {
 import type { MemoryFrontmatter } from '../src/memory/markdown-io.js'
 
 let tmpDir: string
+let parentDir: string
 
 beforeEach(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mem-'))
+  parentDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mem-'))
+  tmpDir = path.join(parentDir, 'books')
   fs.mkdirSync(path.join(tmpDir, 'book1'), { recursive: true })
 })
 
 afterEach(() => {
-  fs.rmSync(tmpDir, { recursive: true, force: true })
+  fs.rmSync(parentDir, { recursive: true, force: true })
 })
 
 function sampleFrontmatter(overrides: Partial<MemoryFrontmatter> = {}): MemoryFrontmatter {
@@ -80,7 +82,7 @@ describe('memory-service', () => {
   it('rewriteIndex creates MEMORY.md listing active memories', () => {
     writeMemory(tmpDir, sampleFrontmatter({ id: 'e', status: 'active', type: 'preference' }), '# title\nbody')
     rewriteIndex(tmpDir, 'user_preferences')
-    const indexPath = path.join(tmpDir, 'global', 'memories', 'user_preferences', 'MEMORY.md')
+    const indexPath = path.join(parentDir, 'global', 'memories', 'user_preferences', 'MEMORY.md')
     const content = fs.readFileSync(indexPath, 'utf8')
     expect(content).toContain('e.md')
   })

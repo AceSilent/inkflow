@@ -14,13 +14,13 @@ import {
  */
 function targetDir(dataDir: string, fm: MemoryFrontmatter): string {
   if (fm.status === 'pending') {
-    return ensureDir(path.join(dataDir, 'global', 'memories', '_pending'))
+    return ensureDir(path.join(dataDir, '..', 'global', 'memories', '_pending'))
   }
   if (fm.status === 'archived') {
     if (fm.scope === 'book' && fm.book_id) {
       return ensureDir(path.join(dataDir, fm.book_id, 'memories', '_archived'))
     }
-    return ensureDir(path.join(dataDir, 'global', 'memories', '_archived'))
+    return ensureDir(path.join(dataDir, '..', 'global', 'memories', '_archived'))
   }
   // status === 'active'
   if (fm.scope === 'book' && fm.book_id) {
@@ -36,7 +36,7 @@ function targetDir(dataDir: string, fm: MemoryFrontmatter): string {
     lesson: 'anti_patterns',
     anti_pattern: 'anti_patterns',
   }[fm.type] ?? 'user_preferences'
-  return ensureDir(path.join(dataDir, 'global', 'memories', typeBucket))
+  return ensureDir(path.join(dataDir, '..', 'global', 'memories', typeBucket))
 }
 
 export function writeMemory(dataDir: string, fm: MemoryFrontmatter, body: string): string {
@@ -55,11 +55,11 @@ export interface MemoryEntry {
 function findMemoryFile(dataDir: string, id: string): string | null {
   // Search known locations
   const candidates = [
-    path.join(dataDir, 'global', 'memories', '_pending', `${id}.md`),
-    path.join(dataDir, 'global', 'memories', '_archived', `${id}.md`),
-    path.join(dataDir, 'global', 'memories', 'user_preferences', `${id}.md`),
-    path.join(dataDir, 'global', 'memories', 'craft_skills', `${id}.md`),
-    path.join(dataDir, 'global', 'memories', 'anti_patterns', `${id}.md`),
+    path.join(dataDir, '..', 'global', 'memories', '_pending', `${id}.md`),
+    path.join(dataDir, '..', 'global', 'memories', '_archived', `${id}.md`),
+    path.join(dataDir, '..', 'global', 'memories', 'user_preferences', `${id}.md`),
+    path.join(dataDir, '..', 'global', 'memories', 'craft_skills', `${id}.md`),
+    path.join(dataDir, '..', 'global', 'memories', 'anti_patterns', `${id}.md`),
   ]
   for (const c of candidates) if (fs.existsSync(c)) return c
   // Walk per-book dirs
@@ -93,7 +93,7 @@ export function listMemories(dataDir: string, status: ListStatus = 'all'): Memor
   const results: MemoryEntry[] = []
   const bucketPaths: string[] = []
 
-  const globalRoot = path.join(dataDir, 'global', 'memories')
+  const globalRoot = path.join(dataDir, '..', 'global', 'memories')
   if (status === 'pending' || status === 'all') {
     bucketPaths.push(path.join(globalRoot, '_pending'))
   }
@@ -179,7 +179,7 @@ export async function deleteMemory(dataDir: string, id: string): Promise<void> {
 
 export function rewriteIndex(dataDir: string, bucketDir: string): void {
   // bucketDir is e.g. 'user_preferences' or 'craft_skills'
-  const dir = path.join(dataDir, 'global', 'memories', bucketDir)
+  const dir = path.join(dataDir, '..', 'global', 'memories', bucketDir)
   if (!fs.existsSync(dir)) return
   const entries: string[] = []
   for (const f of fs.readdirSync(dir)) {
