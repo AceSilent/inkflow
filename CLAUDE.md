@@ -115,6 +115,13 @@ Fastify is configured with `ignoreTrailingSlash: true`. All POST/PUT bodies vali
 
 **chat-history.ts** — Shared chat history module (used by both SSE route and Feishu bot).
 
+**workbench.ts** — Chapter workbench endpoints:
+- `GET / POST / PATCH / DELETE /api/v1/books/:bookId/chapters/:chId/annotations` — annotation CRUD
+- `GET / PUT /api/v1/books/:bookId/chapters/:chId/status` — user approval state
+- `POST / DELETE /api/v1/books/:bookId/chapters/:chId/workbench-lock` — edit lock
+- `POST /api/v1/books/:bookId/chapters/:chId/resubmit-review` — direct editorial re-run
+- `POST /api/v1/books/:bookId/chapters/:chId/send-annotations` — compose prompt + mark annotations sent
+
 ### LLM Provider (`server/src/llm/provider.ts`)
 
 Creates a Vercel AI SDK model from `LLMConfig`. Key considerations:
@@ -170,6 +177,8 @@ books/{book_id}/
 - **Input validation**: all route POST/PUT bodies validated via Zod schemas in `schemas.ts` (see Routes section)
 - **Path sanitization**: all `bookId`/`chapterId` params sanitized via `server/src/utils/path-sanitizer.ts`
 - **Error types**: use custom `AgentError` hierarchy from `server/src/utils/errors.ts`
+- **User approval override**: `chapter_status_{chId}.json.user_decision` takes precedence over `review_{chId}.json.overall_pass` in the `review-prev-chapter` hook
+- **Workbench lock**: while `workbench_lock_{chId}` exists (and is fresh < 10min), Agent's `save_draft` for that chapter is blocked by the `block-while-user-editing` hook
 
 ## Configuration
 
