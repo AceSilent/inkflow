@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 
 export function useTheme() {
-  const [theme, setTheme] = useState(() => localStorage.getItem('autonovel-theme') || 'dark')
+  const [theme, setTheme] = useState(() => localStorage.getItem('autonovel-theme') || 'light')
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
