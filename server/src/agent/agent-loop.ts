@@ -14,7 +14,7 @@
 import path from 'path'
 import { streamText, stepCountIs, type ModelMessage } from 'ai'
 import { composeHooks, type ToolRegistry, type ToolContext, type ToolHooks, type BlockedToolCall } from '../tools/base-tool.js'
-import { buildAuthorPrompt, buildBrainstormPrompt } from './prompt-builder.js'
+import { buildAuthorPrompt, buildBrainstormPrompt, buildPlotGraphStatus } from './prompt-builder.js'
 import { type LLMConfig, type ProviderProgressCallback, createProvider } from '../llm/provider.js'
 import { blockWhileUserEditing } from '../stats/tips/block-while-user-editing.js'
 
@@ -64,8 +64,13 @@ export interface AgentRunOptions {
 /**
  * Build the appropriate system prompt based on mode.
  */
-function selectPrompt(mode: string | undefined, memoryContext?: string, toolSummary?: string): string {
-  const ctx = { memory: memoryContext, toolSummary }
+function selectPrompt(
+  mode: string | undefined,
+  memoryContext?: string,
+  toolSummary?: string,
+  plotLedger?: string,
+): string {
+  const ctx = { memory: memoryContext, toolSummary, plotLedger }
   return mode === 'brainstorm'
     ? buildBrainstormPrompt(ctx)
     : buildAuthorPrompt(ctx)
@@ -89,7 +94,12 @@ export function runAgentStream(options: AgentRunOptions): AgentStreamResult {
   } = options
 
   const toolSummary = toolRegistry.getToolSummary()
-  const systemPrompt = selectPrompt(mode, memoryContext, toolSummary)
+  // Plot ledger: read once per turn so Author sees outstanding setups in the
+  // system prompt. `currentChapter` is not tracked at this layer — the ledger
+  // still renders; only the "距今 N 章" span is elided.
+  const bookDir = path.join(dataDir, bookId)
+  const plotLedger = buildPlotGraphStatus(bookDir)
+  const systemPrompt = selectPrompt(mode, memoryContext, toolSummary, plotLedger)
   const model = createProvider(llmConfig, onProgress)
   const ctx: ToolContext = { bookId, dataDir, mode }
 

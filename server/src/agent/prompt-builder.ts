@@ -4,10 +4,12 @@
  * Each agent's system prompt is assembled from ordered PromptSections.
  * Static sections are cacheable. Dynamic sections are rebuilt per call.
  */
+import { unresolvedSetups } from '../services/plot-graph.js'
 
 export interface PromptContext {
   memory?: string
   bookTitle?: string
+  plotLedger?: string
   [key: string]: unknown
 }
 
@@ -62,6 +64,7 @@ export const AUTHOR_SECTIONS: PromptSection[] = [
       "- save_outline 接收的 outline_json 必须是规范的章节树结构 { id, label, type:'book', children:[{id,label,type:'volume',children:[{type:'chapter',...}]}] }。不要塞 free-form JSON（title/intro/characters/worldview 这些应走 save_lore）。",
       "- save_draft 的 file_path 写文件名即可（如 'ch01.md' 或 '001_第一章.md'），不要写目录前缀；后台会强制放进 04_Drafts/，否则前端 sidebar 找不到。理想命名：和 outline 中的 chapter id 一致（如 'ch01.md'），UI 会自动把它对应到大纲章节。",
       '- 章节顺序硬约束：写 chN（N>1）前，chN-1 必须已经 submit_to_editorial 走过审稿且 overall_pass=true。否则 save_draft 会被 hooks 拦截、返回 [BLOCKED]。流程：save_draft ch01 → submit_to_editorial ch01 → 看 review.overall_pass，若不通过则按 feedback 改正 → 再 submit → 通过后才能 save_draft ch02。',
+      '- 写新章前，如对要回收哪些伏笔不确定，先调用 query_unresolved_setups。',
       '',
       '用 list_skills() 查看所有可用 skill。',
       '你的工作模式：自治循环调用工具直到完成任务。',
@@ -76,6 +79,11 @@ export const AUTHOR_SECTIONS: PromptSection[] = [
       return summary ?? ''
     },
     condition: (ctx) => !!ctx.toolSummary,
+  },
+  {
+    title: '剧情账本',
+    contentFn: (ctx) => (ctx.plotLedger as string | undefined) ?? '',
+    condition: (ctx) => !!ctx.plotLedger,
   },
   {
     title: '记忆',
@@ -123,4 +131,45 @@ export function buildBrainstormPrompt(ctx: PromptContext): string {
  */
 export function buildAuthorPrompt(ctx: PromptContext): string {
   return buildSystemPrompt(AUTHOR_SECTIONS, ctx)
+}
+
+/**
+ * Build the "剧情账本·未回收伏笔" status block from the book's plot_graph.json.
+ *
+ * Returns:
+ *   - empty string when no graph exists or no unresolved setups remain
+ *   - a multi-line ledger listing every unresolved setup node with its id,
+ *     title, earliest-reference chapter, optional distance-to-current span,
+ *     and optional description.
+ *
+ * `currentChapter` is optional — when omitted or non-parseable, the "距今 N 章"
+ * span is dropped and the ledger still renders.
+ */
+export function buildPlotGraphStatus(bookDir: string, currentChapter?: string): string {
+  const unresolved = unresolvedSetups(bookDir)
+  if (unresolved.length === 0) return ''
+
+  const curNum = currentChapter
+    ? parseInt(currentChapter.replace(/^ch/i, ''), 10)
+    : NaN
+
+  const lines: string[] = [
+    '【剧情账本·未回收伏笔】',
+    `你已在之前章节埋下 ${unresolved.length} 个伏笔尚未回收。写新章时请考虑是否该收账：`,
+    '',
+  ]
+  for (const s of unresolved) {
+    const earliestCh = [...s.references].sort()[0]
+    let spanTxt = ''
+    if (earliestCh && !isNaN(curNum)) {
+      const setupNum = parseInt(earliestCh.replace(/^ch/i, ''), 10)
+      if (!isNaN(setupNum)) {
+        const span = curNum - setupNum
+        spanTxt = `，距今 ${span} 章`
+      }
+    }
+    lines.push(`- [${s.id}] "${s.title}"（埋于 ${earliestCh ?? '?'}${spanTxt}）`)
+    if (s.description) lines.push(`  描述：${s.description}`)
+  }
+  return lines.join('\n')
 }
