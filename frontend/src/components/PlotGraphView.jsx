@@ -3,6 +3,7 @@ import { Loader, Plus } from 'lucide-react'
 import { useI18n } from '../hooks/useI18n'
 import { toRoman } from '../utils/roman'
 import { AddNodeModal } from './plotgraph/AddNodeModal'
+import { NodeDetailDrawer } from './plotgraph/NodeDetailDrawer'
 
 const NODE_COLORS = {
   event: 'var(--ink)',
@@ -71,6 +72,7 @@ export function PlotGraphView({ currentBook, addToast, onChapterOpen, dataVersio
 
   const nodeCount = Object.keys(graph?.nodes ?? {}).length
   const edgeCount = graph?.edges?.length ?? 0
+  const detailNode = detailNodeId ? graph?.nodes?.[detailNodeId] : null
 
   return (
     <div
@@ -122,7 +124,31 @@ export function PlotGraphView({ currentBook, addToast, onChapterOpen, dataVersio
         </div>
       </div>
 
-      {/* Detail drawer and SVG edges overlay are wired in later tasks (T9–T11). */}
+      {/* SVG edges overlay is wired in a later task (T11). */}
+
+      <NodeDetailDrawer
+        open={!!detailNode}
+        node={detailNode}
+        edges={graph?.edges ?? []}
+        nodes={graph?.nodes ?? {}}
+        onClose={() => setDetailNodeId(null)}
+        onPatch={async (patch) => {
+          await fetch(`/api/v1/books/${currentBook.book_id}/plot-graph/nodes/${detailNodeId}`, {
+            method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(patch),
+          })
+          reload()
+        }}
+        onDelete={async () => {
+          await fetch(`/api/v1/books/${currentBook.book_id}/plot-graph/nodes/${detailNodeId}`, { method: 'DELETE' })
+          setDetailNodeId(null)
+          reload()
+        }}
+        onEdgeRemove={async (edgeId) => {
+          await fetch(`/api/v1/books/${currentBook.book_id}/plot-graph/edges/${edgeId}`, { method: 'DELETE' })
+          reload()
+        }}
+      />
 
       <AddNodeModal
         open={addNodeOpen}

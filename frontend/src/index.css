@@ -797,6 +797,7 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   display: flex;
   flex-direction: column;
   background: var(--bg);
+  position: relative;
 }
 .plot-topbar {
   display: grid;
@@ -875,3 +876,50 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
 }
 .plot-node-turning_point .plot-node-type { color: var(--gold, var(--accent)); }
 .plot-node-turning_point .plot-node-title { color: var(--bg); }
+
+/* ─── Node Detail Drawer (Task 9) ─────────────────────────────────── */
+.node-drawer {
+  position: absolute;
+  top: 50px;
+  right: 0;
+  width: 320px;
+  height: calc(100% - 50px);
+  background: var(--bg-elevated);
+  border-left: 1px solid var(--border-strong);
+  padding: 14px 16px;
+  overflow-y: auto;
+  z-index: 50;
+}
+.drawer-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 12px;
+}
+.drawer-head button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--ink-secondary);
+}
+.drawer-section { margin-bottom: 14px; }
+.drawer-section .label-sc {
+  color: var(--ink-muted);
+  display: block;
+  margin-bottom: 4px;
+}
+.drawer-edge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  margin: 2px 0;
+}
+.drawer-edge button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--ink-secondary);
+}
