@@ -60,6 +60,7 @@ export const AUTHOR_SECTIONS: PromptSection[] = [
       '- 数据库即圣经，查不到就不写',
       "- 写正文前先 load_skill('iceberg_writing')",
       '- 构思剧情前先 read_graph() 了解当前全局',
+      '- 独立的只读工具（如 read_file, search_lore, read_graph, read_outline, list_skills）可以在同一轮里一次性调用多个，系统会并发执行，比串行分多轮快很多。',
       '- 用户给你提供"设定 / 世界观 / 角色 / lore"等内容时，必须先用 save_lore 把它们入库（characters 和 world_setting 两个分类），然后才能基于设定动笔。不要把设定塞进 outline 里凑数。',
       "- save_outline 接收的 outline_json 必须是规范的章节树结构 { id, label, type:'book', children:[{id,label,type:'volume',children:[{type:'chapter',...}]}] }。不要塞 free-form JSON（title/intro/characters/worldview 这些应走 save_lore）。",
       "- save_draft 的 file_path 写文件名即可（如 'ch01.md' 或 '001_第一章.md'），不要写目录前缀；后台会强制放进 04_Drafts/，否则前端 sidebar 找不到。理想命名：和 outline 中的 chapter id 一致（如 'ch01.md'），UI 会自动把它对应到大纲章节。",

@@ -3,6 +3,7 @@ import {
   validateInput,
   createBackup,
   appendAuditLog,
+  withFileLock,
   InputValidationError,
   AUDIT_MAX_BYTES,
   AUDIT_KEEP_ROTATIONS,
@@ -90,6 +91,64 @@ describe('appendAuditLog', () => {
     expect(fs.existsSync(`${logFile}.${AUDIT_KEEP_ROTATIONS}`)).toBe(true)
     // The oldest rotation beyond the window must have been dropped.
     expect(fs.existsSync(`${logFile}.${AUDIT_KEEP_ROTATIONS + 1}`)).toBe(false)
+    fs.rmSync(dir, { recursive: true })
+  })
+})
+
+describe('withFileLock', () => {
+  it('should serialize same-path critical sections', async () => {
+    // Simulate two "concurrent" writes to the SAME path — both call backup
+    // then write. Without the lock, their backup/write steps interleave and
+    // the backup of the earlier write gets clobbered. With the lock, we
+    // expect strict serialization: A's full critical section finishes before
+    // B's starts (or vice versa).
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lock-'))
+    const target = path.join(dir, 'x.txt')
+    fs.writeFileSync(target, 'v0')
+    const events: string[] = []
+    const doWrite = (label: string, content: string) => withFileLock(target, async () => {
+      events.push(`${label}:backup-start`)
+      createBackup(target)
+      await new Promise((r) => setTimeout(r, 5))
+      events.push(`${label}:write`)
+      fs.writeFileSync(target, content)
+    })
+    await Promise.all([doWrite('A', 'v1'), doWrite('B', 'v2')])
+    const aSlice = events.filter(e => e.startsWith('A:'))
+    const bSlice = events.filter(e => e.startsWith('B:'))
+    const firstOwner = events[0].startsWith('A:') ? 'A' : 'B'
+    const firstSlice = firstOwner === 'A' ? aSlice : bSlice
+    expect(events.slice(0, firstSlice.length)).toEqual(firstSlice)
+    fs.rmSync(dir, { recursive: true })
+  })
+
+  it('should run in parallel for DIFFERENT paths', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lock2-'))
+    const a = path.join(dir, 'a.txt')
+    const b = path.join(dir, 'b.txt')
+    const events: string[] = []
+    const job = (label: string, p: string) => withFileLock(p, async () => {
+      events.push(`${label}:start`)
+      await new Promise((r) => setTimeout(r, 10))
+      events.push(`${label}:end`)
+    })
+    await Promise.all([job('A', a), job('B', b)])
+    // Different paths → both starts should come before both ends.
+    const starts = events.filter(e => e.endsWith(':start'))
+    const ends = events.filter(e => e.endsWith(':end'))
+    expect(starts).toHaveLength(2)
+    expect(ends).toHaveLength(2)
+    expect(events.indexOf(starts[1])).toBeLessThan(events.indexOf(ends[0]))
+    fs.rmSync(dir, { recursive: true })
+  })
+
+  it('should surface fn errors without poisoning subsequent calls on same key', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'lock3-'))
+    const p = path.join(dir, 'x.txt')
+    await expect(withFileLock(p, async () => { throw new Error('boom') })).rejects.toThrow('boom')
+    // Chained call on same path must still run.
+    const out = await withFileLock(p, async () => 'ok')
+    expect(out).toBe('ok')
     fs.rmSync(dir, { recursive: true })
   })
 })

@@ -58,6 +58,14 @@ describe('buildAuthorPrompt', () => {
     const prompt = buildAuthorPrompt({})
     expect(prompt).not.toContain('# 记忆')
   })
+
+  it('should hint that independent read tools can be batched in one turn', () => {
+    // The provider now advertises parallel tool_use blocks — the Author
+    // prompt must tell the LLM this is preferred to serial read-round-trips.
+    const prompt = buildAuthorPrompt({})
+    expect(prompt).toContain('并发')
+    expect(prompt).toMatch(/read_file|read_graph/)
+  })
 })
 
 describe('Brainstorm Prompt', () => {

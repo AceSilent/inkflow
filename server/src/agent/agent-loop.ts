@@ -123,5 +123,11 @@ export function runAgentStream(options: AgentRunOptions): AgentStreamResult {
     // Retry is owned by our fetch wrapper (provider.ts) so we can surface
     // backoff events to the UI; disable AI SDK's own retry to avoid stacking.
     maxRetries: 0,
+    // Explicitly request parallel tool calls at the provider level. OpenAI
+    // defaults parallel_tool_calls=true, but OpenAI-compatible providers
+    // (DeepSeek, DashScope, ZhipuAI GLM etc.) have varied defaults — passing
+    // true keeps the behavior uniform. Vercel AI SDK v6 then executes the
+    // emitted tool_use blocks concurrently within a single step.
+    providerOptions: { openai: { parallelToolCalls: true } },
   })
 }

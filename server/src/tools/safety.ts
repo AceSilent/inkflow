@@ -46,6 +46,43 @@ export function createBackup(filePath: string): string | null {
 }
 
 /**
+ * Per-path mutex chain. Vercel AI SDK v6 executes multiple tool_use blocks
+ * from one LLM turn concurrently (fire-and-forget at the streaming level).
+ * That means two save_draft calls for the SAME file, or two save_lore calls
+ * for the same category, can race:
+ *
+ *   call A: createBackup(x)  → copies x → x.bak
+ *   call B: createBackup(x)  → copies x → x.bak  (overwrites A's backup!)
+ *   call A: writeFileSync(x, contentA)
+ *   call B: writeFileSync(x, contentB)
+ *
+ * Now x holds B's content and x.bak holds A's pre-A content — A's backup
+ * was clobbered. For different files there's no collision.
+ *
+ * We serialize by path via a promise chain keyed on the absolute target
+ * path. The entry is cleared after the fn resolves AND nothing else chained
+ * onto it (so the Map doesn't grow unbounded in long-running servers).
+ */
+const fileLocks = new Map<string, Promise<unknown>>()
+
+export async function withFileLock<T>(filePath: string, fn: () => Promise<T> | T): Promise<T> {
+  const key = path.resolve(filePath)
+  const prev = fileLocks.get(key) ?? Promise.resolve()
+  // Silence unhandled-rejection noise on the `prev` chain — each awaiter of
+  // its own segment still sees the error it caused.
+  const next = prev.catch(() => {}).then(async () => fn())
+  fileLocks.set(key, next)
+  try {
+    return await next
+  } finally {
+    // Only clear if we're still the tail — another call may have chained on
+    // while we were running, and clearing the map entry in that case would
+    // orphan that chain's serialization.
+    if (fileLocks.get(key) === next) fileLocks.delete(key)
+  }
+}
+
+/**
  * Max size (bytes) before the active audit log is rotated.
  * Past the threshold we rename `audit_log.jsonl` → `audit_log.jsonl.1`,
  * shifting older rotations (`.1 → .2 → .3`) and dropping anything beyond

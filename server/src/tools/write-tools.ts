@@ -6,7 +6,7 @@ import { z } from 'zod'
 import fs from 'fs'
 import path from 'path'
 import { type ToolDefinition } from './base-tool.js'
-import { createBackup, appendAuditLog } from './safety.js'
+import { createBackup, appendAuditLog, withFileLock } from './safety.js'
 import { archivePriorDraft } from './draft-history.js'
 import { ensureDir, safeReadJson } from '../utils/file-io.js'
 
@@ -48,19 +48,23 @@ export const saveDraftTool: ToolDefinition = {
 
     ensureDir(path.dirname(target))
 
-    // Archive the prior version into .draft_history/{chapter}/ before the
-    // single .bak gets clobbered. .bak handles "oops, my last write was bad";
-    // .draft_history/ handles "I rewrote ch01 five times, give me version 3
-    // back." Both cheap, both worth keeping.
-    archivePriorDraft(bookDir, target)
-    createBackup(target)
-    fs.writeFileSync(target, content, 'utf-8')
+    // Serialize concurrent writes targeting the SAME draft file. Different
+    // chapters still run fully in parallel (lock keyed on absolute path).
+    return withFileLock(target, () => {
+      // Archive the prior version into .draft_history/{chapter}/ before the
+      // single .bak gets clobbered. .bak handles "oops, my last write was bad";
+      // .draft_history/ handles "I rewrote ch01 five times, give me version 3
+      // back." Both cheap, both worth keeping.
+      archivePriorDraft(bookDir, target)
+      createBackup(target)
+      fs.writeFileSync(target, content, 'utf-8')
 
-    const logFile = path.join(bookDir, 'audit_log.jsonl')
-    const relPath = path.posix.join('04_Drafts', baseName)
-    appendAuditLog(logFile, 'save_draft', { file_path: relPath }, `saved ${content.length} chars`, true)
+      const logFile = path.join(bookDir, 'audit_log.jsonl')
+      const relPath = path.posix.join('04_Drafts', baseName)
+      appendAuditLog(logFile, 'save_draft', { file_path: relPath }, `saved ${content.length} chars`, true)
 
-    return `Draft saved to ${relPath} (${content.length} chars)`
+      return `Draft saved to ${relPath} (${content.length} chars)`
+    })
   },
 }
 
@@ -104,13 +108,17 @@ export const saveOutlineTool: ToolDefinition = {
       ].join('\n')
     }
 
-    createBackup(outlineFile)
-    fs.writeFileSync(outlineFile, JSON.stringify(data, null, 2), 'utf-8')
+    // Serialize concurrent writes to outline.json (unlikely but possible if
+    // the Author emits two save_outline tool calls in one turn).
+    return withFileLock(outlineFile, () => {
+      createBackup(outlineFile)
+      fs.writeFileSync(outlineFile, JSON.stringify(data, null, 2), 'utf-8')
 
-    const logFile = path.join(bookDir, 'audit_log.jsonl')
-    appendAuditLog(logFile, 'save_outline', {}, `saved ${outline_json.length} chars`, true)
+      const logFile = path.join(bookDir, 'audit_log.jsonl')
+      appendAuditLog(logFile, 'save_outline', {}, `saved ${outline_json.length} chars`, true)
 
-    return `Outline saved (${outline_json.length} chars)`
+      return `Outline saved (${outline_json.length} chars)`
+    })
   },
 }
 
@@ -198,13 +206,17 @@ export const saveLoreTool: ToolDefinition = {
     }
 
     const target = path.join(loreDir, fileMap[category])
-    createBackup(target)
-    fs.writeFileSync(target, JSON.stringify(data, null, 2), 'utf-8')
+    // Serialize same-category concurrent writes. Different categories
+    // (characters vs world_setting) still run fully in parallel.
+    return withFileLock(target, () => {
+      createBackup(target)
+      fs.writeFileSync(target, JSON.stringify(data, null, 2), 'utf-8')
 
-    const logFile = path.join(bookDir, 'audit_log.jsonl')
-    appendAuditLog(logFile, 'save_lore', { category }, 'saved', true)
+      const logFile = path.join(bookDir, 'audit_log.jsonl')
+      appendAuditLog(logFile, 'save_lore', { category }, 'saved', true)
 
-    return `Lore '${category}' saved successfully.`
+      return `Lore '${category}' saved successfully.`
+    })
   },
 }
 
