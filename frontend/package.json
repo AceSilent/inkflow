@@ -11,7 +11,14 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@milkdown/core": "^7.20.0",
+    "@milkdown/plugin-history": "^7.20.0",
+    "@milkdown/plugin-listener": "^7.20.0",
+    "@milkdown/preset-commonmark": "^7.20.0",
+    "@milkdown/react": "^7.20.0",
+    "@milkdown/theme-nord": "^7.20.0",
     "lucide-react": "^0.577.0",
+    "nanoid": "^5.1.9",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-markdown": "^10.1.0"
