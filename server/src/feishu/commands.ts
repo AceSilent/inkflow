@@ -207,8 +207,8 @@ export async function handleCommand(
     case '历史': {
       const session = getSession(ctx.dataDir, ctx.sessionKey)
       if (!session?.currentBookId) return { type: 'text', content: '请先选择书籍。' }
-      const { loadHistory } = await import('../routes/chat-history.js')
-      const history = loadHistory(ctx.dataDir, session.currentBookId)
+      const { loadHistoryFull } = await import('../routes/chat-history.js')
+      const history = loadHistoryFull(ctx.dataDir, session.currentBookId)
       return { type: 'text', content: `当前对话: ${history.length} 条消息` }
     }
 

@@ -5,7 +5,7 @@
 import { runAgentStream } from '../agent/agent-loop.js'
 import { createAllTools } from '../tools/index.js'
 import { type LLMConfig } from '../llm/provider.js'
-import { loadHistory, saveHistory } from '../routes/chat-history.js'
+import { loadHistoryFull, saveHistory } from '../routes/chat-history.js'
 import { FeishuClient } from './client.js'
 import { buildAgentStreamingElements } from './card-builder.js'
 
@@ -35,7 +35,7 @@ export async function handleAgentChat(
 
   // 3. Run agent
   try {
-    const history = loadHistory(dataDir, bookId)
+    const history = loadHistoryFull(dataDir, bookId)
     const toolRegistry = createAllTools()
     const result = runAgentStream({
       bookId, dataDir, userMessage, history, llmConfig, toolRegistry, mode,
@@ -89,7 +89,7 @@ async function handleAgentFallback(
   llmConfig: LLMConfig,
   mode?: string,
 ): Promise<void> {
-  const history = loadHistory(dataDir, bookId)
+  const history = loadHistoryFull(dataDir, bookId)
   const toolRegistry = createAllTools()
   const result = runAgentStream({
     bookId, dataDir, userMessage, history, llmConfig, toolRegistry, mode,

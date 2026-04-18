@@ -12,7 +12,7 @@ import { type LLMConfig, REASONING_OPEN, REASONING_CLOSE } from '../llm/provider
 import { sanitizePathSegment } from '../utils/path-sanitizer.js'
 import { sendChatBody } from './schemas.js'
 import { getSettings } from './settings.js'
-import { loadHistory, saveHistory } from './chat-history.js'
+import { loadHistoryFull, saveHistory } from './chat-history.js'
 import { createStatsHooks } from '../stats/tool-stats.js'
 import { createTipHooks } from '../stats/tips/index.js'
 import { composeHooks } from '../tools/base-tool.js'
@@ -66,7 +66,7 @@ export async function authorChatRoutes(app: FastifyInstance) {
       try {
         const bookId = sanitizePathSegment(request.params.bookId, 'bookId')
         const { dataDir } = loadConfig()
-        const history = loadHistory(dataDir, bookId)
+        const history = loadHistoryFull(dataDir, bookId)
         const display = history.filter(m => m.role === 'user' || m.role === 'assistant')
         return { messages: display }
       } catch (err: any) {
@@ -151,7 +151,7 @@ export async function authorChatRoutes(app: FastifyInstance) {
           app.log.warn({ err: snapErr, bookId }, '[author-chat] snapshot failed; continuing without checkpoint')
         }
 
-        const rawHistory = loadHistory(dataDir, bookId)
+        const rawHistory = loadHistoryFull(dataDir, bookId)
         // For LLM context: drop pairs marked status='incomplete' / 'aborted'
         // (failed or cancelled turns are kept on disk for UI replay but must
         // never be replayed to the model — partial assistant content + an
