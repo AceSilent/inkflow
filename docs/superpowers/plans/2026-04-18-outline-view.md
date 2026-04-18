@@ -1364,6 +1364,90 @@ git commit -m "chore(outline): remove OutlineTreeEditor, update CLAUDE.md"
 
 ---
 
+## Task 11: Slim BrainstormPanel LoreBook (remove redundancy with OutlineView)
+
+After OutlineView lands, the LoreBook panel's `meta` and `outline` sub-tabs are redundant (book metadata now lives in `OutlineView`'s book title / epigraph / synopsis fields; outline tree is the full Outline tab). This task removes the redundancy while keeping the `world` and `chars` sub-tabs (still needed — Agent's `save_lore` tool and editorial reviewers depend on them).
+
+**Files:**
+- Modify: `frontend/src/components/BrainstormPanel.jsx` — remove two sub-tabs + their render blocks
+- Modify: `frontend/src/i18n/locales.js` — remove unused translation keys (optional cleanup)
+
+- [ ] **Step 1: Read BrainstormPanel and locate the 4 sub-tab definitions**
+
+```bash
+grep -n "loreSection\|brainstorm.meta\|brainstorm.outlineTab" frontend/src/components/BrainstormPanel.jsx
+```
+
+- [ ] **Step 2: Remove the `meta` and `outline` entries from the tab list**
+
+Find the line:
+```jsx
+{[['meta', t('brainstorm.meta')],['world', t('brainstorm.world')],['chars', t('brainstorm.chars')],['outline', t('brainstorm.outlineTab')]].map(...)}
+```
+
+Replace with:
+```jsx
+{[['world', t('brainstorm.world')],['chars', t('brainstorm.chars')]].map(...)}
+```
+
+- [ ] **Step 3: Delete the `{loreSection === 'meta' && (...)}` render block**
+
+This block contains the Book Title / Protagonist / World Setting / Synopsis inputs (around lines 164-183 of the current file). Delete the entire conditional block including its closing `</>` and `)}`.
+
+- [ ] **Step 4: Delete the `{loreSection === 'outline' && (...)}` render block**
+
+Find where this block renders the outline tree preview and delete it entirely.
+
+- [ ] **Step 5: Update the `loreSection` state default**
+
+If current default is `'meta'`, change to `'world'`:
+
+```jsx
+const [loreSection, setLoreSection] = useState('world')
+```
+
+- [ ] **Step 6: Remove now-unused imports**
+
+After the deletions, certain icons (`Settings`, `User`, `Globe`, `FileText` if only used in meta block) and `lore` state pieces (`title`, `protagonist`, `worldSetting`, `synopsis`) may be unused. Run `npm run lint` to surface unused imports/vars and remove them.
+
+- [ ] **Step 7: Smoke verify via grep**
+
+- `grep -c "loreSection === 'meta'" frontend/src/components/BrainstormPanel.jsx` → 0
+- `grep -c "loreSection === 'outline'" frontend/src/components/BrainstormPanel.jsx` → 0
+- `grep -c "loreSection === 'world'" frontend/src/components/BrainstormPanel.jsx` → ≥ 1
+- `grep -c "loreSection === 'chars'" frontend/src/components/BrainstormPanel.jsx` → ≥ 1
+
+Run `npm run lint` — expect 0 errors / 0 warnings.
+
+- [ ] **Step 8: Remove unused i18n keys** (optional but recommended)
+
+In `frontend/src/i18n/locales.js`, remove entries for `brainstorm.meta`, `brainstorm.outlineTab`, `brainstorm.bookTitle`, `brainstorm.protagonist`, `brainstorm.worldSetting`, `brainstorm.synopsis` IF they are no longer referenced anywhere else:
+
+```bash
+grep -rn "brainstorm.bookTitle\|brainstorm.protagonist\|brainstorm.worldSetting\|brainstorm.synopsis" frontend/src/ | grep -v locales.js
+```
+
+If any are still used in other components, keep them. Only remove truly orphaned ones.
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add frontend/src/components/BrainstormPanel.jsx frontend/src/i18n/locales.js
+git commit -m "$(cat <<'EOF'
+chore(brainstorm): slim LoreBook to world + chars sub-tabs
+
+The meta sub-tab (title/protagonist/synopsis) is now redundant with
+OutlineView's book.label/epigraph/synopsis fields. The outline sub-tab
+duplicates the dedicated Outline tab. Removes both; world_setting.json
+and characters.json editing continues to live here.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
 ## Verification Checklist
 
 - [ ] `save_outline` accepts `epigraph` on book and `synopsis` on book/volume
