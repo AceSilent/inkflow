@@ -1,5 +1,18 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Loader, Check, FileText, RefreshCw } from 'lucide-react'
+import { Loader, Check, FileText, RefreshCw, GripVertical } from 'lucide-react'
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { useI18n } from '../hooks/useI18n'
 import { toRoman } from '../utils/roman'
 import { EditableField } from './outline/EditableField'
@@ -28,11 +41,27 @@ function useDerivedChapterStatus(bookId, chId) {
   return status
 }
 
-function ChapterRow({ bookId, chNode, index, onOpen, onPatch }) {
+function SortableChapterRow({ bookId, chNode, index, onOpen, onPatch, reorderMode }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: chNode.id })
   const status = useDerivedChapterStatus(bookId, chNode.id)
   const statusClass = status === 'Done' ? 'done' : status === 'Draft' ? 'draft' : ''
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
   return (
-    <div className="chapter-row">
+    <div ref={setNodeRef} style={style} className="chapter-row">
+      {reorderMode && (
+        <div
+          {...attributes}
+          {...listeners}
+          style={{ cursor: 'grab', display: 'flex', alignItems: 'center', paddingRight: 4 }}
+          title="拖动排序"
+        >
+          <GripVertical size={14} opacity={0.5} />
+        </div>
+      )}
       <div className="chapter-num label-sc">{toRoman(index + 1)}.</div>
       <div className="chapter-body" onClick={(e) => e.stopPropagation()}>
         <div className="chapter-title">
@@ -77,11 +106,27 @@ function FreeformFallback({ data }) {
   )
 }
 
+function locateChapter(outline, chId) {
+  if (!outline || !Array.isArray(outline.children)) return null
+  for (let v = 0; v < outline.children.length; v++) {
+    const arr = outline.children[v].children ?? []
+    const idx = arr.findIndex(c => c.id === chId)
+    if (idx !== -1) return { volIdx: v, chIdx: idx }
+  }
+  return null
+}
+
 export function OutlineView({ currentBook, addToast, onChapterOpen, dataVersion }) {
   const { t } = useI18n()
   void t
   const [outline, setOutline] = useState(null)
   const [loading, setLoading] = useState(Boolean(currentBook))
+  const [reorderMode, setReorderMode] = useState(false)
+
+  // Hooks can't go inside JSX callbacks — sensors must be created at top level
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
+  )
 
   const loadOutline = useCallback(async (bookId) => {
     if (!bookId) {
@@ -138,6 +183,21 @@ export function OutlineView({ currentBook, addToast, onChapterOpen, dataVersion 
     saveOutline(next)
   }
 
+  const handleDragEnd = (event) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const src = locateChapter(outline, active.id)
+    const tgt = locateChapter(outline, over.id)
+    if (!src || !tgt) return
+    const next = {
+      ...outline,
+      children: outline.children.map(v => ({ ...v, children: [...(v.children ?? [])] })),
+    }
+    const [moved] = next.children[src.volIdx].children.splice(src.chIdx, 1)
+    next.children[tgt.volIdx].children.splice(tgt.chIdx, 0, moved)
+    saveOutline(next)
+  }
+
   if (loading) {
     return (
       <div style={{ padding: 40, textAlign: 'center' }}>
@@ -154,11 +214,22 @@ export function OutlineView({ currentBook, addToast, onChapterOpen, dataVersion 
 
   const hasStructure = Array.isArray(outline.children) && outline.children.length > 0
 
+  const allChapterIds = hasStructure
+    ? outline.children.flatMap(vol => (vol.children ?? []).map(ch => ch.id))
+    : []
+
   return (
     <div className="outline-view">
       <div className="outline-topbar">
         <div className="label-sc" style={{ color: 'var(--accent)' }}>— Outline —</div>
         <div className="outline-actions">
+          <button
+            className={`btn btn-sm ${reorderMode ? 'on' : ''}`}
+            onClick={() => setReorderMode(!reorderMode)}
+            title="切换重排模式"
+          >
+            重排模式
+          </button>
           <button className="btn btn-sm" title="整理章节编号"><RefreshCw size={12} /></button>
           <button className="btn btn-sm" title="导出 .md"><FileText size={12} /></button>
         </div>
@@ -190,38 +261,47 @@ export function OutlineView({ currentBook, addToast, onChapterOpen, dataVersion 
               />
             </p>
 
-            {outline.children.map((vol, volIdx) => (
-              <section key={vol.id} className="outline-volume">
-                <div className="vol-head">
-                  <span className="vol-num label-sc">Vol. {toRoman(volIdx + 1)}</span>
-                  <span className="vol-title display-heading">
-                    <EditableField
-                      value={vol.label}
-                      onSave={(v) => patchVolume(volIdx, { label: v })}
-                      placeholder="（卷名）"
-                    />
-                  </span>
-                </div>
-                <p className="vol-synopsis">
-                  <EditableField
-                    multiline
-                    value={vol.synopsis}
-                    onSave={(v) => patchVolume(volIdx, { synopsis: v })}
-                    placeholder="— 点此添加卷梗概 —"
-                  />
-                </p>
-                {(vol.children || []).map((ch, chIdx) => (
-                  <ChapterRow
-                    key={ch.id}
-                    bookId={currentBook.book_id}
-                    chNode={ch}
-                    index={chIdx}
-                    onOpen={(node) => onChapterOpen?.(node)}
-                    onPatch={(patch) => patchChapter(volIdx, chIdx, patch)}
-                  />
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext items={allChapterIds} strategy={verticalListSortingStrategy}>
+                {outline.children.map((vol, volIdx) => (
+                  <section key={vol.id} className="outline-volume">
+                    <div className="vol-head">
+                      <span className="vol-num label-sc">Vol. {toRoman(volIdx + 1)}</span>
+                      <span className="vol-title display-heading">
+                        <EditableField
+                          value={vol.label}
+                          onSave={(v) => patchVolume(volIdx, { label: v })}
+                          placeholder="（卷名）"
+                        />
+                      </span>
+                    </div>
+                    <p className="vol-synopsis">
+                      <EditableField
+                        multiline
+                        value={vol.synopsis}
+                        onSave={(v) => patchVolume(volIdx, { synopsis: v })}
+                        placeholder="— 点此添加卷梗概 —"
+                      />
+                    </p>
+                    {(vol.children || []).map((ch, chIdx) => (
+                      <SortableChapterRow
+                        key={ch.id}
+                        bookId={currentBook.book_id}
+                        chNode={ch}
+                        index={chIdx}
+                        reorderMode={reorderMode}
+                        onOpen={(node) => onChapterOpen?.(node)}
+                        onPatch={(patch) => patchChapter(volIdx, chIdx, patch)}
+                      />
+                    ))}
+                  </section>
                 ))}
-              </section>
-            ))}
+              </SortableContext>
+            </DndContext>
           </>
         ) : (
           <FreeformFallback data={outline} />
