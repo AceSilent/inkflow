@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-AutoNovel-Studio is an AI-powered novel generation system using a **single-agent architecture**: one Author Agent (powered by LLM) operates autonomously with a toolbox of 17 tools via Vercel AI SDK's `streamText({ maxSteps: 20 })`. When quality review is needed, the Agent invokes `submit_to_editorial` which triggers 5 parallel specialized reviewers (lore/pacing/AI-tone/character/causality) and auto-persists results. The system is migrated from Python to TypeScript with **207 tests** across 18 test files.
+AutoNovel-Studio is an AI-powered novel generation system using a **single-agent architecture**: one Author Agent (powered by LLM) operates autonomously with a toolbox of 20 tools via Vercel AI SDK's `streamText({ maxSteps: 20 })`. When quality review is needed, the Agent invokes `submit_to_editorial` which triggers 5 parallel specialized reviewers (lore/pacing/AI-tone/character/causality) and auto-persists results. The system is migrated from Python to TypeScript with **207 tests** across 18 test files.
 
 ## Commands
 
@@ -45,16 +45,27 @@ cd frontend && npm run lint       # ESLint
 
 Path alias: `@/*` → `./src/*` (configured in both `tsconfig.json` and `vitest.config.ts`).
 
-**17 registered tools** (in `server/src/tools/index.ts`):
+**20 registered tools** (in `server/src/tools/index.ts`):
 
 | Category | Tools | Source File |
 |----------|-------|-------------|
 | Read | `read_file`, `search_lore`, `read_outline` | `read-file.ts`, `search-lore.ts`, `write-tools.ts` |
 | Write | `save_draft`, `save_outline`, `save_lore` | `write-tools.ts` |
-| Plot Tree | `read_tree`, `add_plot_node`, `confirm_path`, `prune_branch`, `merge_branches` | `plot-tree.ts` |
+| Plot Graph | `read_graph`, `add_plot_node`, `add_edge`, `remove_edge`, `query_unresolved_setups`, `confirm_path`, `prune_branch`, `merge_branches` | `plot-graph.ts` |
 | Terminal | `submit_for_review`, `present_options`, `request_guidance` | `terminal.ts` |
 | Skill | `load_skill`, `list_skills` | `skills.ts` |
 | Editorial | `submit_to_editorial` | `editorial/editorial.ts` |
+
+### Plot Graph (`server/src/services/plot-graph.ts` + `server/src/tools/plot-graph.ts`)
+
+The old tree has been replaced by a DAG in `plot_graph.json`:
+- Nodes (6 types): event / setup / payoff / decision / turning_point / convergence. `chapter` and `arc` are forbidden.
+- Edges (6 types): causes / triggers / enables / blocks / pays-off / parallel.
+- Nodes reference chapters via `references: string[]` (many-to-many weak link).
+- `editorial_causality` reviewer receives `plot_graph_context` (chapter subgraph + unresolved setups).
+- `prompt-builder` injects an unresolved-setups ledger into the system prompt so the Agent tracks foreshadowing debt.
+
+Tools: `read_graph`, `add_plot_node`, `add_edge`, `remove_edge`, `query_unresolved_setups`, `confirm_path`, `prune_branch`, `merge_branches`.
 
 ### Safety Layer (`server/src/tools/safety.ts`)
 
@@ -124,6 +135,12 @@ Fastify is configured with `ignoreTrailingSlash: true`. All POST/PUT bodies vali
 
 **outline.ts** — Outline-specific endpoints:
 - `POST /api/v1/books/:bookId/outline/renumber` — cascade-rename chapter IDs to match outline order
+
+**plot-graph.ts** — Plot graph DAG endpoints:
+- `GET /api/v1/books/:bookId/plot-graph` — full graph
+- `POST / PATCH / DELETE /api/v1/books/:bookId/plot-graph/nodes[/:id]`
+- `POST / DELETE /api/v1/books/:bookId/plot-graph/edges[/:id]`
+- `GET /api/v1/books/:bookId/plot-graph/unresolved-setups`
 
 ### LLM Provider (`server/src/llm/provider.ts`)
 
