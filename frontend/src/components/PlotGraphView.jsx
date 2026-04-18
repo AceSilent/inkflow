@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Loader, Plus } from 'lucide-react'
 import { useI18n } from '../hooks/useI18n'
 import { toRoman } from '../utils/roman'
+import { AddNodeModal } from './plotgraph/AddNodeModal'
 
 const NODE_COLORS = {
   event: 'var(--ink)',
@@ -121,7 +122,31 @@ export function PlotGraphView({ currentBook, addToast, onChapterOpen, dataVersio
         </div>
       </div>
 
-      {/* Detail drawer, add-node modal, and SVG edges overlay are wired in later tasks (T8–T11). */}
+      {/* Detail drawer and SVG edges overlay are wired in later tasks (T9–T11). */}
+
+      <AddNodeModal
+        open={addNodeOpen}
+        onCancel={() => setAddNodeOpen(false)}
+        onSubmit={async (body) => {
+          try {
+            const r = await fetch(`/api/v1/books/${currentBook.book_id}/plot-graph/nodes`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(body),
+            })
+            if (!r.ok) {
+              const err = await r.json().catch(() => ({}))
+              addToast?.(`创建失败：${err.error || r.statusText}`, 'error')
+              return
+            }
+            addToast?.('节点已创建', 'success')
+            setAddNodeOpen(false)
+            reload()
+          } catch (e) {
+            addToast?.(`出错：${e.message}`, 'error')
+          }
+        }}
+      />
     </div>
   )
 }
