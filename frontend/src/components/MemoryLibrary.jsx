@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Loader, Brain } from 'lucide-react'
 import { useI18n } from '../hooks/useI18n'
 import { AddMemoryModal } from './memory/AddMemoryModal'
+import { EditableField } from './outline/EditableField'
 
 export function MemoryLibrary({ addToast }) {
   const { t } = useI18n()
@@ -93,6 +94,29 @@ export function MemoryLibrary({ addToast }) {
 
 function MemoryCard({ entry, tab, onAction, addToast }) {
   const { frontmatter: fm, body } = entry
+  const rawBody = String(body || '')
+  // The server stores auto-extracted memories with a leading `# Title` line
+  // (see extractor.ts). We strip it for display but preserve it on save so
+  // a user editing just the body portion doesn't accidentally erase the title.
+  const titleMatch = rawBody.match(/^(#[^\n]*\n+)/)
+  const titlePrefix = titleMatch ? titleMatch[1] : ''
+  const bodyText = rawBody.replace(/^#[^\n]*\n+/, '').trim()
+
+  async function patchBody(newBody) {
+    try {
+      const r = await fetch(`/api/v1/memory/${fm.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body: `${titlePrefix}${newBody}` }),
+      })
+      if (!r.ok) throw new Error(await r.text() || 'failed')
+      addToast?.('已保存', 'success')
+      onAction()
+    } catch (e) {
+      addToast?.(e.message, 'error')
+    }
+  }
+
   return (
     <div className="memory-card">
       <div className="memory-card-head">
@@ -101,7 +125,9 @@ function MemoryCard({ entry, tab, onAction, addToast }) {
           conf {Number(fm.confidence).toFixed(2)} · {fm.scope} · {fm.source}
         </span>
       </div>
-      <div className="memory-card-body">{String(body || '').replace(/^#[^\n]*\n+/, '').trim()}</div>
+      <div className="memory-card-body">
+        <EditableField multiline value={bodyText} onSave={patchBody} />
+      </div>
       <MemoryActions id={fm.id} tab={tab} onAction={onAction} addToast={addToast} />
     </div>
   )
