@@ -16,6 +16,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { useI18n } from '../hooks/useI18n'
 import { toRoman } from '../utils/roman'
 import { EditableField } from './outline/EditableField'
+import { RenumberConfirmModal } from './outline/RenumberConfirmModal'
 
 function useDerivedChapterStatus(bookId, chId) {
   const [status, setStatus] = useState('-') // '-' | 'Draft' | 'Done'
@@ -128,6 +129,7 @@ export function OutlineView({ currentBook, addToast, onChapterOpen, dataVersion 
   const [outline, setOutline] = useState(null)
   const [loading, setLoading] = useState(Boolean(currentBook))
   const [reorderMode, setReorderMode] = useState(false)
+  const [renumberOpen, setRenumberOpen] = useState(false)
 
   // Hooks can't go inside JSX callbacks — sensors must be created at top level
   const sensors = useSensors(
@@ -276,7 +278,9 @@ export function OutlineView({ currentBook, addToast, onChapterOpen, dataVersion 
           >
             重排模式
           </button>
-          <button className="btn btn-sm" title="整理章节编号"><RefreshCw size={12} /></button>
+          <button className="btn btn-sm" onClick={() => setRenumberOpen(true)} title="整理章节编号">
+            <RefreshCw size={12} /> 整理编号
+          </button>
           <button className="btn btn-sm" title="导出 .md"><FileText size={12} /></button>
         </div>
       </div>
@@ -354,6 +358,24 @@ export function OutlineView({ currentBook, addToast, onChapterOpen, dataVersion 
           <FreeformFallback data={outline} />
         )}
       </div>
+
+      <RenumberConfirmModal
+        open={renumberOpen}
+        onCancel={() => setRenumberOpen(false)}
+        onConfirm={async () => {
+          try {
+            const r = await fetch(`/api/v1/books/${currentBook.book_id}/outline/renumber`, { method: 'POST' })
+            const data = await r.json()
+            addToast?.(`已重编 ${data.renamed?.length ?? 0} 章`, 'success')
+            const updated = await fetch(`/api/v1/books/${currentBook.book_id}/outline`).then(x => x.json())
+            setOutline(updated)
+          } catch (e) {
+            addToast?.(`整理失败：${e.message}`, 'error')
+          } finally {
+            setRenumberOpen(false)
+          }
+        }}
+      />
     </div>
   )
 }
