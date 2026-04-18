@@ -86,8 +86,8 @@ export default function App() {
       <header className="titlebar">
         <div className="titlebar-brand">
           <BookOpen size={16} />
-          <span>{t('app.brand')}</span>
-          <span style={{ opacity: 0.4, fontSize: 10 }}>{t('app.version')}</span>
+          <span className="wordmark">AutoNovel · Studio</span>
+          <span className="label-sc" style={{ opacity: 0.4 }}>{t('app.version')}</span>
         </div>
         <div className="titlebar-actions">
           <button className="btn-icon" onClick={switchLang} title={t('settings.language')}>

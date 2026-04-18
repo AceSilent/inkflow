@@ -1,1 +1,18 @@
-/* App.css intentionally empty — all styles in index.css */
+/* App.css — titlebar design-token overrides (Literary Journal aesthetic)
+ * Spec: docs/superpowers/specs/2026-04-18-design-system.md
+ * Other styles remain in index.css.
+ */
+
+.titlebar {
+  background: var(--bg-elevated);
+  color: var(--ink);
+  border-bottom: 1px solid var(--border-strong);
+}
+
+.titlebar-brand {
+  color: var(--ink);
+}
+
+.titlebar-actions {
+  color: var(--ink);
+}
