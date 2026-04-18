@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { ChevronRight, FilePlus, RefreshCw, BookOpen, FileText, ScrollText, Folder, Trash2 } from 'lucide-react'
 import { useI18n } from '../hooks/useI18n'
+import { toRoman } from '../utils/roman'
 
 export function Sidebar({ activePanel, addToast, onSelect, onBookSelect, onNewBook, dataVersion }) {
   const { t } = useI18n()
@@ -100,15 +101,15 @@ export function Sidebar({ activePanel, addToast, onSelect, onBookSelect, onNewBo
         </div>
       </div>
       <div className="sidebar-content">
-        {treeData.map(node => (
-          <TreeNode key={node.id} node={node} bookId={node.type === 'book' ? node.id : null} selectedId={selectedId} onSelect={handleNodeSelect} onDeleteBook={handleDeleteBook} pendingDelete={pendingDelete} onCancelDelete={() => setPendingDelete(null)} />
+        {treeData.map((node, idx) => (
+          <TreeNode key={node.id} node={node} index={idx} bookId={node.type === 'book' ? node.id : null} selectedId={selectedId} onSelect={handleNodeSelect} onDeleteBook={handleDeleteBook} pendingDelete={pendingDelete} onCancelDelete={() => setPendingDelete(null)} />
         ))}
       </div>
     </aside>
   )
 }
 
-function TreeNode({ node, bookId, level = 0, selectedId, onSelect, onDeleteBook, pendingDelete, onCancelDelete }) {
+function TreeNode({ node, index = 0, bookId, level = 0, selectedId, onSelect, onDeleteBook, pendingDelete, onCancelDelete }) {
   const { t } = useI18n()
   const [open, setOpen] = useState(level < 2)
   const [hovered, setHovered] = useState(false)
@@ -129,7 +130,19 @@ function TreeNode({ node, bookId, level = 0, selectedId, onSelect, onDeleteBook,
       >
         <span className={`tree-item-toggle ${open ? 'open' : ''}`} style={{ visibility: hasChildren ? 'visible' : 'hidden' }}><ChevronRight size={12} /></span>
         <span className="tree-item-icon" style={{ color: hasChildren ? 'var(--warning)' : 'var(--accent)' }}><Icon size={15} /></span>
-        <span className="tree-item-label">{node.label}</span>
+        <span className="tree-item-label">
+          {node.type === 'volume' && node.id !== '__orphan_drafts__' && (
+            <span className="label-sc" style={{ color: 'var(--accent)', marginRight: 6 }}>
+              Vol. {toRoman(index + 1)}
+            </span>
+          )}
+          {node.type === 'chapter' && (
+            <span className="label-sc" style={{ color: 'var(--accent)', marginRight: 4 }}>
+              {toRoman(index + 1)}.
+            </span>
+          )}
+          {node.label}
+        </span>
         {node.type === 'chapter' && node.status && (
           <span style={{
             width: 6, height: 6, borderRadius: '50%', flexShrink: 0, marginLeft: 4,
@@ -155,7 +168,7 @@ function TreeNode({ node, bookId, level = 0, selectedId, onSelect, onDeleteBook,
           </button>
         )}
       </div>
-      {hasChildren && <div className={`tree-children ${!open ? 'collapsed' : ''}`}>{node.children.map(c => <TreeNode key={c.id} node={c} bookId={effectiveBookId} level={level+1} selectedId={selectedId} onSelect={onSelect} onDeleteBook={onDeleteBook} pendingDelete={pendingDelete} onCancelDelete={onCancelDelete} />)}</div>}
+      {hasChildren && <div className={`tree-children ${!open ? 'collapsed' : ''}`}>{node.children.map((c, i) => <TreeNode key={c.id} node={c} index={i} bookId={effectiveBookId} level={level+1} selectedId={selectedId} onSelect={onSelect} onDeleteBook={onDeleteBook} pendingDelete={pendingDelete} onCancelDelete={onCancelDelete} />)}</div>}
     </div>
   )
 }
