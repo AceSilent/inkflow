@@ -4,6 +4,7 @@ import { useI18n } from '../hooks/useI18n'
 import { toRoman } from '../utils/roman'
 import { AddNodeModal } from './plotgraph/AddNodeModal'
 import { NodeDetailDrawer } from './plotgraph/NodeDetailDrawer'
+import { UnresolvedSetupsPopover } from './plotgraph/UnresolvedSetupsPopover'
 
 const NODE_COLORS = {
   event: 'var(--ink)',
@@ -26,6 +27,7 @@ export function PlotGraphView({ currentBook, addToast, onChapterOpen, dataVersio
   const [unresolved, setUnresolved] = useState([])
   const [detailNodeId, setDetailNodeId] = useState(null)
   const [addNodeOpen, setAddNodeOpen] = useState(false)
+  const [unresolvedPopoverOpen, setUnresolvedPopoverOpen] = useState(false)
 
   const reload = useCallback(async () => {
     if (!currentBook) { setLoading(false); return }
@@ -85,9 +87,13 @@ export function PlotGraphView({ currentBook, addToast, onChapterOpen, dataVersio
         <div className="plot-stats">
           <span className="label-sc">{nodeCount} Nodes · {edgeCount} Edges</span>
           {unresolved.length > 0 && (
-            <span className="plot-unresolved label-sc" style={{ color: 'var(--accent)', marginLeft: 8 }}>
+            <button
+              type="button"
+              className="plot-unresolved label-sc"
+              onClick={() => setUnresolvedPopoverOpen(v => !v)}
+            >
               · {unresolved.length} {t('plotGraph.unresolved')}
-            </span>
+            </button>
           )}
         </div>
         <div className="plot-actions">
@@ -147,6 +153,16 @@ export function PlotGraphView({ currentBook, addToast, onChapterOpen, dataVersio
         onEdgeRemove={async (edgeId) => {
           await fetch(`/api/v1/books/${currentBook.book_id}/plot-graph/edges/${edgeId}`, { method: 'DELETE' })
           reload()
+        }}
+      />
+
+      <UnresolvedSetupsPopover
+        open={unresolvedPopoverOpen}
+        items={unresolved}
+        onClose={() => setUnresolvedPopoverOpen(false)}
+        onJumpToNode={(id) => {
+          setDetailNodeId(id)
+          setUnresolvedPopoverOpen(false)
         }}
       />
 

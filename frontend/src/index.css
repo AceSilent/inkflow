@@ -923,3 +923,50 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   cursor: pointer;
   color: var(--ink-secondary);
 }
+
+/* Unresolved setups popover (T10) */
+.plot-unresolved {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  margin-left: 8px;
+  color: var(--accent);
+  font: inherit;
+}
+.plot-unresolved:hover { text-decoration: underline; }
+
+.unresolved-popover {
+  position: absolute;
+  top: 42px;
+  right: 140px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  padding: 10px 12px;
+  min-width: 260px;
+  max-width: 320px;
+  box-shadow: 3px 3px 0 var(--accent-soft);
+  z-index: 40;
+}
+.popover-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.popover-head button {
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  color: var(--ink-secondary);
+}
+.unresolved-item {
+  padding: 8px 10px;
+  margin: 4px 0;
+  cursor: pointer;
+  border-left: 2px solid var(--warning);
+  background: var(--bg);
+  font-size: 11px;
+}
+.unresolved-item:hover { background: var(--accent-soft); }
