@@ -15,6 +15,7 @@ import fs from 'fs'
 import path from 'path'
 import { generateText } from 'ai'
 import { type LLMConfig, createProvider } from '../llm/provider.js'
+import { chapterSubgraph, unresolvedSetups } from '../services/plot-graph.js'
 
 export interface EditorialFeedback {
   reviewer: string
@@ -265,6 +266,31 @@ async function runReviewer(
   }
 }
 
+// ── Causality reviewer: plot-graph context ──
+
+/**
+ * Shape of the plot-graph context that gets injected into the causality
+ * reviewer's prompt. Computed from `plot_graph.json` at reviewer-dispatch
+ * time and passed via `plot_graph_context` template variables.
+ */
+export interface CausalityContext {
+  chapter_subgraph: ReturnType<typeof chapterSubgraph>
+  unresolved_setups: ReturnType<typeof unresolvedSetups>
+}
+
+/**
+ * Build the plot-graph slice the causality reviewer sees: nodes touching the
+ * current chapter, their incoming/outgoing edges, and the book-wide list of
+ * setups that haven't been paid off yet. Safe on missing `plot_graph.json`
+ * (returns empty arrays).
+ */
+export function buildCausalityContext(bookDir: string, chapterId: string): CausalityContext {
+  return {
+    chapter_subgraph: chapterSubgraph(bookDir, chapterId),
+    unresolved_setups: unresolvedSetups(bookDir),
+  }
+}
+
 // ── Full editorial pipeline ──
 
 export interface EditorialContext {
@@ -283,6 +309,15 @@ export interface EditorialContext {
   focusPoint?: string
   /** Outline slice (current chapter + neighbors) for contextual grounding. */
   outlineContext?: string
+  /**
+   * Book directory on disk, used to load `plot_graph.json` for the causality
+   * reviewer's chapter subgraph. When both `bookDir` and `chapterId` are
+   * provided, the causality reviewer's prompt receives plot_graph_context
+   * variables. When either is missing, the causality reviewer still runs —
+   * the template's `{% if plot_graph_context %}` block just stays stripped.
+   */
+  bookDir?: string
+  chapterId?: string
 }
 
 export async function runEditorialPipeline(
@@ -306,6 +341,31 @@ export async function runEditorialPipeline(
     outline_context: context.outlineContext ?? '',
   }
 
+  // Causality reviewer gets an extra set of variables derived from
+  // plot_graph.json. Flat JSON strings because the minimal template engine
+  // only does `{{ var }}` substitution — no dotted access, no filters.
+  // The `plot_graph_context` flag controls the `{% if %}` block in the
+  // template; the three `*_json` vars are the actual payload.
+  const causalityVars: Record<string, string> = { ...vars }
+  if (context.bookDir && context.chapterId) {
+    const plotGraphContext = buildCausalityContext(context.bookDir, context.chapterId)
+    const hasAnyPlotGraphData =
+      plotGraphContext.chapter_subgraph.nodes.length > 0 ||
+      plotGraphContext.unresolved_setups.length > 0
+    if (hasAnyPlotGraphData) {
+      causalityVars.plot_graph_context = 'yes'
+      causalityVars.plot_graph_nodes_json = JSON.stringify(
+        plotGraphContext.chapter_subgraph.nodes,
+      )
+      causalityVars.plot_graph_incoming_edges_json = JSON.stringify(
+        plotGraphContext.chapter_subgraph.incoming_edges,
+      )
+      causalityVars.plot_graph_unresolved_setups_json = JSON.stringify(
+        plotGraphContext.unresolved_setups,
+      )
+    }
+  }
+
   // Run all reviewers in parallel. New reviewers (character, causality) are
   // added behind the existing three rather than replacing them so past review
   // files (review_{id}.json) stay shape-compatible.
@@ -314,7 +374,7 @@ export async function runEditorialPipeline(
     runReviewer('editorial_pacing', 'reader_scene_pacing.j2', promptsDir, vars, llmConfig),
     runReviewer('editorial_ai_tone', 'reader_scene_ai_tone.j2', promptsDir, vars, llmConfig),
     runReviewer('editorial_character', 'reader_scene_character.j2', promptsDir, vars, llmConfig),
-    runReviewer('editorial_causality', 'reader_scene_causality.j2', promptsDir, vars, llmConfig),
+    runReviewer('editorial_causality', 'reader_scene_causality.j2', promptsDir, causalityVars, llmConfig),
   ])
 
   const feedbacks = [lore, pacing, aiTone, character, causality]

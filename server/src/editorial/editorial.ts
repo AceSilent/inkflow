@@ -284,6 +284,9 @@ export async function runEditorialPipelineForChapter(
       bookTone, bookGenre,
       povCharacter, setting,
       sceneTarget, logicChain, emotionalArc, focusPoint,
+      // Thread bookDir + chapterId so the causality reviewer can pull a
+      // plot-graph slice (chapter subgraph + unresolved setups) into its prompt.
+      bookDir, chapterId,
       ...loaded,
     },
     llmConfig,

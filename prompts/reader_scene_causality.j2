@@ -104,4 +104,25 @@
 }
 ```
 
+{% if plot_graph_context %}
+
+【剧情图谱对照参考】
+本章在剧情图谱上对应以下节点：
+{{ plot_graph_nodes_json }}
+
+这些节点的入边（应当已经发生过的因果铺垫）：
+{{ plot_graph_incoming_edges_json }}
+
+全书目前仍未回收的伏笔：
+{{ plot_graph_unresolved_setups_json }}
+
+审稿检查点：
+1. 本章写出的事件链，是否严格遵循了图谱上的因果边？有跳步骤或凭空结果吗？
+2. 图谱上的 setup 节点如果 references 包含本章，本章文本里有实际铺设吗？还是徒有设计、文本里没落实？
+3. 图谱上的 payoff 节点如果 references 包含本章，本章文本里有实际回收吗？
+4. 如果本章没有图谱参考，严重度记为 1-2（信息不足，不作为硬扣分）。
+
+在 issues[] 里为每个违例单独一条，severity ≥ 3 的要给 fix_instruction。
+{% endif %}
+
 现在开始检查这个场景草稿：
