@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Loader, Check, RefreshCw, Send } from 'lucide-react'
 import { useI18n } from '../hooks/useI18n'
+import { useWorkbenchSSE } from '../hooks/useWorkbenchSSE'
 import { toRoman } from '../utils/roman'
 import { MilkdownEditor } from './workbench/MilkdownEditor'
 import { CommentFeed } from './workbench/CommentFeed'
@@ -110,6 +111,23 @@ export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, da
     document.addEventListener('selectionchange', onSelChange)
     return () => document.removeEventListener('selectionchange', onSelChange)
   }, [])
+
+  // Task 14 — SSE stub: placeholder for Agent write events. Currently a no-op
+  // (see hook source). Real locked-state is flipped manually in Task 17.
+  useWorkbenchSSE({
+    bookId,
+    chapterId,
+    onChapterWriteStart: () => setLocked(true),
+    onChapterWriteDone: () => {
+      setLocked(false)
+      fetch(`/api/v1/books/${bookId}/chapters/${chapterId}`)
+        .then(r => r.json())
+        .then(d => setContent(d?.content ?? ''))
+    },
+    onOtherChapterWrite: (otherChId) => {
+      addToast?.(`Author 正在写 ${otherChId} → [点此跳转]`, 'info')
+    },
+  })
 
   if (loading) {
     return (
