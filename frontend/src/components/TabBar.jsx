@@ -12,7 +12,7 @@ export function TabBar({ tabs, activeTab, onSelect, onClose }) {
         return (
           <div key={tab.id} className={`tab ${activeTab === tab.id ? 'active' : ''}`} onClick={() => onSelect(tab.id)} role="tab">
             <Icon size={13} />
-            <span>{t(tab.label) || tab.label}</span>
+            <span className="label-sc">{t(tab.label) || tab.label}</span>
             {tab.id !== 'welcome' && (
               <button className="tab-close" onClick={e => { e.stopPropagation(); onClose(tab.id); }}>
                 <X />
