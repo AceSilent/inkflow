@@ -295,6 +295,28 @@ export async function runEditorialPipelineForChapter(
 
   const persist = persistReviewToDir(bookDir, chapterId, result)
 
+  // Fire-and-forget memory extraction — failure must NEVER affect main response.
+  // Runs for every editorial round (pass or fail): lessons from failed reviews are
+  // just as valuable as those from passing ones for craft-skill accumulation.
+  ;(async () => {
+    try {
+      const { extractMemories, ingestExtracted } = await import('../memory/extractor.js')
+      const extracted = await extractMemories({
+        event: 'editorial_return',
+        llmConfig,
+        recentHistory: [],
+        editorialSummary: result.merged_summary,
+        bookId,
+        currentChapter: chapterId,
+      })
+      if (extracted.length > 0) {
+        await ingestExtracted(dataDir, extracted)
+      }
+    } catch (e) {
+      console.warn('[editorial] memory extraction failed:', e)
+    }
+  })()
+
   // Once a chapter clears editorial, fold its summary + character states into
   // project memory so the next chapter sees the updated continuity context.
   // Awaited (not fire-and-forget) so the next agent call reads fresh memory;

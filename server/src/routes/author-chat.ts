@@ -412,6 +412,29 @@ export async function authorChatRoutes(app: FastifyInstance) {
 
         streamDone = true
         sse({ type: 'done', tools_used: toolsUsed, has_thinking: fullThinking.length > 0 })
+
+        // Fire-and-forget memory extraction — failure must NEVER affect main response.
+        // Only runs on successful completions (not aborted / mid-stream errors); otherwise
+        // we'd be feeding the extractor a partial turn with no coherent user→assistant pair.
+        if (streamSucceeded) {
+          ;(async () => {
+            try {
+              const { extractMemories, ingestExtracted } = await import('../memory/extractor.js')
+              const extracted = await extractMemories({
+                event: 'user_message',
+                llmConfig,
+                recentHistory: history.slice(-5),
+                userMessage: message,
+                bookId,
+              })
+              if (extracted.length > 0) {
+                await ingestExtracted(dataDir, extracted)
+              }
+            } catch (e) {
+              console.warn('[author-chat] memory extraction failed:', e)
+            }
+          })()
+        }
       } catch (err: any) {
         if (abortController.signal.aborted) {
           sse({ type: 'aborted', message: 'Stream cancelled by client' })
