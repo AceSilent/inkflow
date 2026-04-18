@@ -146,6 +146,26 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
     const useAttachments = !fromOverride && attachments.length > 0
     if ((!baseInput && !useAttachments) || loading || !bookId) return
 
+    // /remember slash command — write to memory, don't send to Agent.
+    // Treated as a settings action: no history entry, no snapshot, no stream.
+    if (baseInput.startsWith('/remember ')) {
+      const text = baseInput.slice('/remember '.length).trim()
+      if (!text) return
+      try {
+        const r = await fetch('/api/v1/memory/remember', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, scope: 'user', type: 'preference', tags: [] }),
+        })
+        if (r.ok) addToast?.('已记住', 'success')
+        else addToast?.('保存失败', 'error')
+      } catch (e) {
+        addToast?.(e.message, 'error')
+      }
+      if (!fromOverride) setInput('')
+      return
+    }
+
     let userMsg = baseInput
     if (useAttachments) {
       const fileParts = attachments.map(a =>
