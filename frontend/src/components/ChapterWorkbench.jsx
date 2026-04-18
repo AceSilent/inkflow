@@ -7,6 +7,7 @@ import { useI18n } from '../hooks/useI18n'
 import { toRoman } from '../utils/roman'
 import { MilkdownEditor } from './workbench/MilkdownEditor'
 import { CommentFeed } from './workbench/CommentFeed'
+import { AnnotationPopover } from './workbench/AnnotationPopover'
 
 export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, dataVersion }) {
   const { t } = useI18n()
@@ -17,6 +18,8 @@ export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, da
   const [review, setReview] = useState(null)
   const [annotations, setAnnotations] = useState([])
   const [status, setStatus] = useState({ user_decision: null })
+  // Task 13 — selection-driven popover state: {text, start, end, anchor:{x,y}}
+  const [selection, setSelection] = useState(null)
 
   const chNum = parseInt(chapterId.replace(/^ch/i, ''), 10) || 0
 
@@ -76,6 +79,38 @@ export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, da
     return () => window.removeEventListener('keydown', onKey)
   }, [handleSave])
 
+  // Task 13 — detect text selections inside `.workbench-editor` and surface
+  // a popover anchored to the bottom of the selection rect. Markdown source
+  // offsets are out-of-scope for MVP (see plan Risk 1) — anchor_start/end = 0.
+  useEffect(() => {
+    function onSelChange() {
+      const sel = window.getSelection()
+      if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
+        setSelection(null)
+        return
+      }
+      const range = sel.getRangeAt(0)
+      const editorEl = document.querySelector('.workbench-editor')
+      if (!editorEl || !editorEl.contains(range.commonAncestorContainer)) {
+        setSelection(null)
+        return
+      }
+      const rect = range.getBoundingClientRect()
+      const editorRect = editorEl.getBoundingClientRect()
+      setSelection({
+        text: sel.toString(),
+        start: 0,
+        end: 0,
+        anchor: {
+          x: rect.left - editorRect.left,
+          y: rect.bottom - editorRect.top + 4,
+        },
+      })
+    }
+    document.addEventListener('selectionchange', onSelChange)
+    return () => document.removeEventListener('selectionchange', onSelChange)
+  }, [])
+
   if (loading) {
     return (
       <div style={{ padding: 40, textAlign: 'center' }}>
@@ -108,7 +143,9 @@ export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, da
           </div>
         </div>
 
-        {/* Editor — Milkdown wrapper (Task 11). key remounts on chapter switch. */}
+        {/* Editor — Milkdown wrapper (Task 11). key remounts on chapter switch.
+            `.workbench-editor` has `position: relative` so the popover can
+            anchor against it (Task 13). */}
         <div className="workbench-editor">
           <MilkdownEditor
             key={chapterId}
@@ -116,6 +153,33 @@ export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, da
             readOnly={locked}
             onChange={(md) => { setContent(md); setDirty(true) }}
           />
+          {selection && (
+            <AnnotationPopover
+              anchor={selection.anchor}
+              selectedText={selection.text}
+              onCancel={() => setSelection(null)}
+              onSubmit={async (comment) => {
+                const body = {
+                  quote: selection.text,
+                  anchor_start: selection.start,
+                  anchor_end: selection.end,
+                  comment,
+                  source: 'user',
+                }
+                const r = await fetch(`/api/v1/books/${bookId}/chapters/${chapterId}/annotations`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(body),
+                })
+                if (r.ok) {
+                  const created = await r.json()
+                  setAnnotations(prev => [...prev, created])
+                  setSelection(null)
+                  addToast?.('批注已保存', 'success')
+                }
+              }}
+            />
+          )}
         </div>
 
         {/* Status bar */}
