@@ -5,6 +5,12 @@ on:
     branches: [master]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   package:
     runs-on: ubuntu-latest
@@ -39,7 +45,7 @@ jobs:
           pkg="release/inkflow"
           mkdir -p "$pkg"
           cp -r server frontend prompts scripts "$pkg/"
-          for file in package.json package-lock.json .env.example .gitignore README.md START.md start.cmd; do
+          for file in package.json package-lock.json .env.example .gitignore README.md README.en.md START.md start.cmd; do
             if [ -f "$file" ]; then cp "$file" "$pkg/"; fi
           done
           rm -rf "$pkg/server/node_modules" "$pkg/server/dist" "$pkg/frontend/node_modules" "$pkg/frontend/dist"
@@ -47,9 +53,30 @@ jobs:
           cp -r frontend/dist "$pkg/frontend/dist"
           cd release
           zip -r "inkflow-${GITHUB_SHA::7}.zip" inkflow
+          cp "inkflow-${GITHUB_SHA::7}.zip" inkflow-latest.zip
 
       - name: Upload package artifact
         uses: actions/upload-artifact@v4
         with:
           name: inkflow-${{ github.sha }}
           path: release/*.zip
+
+      - name: Publish rolling GitHub Release
+        if: github.ref == 'refs/heads/master'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          zip_file="release/inkflow-latest.zip"
+          notes="Automated InkFlow package for commit ${GITHUB_SHA}."
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -f latest "$GITHUB_SHA"
+          git push origin refs/tags/latest --force
+          if gh release view latest >/dev/null 2>&1; then
+            gh release upload latest "$zip_file" --clobber
+            gh release edit latest --title "InkFlow latest" --notes "$notes" --latest
+          else
+            gh release create latest "$zip_file" --title "InkFlow latest" --notes "$notes" --latest --verify-tag
+          fi
