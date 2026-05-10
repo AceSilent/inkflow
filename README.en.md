@@ -54,6 +54,14 @@ The launcher starts:
 
 By default, runtime data is stored in the repository root `books/` directory.
 
+Stop the app:
+
+```text
+stop.cmd
+```
+
+Closing the browser tab does not stop the backend or frontend processes.
+
 ## Configuration
 
 InkFlow supports OpenAI-compatible providers through `.env` and the Settings UI.

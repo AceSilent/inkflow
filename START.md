@@ -3,11 +3,10 @@
 ## First Run
 
 ```powershell
-npm run install:all
 copy .env.example .env
 ```
 
-Edit `.env` with your OpenAI-compatible provider settings. Keep real API keys local; `.env` is ignored by Git.
+Edit `.env` with your OpenAI-compatible provider settings. Dependencies are installed automatically on first launch if they are missing.
 
 ## Start
 
@@ -23,6 +22,14 @@ The launcher starts:
 - UI: `http://127.0.0.1:5173`
 
 Logs are written to `server-dev.log` and `frontend-dev.log`.
+
+## Stop
+
+```powershell
+.\stop.cmd
+```
+
+Closing the browser tab does not stop the backend or frontend processes. Use `stop.cmd` to shut them down.
 
 ## Verify
 

@@ -54,6 +54,14 @@ start.cmd
 
 默认运行数据保存在仓库根目录的 `books/`。
 
+退出应用：
+
+```text
+stop.cmd
+```
+
+关闭浏览器页面不会自动关闭后端和前端进程。
+
 ## 配置
 
 InkFlow 支持 OpenAI-compatible 服务，可通过 `.env` 或设置页面配置。

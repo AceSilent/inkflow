@@ -42,10 +42,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          package_version="$(node -p "require('./package.json').version")"
           pkg="release/inkflow"
           mkdir -p "$pkg"
           cp -r server frontend prompts scripts "$pkg/"
-          for file in package.json package-lock.json .env.example .gitignore README.md README.en.md START.md start.cmd; do
+          for file in package.json package-lock.json .env.example .gitignore README.md README.en.md START.md start.cmd stop.cmd; do
             if [ -f "$file" ]; then cp "$file" "$pkg/"; fi
           done
           rm -rf "$pkg/server/node_modules" "$pkg/server/dist" "$pkg/frontend/node_modules" "$pkg/frontend/dist"
@@ -53,7 +54,27 @@ jobs:
           cp -r frontend/dist "$pkg/frontend/dist"
           cd release
           zip -r "inkflow-${GITHUB_SHA::7}.zip" inkflow
+          cp "inkflow-${GITHUB_SHA::7}.zip" "inkflow-v${package_version}.zip"
           cp "inkflow-${GITHUB_SHA::7}.zip" inkflow-latest.zip
+          cat > "release-notes-v${package_version}.md" <<EOF
+          InkFlow v${package_version} Release Notes
+          发布日期：2026-05-11
+          版本类型：Pre-release / 正式仓库首个公开版本
+
+          核心功能
+          - 本地优先的 AI 小说创作工作台。
+          - 作者 Agent 对话式创作流程。
+          - 设定库、大纲、剧情图和章节工作台。
+          - 草稿自检与设定/逻辑编辑审稿。
+          - 范文风格控制与反向样例约束。
+          - GitHub Release zip 包。
+          - Windows 启动脚本 start.cmd 与退出脚本 stop.cmd。
+
+          使用说明
+          - 解压后运行 start.cmd。
+          - 首次启动会自动安装缺失依赖。
+          - 关闭浏览器不会关闭后端和前端；退出请运行 stop.cmd。
+          EOF
 
       - name: Upload package artifact
         uses: actions/upload-artifact@v4
@@ -61,22 +82,37 @@ jobs:
           name: inkflow-${{ github.sha }}
           path: release/*.zip
 
-      - name: Publish rolling GitHub Release
+      - name: Publish GitHub Releases
         if: github.ref == 'refs/heads/master'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          zip_file="release/inkflow-latest.zip"
-          notes="Automated InkFlow package for commit ${GITHUB_SHA}."
+          package_version="$(node -p "require('./package.json').version")"
+          version_tag="v${package_version}"
+          version_zip="release/inkflow-v${package_version}.zip"
+          latest_zip="release/inkflow-latest.zip"
+          release_notes="release/release-notes-v${package_version}.md"
+          latest_notes="Automated InkFlow package for commit ${GITHUB_SHA}."
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git tag -f "$version_tag" "$GITHUB_SHA"
+          git push origin "refs/tags/${version_tag}" --force
+          if gh release view "$version_tag" >/dev/null 2>&1; then
+            gh release upload "$version_tag" "$version_zip" --clobber
+            gh release edit "$version_tag" --title "${version_tag} Pre-release" --notes-file "$release_notes" --prerelease
+          else
+            gh release create "$version_tag" "$version_zip" --title "${version_tag} Pre-release" --notes-file "$release_notes" --prerelease --verify-tag
+          fi
+
           git tag -f latest "$GITHUB_SHA"
           git push origin refs/tags/latest --force
           if gh release view latest >/dev/null 2>&1; then
-            gh release upload latest "$zip_file" --clobber
-            gh release edit latest --title "InkFlow latest" --notes "$notes" --latest
+            gh release upload latest "$latest_zip" --clobber
+            gh release edit latest --title "InkFlow latest" --notes "$latest_notes" --latest
           else
-            gh release create latest "$zip_file" --title "InkFlow latest" --notes "$notes" --latest --verify-tag
+            gh release create latest "$latest_zip" --title "InkFlow latest" --notes "$latest_notes" --latest --verify-tag
           fi
