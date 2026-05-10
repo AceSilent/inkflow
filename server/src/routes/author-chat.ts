@@ -10,7 +10,6 @@ import { type FastifyInstance } from 'fastify'
 import { type ModelMessage } from 'ai'
 import { runAgentStream } from '../agent/agent-loop.js'
 import { createAllTools } from '../tools/index.js'
-import { REASONING_OPEN, REASONING_CLOSE } from '../llm/provider.js'
 import { sanitizePathSegment } from '../utils/path-sanitizer.js'
 import { sendChatBody } from './schemas.js'
 import { getSettings } from './settings.js'
@@ -25,6 +24,7 @@ import { loadBreakerState, resetBreaker } from '../context/circuit-breaker.js'
 import { getModelContextWindow, evaluateBudgetTier } from '../context/model-window.js'
 import { appendRunEvent, createRunId, loadRecentRuns, type RunTimelineEvent, type RunEventStatus } from '../runs/run-timeline.js'
 import { loadAuthorChatConfig, persistUsageBestEffort, previewValue } from './author-chat-support.js'
+import { ReasoningSegmentAccumulator, type AssistantSegment } from './stream-segments.js'
 
 const loadConfig = loadAuthorChatConfig
 export { persistUsageBestEffort }
@@ -408,95 +408,7 @@ export async function authorChatRoutes(app: FastifyInstance) {
           }
         }, 5000)
 
-        let fullText = ''
-        let fullThinking = ''
-        let pending = ''
-        let segmentMode: 'content' | 'thinking' = 'content'
-
-        // Mirror the segments the frontend would build live: ordered list of
-        // {type:'content',text} | {type:'tool_call',name,argsPreview,result?}
-        // entries, persisted with the assistant message so reload restores
-        // tool calls and interleaving instead of just collapsing to plain text.
-        type Segment =
-          | { type: 'content'; text: string }
-          | { type: 'thinking'; text: string }
-          | { type: 'tool_call'; name: string; argsPreview?: string; result?: string; status: 'running' | 'done' }
-          | { type: 'options'; description: string; options: string[] }
-        const segments: Segment[] = []
-        let openContent: { type: 'content'; text: string } | null = null
-        let openThinking: { type: 'thinking'; text: string } | null = null
-        const flushOpenContent = () => {
-          if (openContent && openContent.text.trim()) segments.push(openContent)
-          openContent = null
-        }
-        const flushOpenThinking = () => {
-          if (openThinking && openThinking.text.trim()) {
-            segments.push(openThinking)
-            sse({ type: 'thinking_done' })
-          }
-          openThinking = null
-        }
-        const appendContent = (text: string) => {
-          if (!openContent) openContent = { type: 'content', text: '' }
-          openContent.text += text
-        }
-        const appendThinking = (text: string) => {
-          if (!openThinking) {
-            openThinking = { type: 'thinking', text: '' }
-            sse({ type: 'thinking_start' })
-          }
-          openThinking.text += text
-        }
-
-        // Drain `pending`, splitting on REASONING_OPEN/CLOSE markers, emitting
-        // SSE events for each side and accumulating into fullText / fullThinking.
-        // Holds back up to (markerLen-1) chars to avoid splitting a partial marker.
-        const drain = (final: boolean) => {
-          while (pending.length > 0) {
-            const marker = segmentMode === 'content' ? REASONING_OPEN : REASONING_CLOSE
-            const idx = pending.indexOf(marker)
-            if (idx === -1) {
-              const keep = final ? 0 : marker.length - 1
-              const flushLen = pending.length - keep
-              if (flushLen <= 0) return
-              const chunk = pending.slice(0, flushLen)
-              pending = pending.slice(flushLen)
-              if (segmentMode === 'content') {
-                sse({ type: 'content', token: chunk })
-                fullText += chunk
-                appendContent(chunk)
-              } else {
-                // appendThinking first so its synthetic thinking_start (when a
-                // new block opens) lands BEFORE the matching thinking token —
-                // otherwise the frontend creates an orphan segment for the
-                // first chunk and a fresh one once start finally arrives.
-                appendThinking(chunk)
-                fullThinking += chunk
-                sse({ type: 'thinking', token: chunk })
-              }
-              return
-            }
-            if (idx > 0) {
-              const chunk = pending.slice(0, idx)
-              if (segmentMode === 'content') {
-                sse({ type: 'content', token: chunk })
-                fullText += chunk
-                appendContent(chunk)
-              } else {
-                appendThinking(chunk)
-                fullThinking += chunk
-                sse({ type: 'thinking', token: chunk })
-              }
-            }
-            pending = pending.slice(idx + marker.length)
-            // Marker = step boundary. Close out the segment we're leaving so
-            // each step's thinking / content gets its own block in the UI
-            // (otherwise multi-step runs collapse all thinking into one wall).
-            if (segmentMode === 'thinking') flushOpenThinking()
-            else flushOpenContent()
-            segmentMode = segmentMode === 'content' ? 'thinking' : 'content'
-          }
-        }
+        const accumulator = new ReasoningSegmentAccumulator((event) => sse(event))
 
         // Wire up the persister now that all accumulators + helpers exist.
         // status: undefined → normal completion (replayed to LLM next turn)
@@ -504,21 +416,19 @@ export async function authorChatRoutes(app: FastifyInstance) {
         //         'aborted'    → user / client cancelled
         // 'incomplete' / 'aborted' pairs are kept for UI but excluded from LLM context.
         persistAssistant = (status?: 'incomplete' | 'aborted') => {
-          drain(true)
-          flushOpenThinking()
-          flushOpenContent()
-          const hasAnything = fullText.length > 0 || fullThinking.length > 0 || segments.length > 0
+          accumulator.finalize()
+          const hasAnything = accumulator.hasAnything()
           // On clean success with no output (shouldn't happen, but) skip.
           // On failure/abort, ALWAYS save so the user's message is preserved
           // in the UI even if the agent produced nothing before being cut off.
           if (!hasAnything && !status) return
           const userMsg: ModelMessage & { status?: string } = { role: 'user', content: message }
-          const assistantMsg: ModelMessage & { thinking?: string; segments?: Segment[]; status?: string } = {
+          const assistantMsg: ModelMessage & { thinking?: string; segments?: AssistantSegment[]; status?: string } = {
             role: 'assistant',
-            content: fullText || '(Author Agent 没有生成回复)',
+            content: accumulator.fullText || '(Author Agent 没有生成回复)',
           }
-          if (fullThinking) assistantMsg.thinking = fullThinking
-          if (segments.length > 0) assistantMsg.segments = segments
+          if (accumulator.fullThinking) assistantMsg.thinking = accumulator.fullThinking
+          if (accumulator.segments.length > 0) assistantMsg.segments = accumulator.segments
           if (status) {
             userMsg.status = status
             assistantMsg.status = status
@@ -533,31 +443,15 @@ export async function authorChatRoutes(app: FastifyInstance) {
           switch (part.type) {
             case 'text-delta':
               // AI SDK v6 uses part.text (was part.textDelta in v5)
-              pending += part.text
-              drain(false)
+              accumulator.pushText(part.text)
               break
             case 'tool-call': {
               toolsUsed.push(part.toolName)
-              // Tool boundary — flush the marker-tail buffer so any content
-              // held back to avoid splitting a partial REASONING marker is
-              // emitted into the current segment before we move on; then
-              // close out both open buffers so the tool card renders cleanly
-              // between (rather than after) the step's thinking + content.
-              drain(true)
-              flushOpenThinking()
-              flushOpenContent()
+              accumulator.flushForBoundary()
               if (part.toolName === 'present_options') {
-                // Special-case: render as interactive option cards instead of a
-                // truncated args preview. Pull description + parsed option lines.
-                const input = (part.input ?? {}) as { description?: string; options?: string }
-                const opts = (input.options ?? '').split('\n').map(s => s.trim()).filter(Boolean)
-                const seg: Segment = { type: 'options', description: input.description ?? '', options: opts }
-                segments.push(seg)
-                sse({ type: 'options', description: seg.description, options: seg.options })
+                accumulator.addOptions((part.input ?? {}) as { description?: string; options?: string })
               } else {
-                const argsPreview = JSON.stringify(part.input).slice(0, 200)
-                segments.push({ type: 'tool_call', name: part.toolName, argsPreview, status: 'running' })
-                sse({ type: 'tool_start', name: part.toolName, args_preview: argsPreview })
+                accumulator.addToolCall(part.toolName, part.input)
               }
               break
             }
@@ -565,30 +459,12 @@ export async function authorChatRoutes(app: FastifyInstance) {
               // present_options has its own segment shape; the tool's output is
               // just the formatted echo back to the LLM, not user-facing.
               if (part.toolName === 'present_options') break
-              const preview = String(part.output).slice(0, 200)
-              for (let i = segments.length - 1; i >= 0; i--) {
-                const s = segments[i]
-                if (s.type === 'tool_call' && s.name === part.toolName && s.status === 'running') {
-                  s.status = 'done'
-                  s.result = preview
-                  break
-                }
-              }
-              sse({ type: 'tool_done', name: part.toolName, result_preview: preview })
+              accumulator.addToolResult(part.toolName, part.output)
               break
             }
             case 'tool-error': {
-              const preview = `[error] ${String((part as any).error).slice(0, 200)}`
               const toolName = (part as any).toolName
-              for (let i = segments.length - 1; i >= 0; i--) {
-                const s = segments[i]
-                if (s.type === 'tool_call' && s.name === toolName && s.status === 'running') {
-                  s.status = 'done'
-                  s.result = preview
-                  break
-                }
-              }
-              sse({ type: 'tool_done', name: toolName, result_preview: preview })
+              accumulator.addToolError(toolName, (part as any).error)
               break
             }
             case 'error':
@@ -599,22 +475,21 @@ export async function authorChatRoutes(app: FastifyInstance) {
               break
           }
         }
-        drain(true)
-        flushOpenContent()
+        accumulator.finalize()
 
         if (streamError) {
           timeline('stream_error', '模型流返回错误', 'error', { error: String((streamError as any)?.message ?? streamError).slice(0, 500) })
-            timeline('agent_loop_error', '模型与工具链失败', 'error', { error: String((streamError as any)?.message ?? streamError).slice(0, 500) })
+          timeline('agent_loop_error', '模型与工具链失败', 'error', { error: String((streamError as any)?.message ?? streamError).slice(0, 500) })
           sse({ type: 'error', message: String((streamError as any)?.message ?? streamError).slice(0, 500) })
         } else {
           streamSucceeded = true
           timeline('stream_done', '模型主响应完成', 'done')
-            timeline('agent_loop_done', '模型与工具链完成', 'done')
+          timeline('agent_loop_done', '模型与工具链完成', 'done')
         }
 
         streamDone = true
 
-        sse({ type: 'done', tools_used: toolsUsed, has_thinking: fullThinking.length > 0 })
+        sse({ type: 'done', tools_used: toolsUsed, has_thinking: accumulator.fullThinking.length > 0 })
         timeline('run_done', '本轮运行完成', 'done')
 
         // Persist usage for the NEXT turn's context manager. This is strictly

@@ -10,6 +10,8 @@ import path from 'path'
 import { sanitizePathSegment } from '../src/utils/path-sanitizer.js'
 import { sendChatBody } from '../src/routes/schemas.js'
 import { persistUsageBestEffort } from '../src/routes/author-chat.js'
+import { ReasoningSegmentAccumulator, type StreamSegmentEvent } from '../src/routes/stream-segments.js'
+import { REASONING_CLOSE, REASONING_OPEN } from '../src/llm/provider.js'
 
 const TEST_DIR = path.join(process.cwd(), '__test_author_chat__')
 
@@ -206,5 +208,50 @@ describe('Author Chat Usage Persistence', () => {
     expect(result).toBe('timeout')
     expect(Date.now() - started).toBeLessThan(500)
     expect(fs.existsSync(usageFile)).toBe(false)
+  })
+})
+
+describe('Author Chat Stream Segment Accumulator', () => {
+  it('splits content and thinking across partial reasoning markers', () => {
+    const events: StreamSegmentEvent[] = []
+    const acc = new ReasoningSegmentAccumulator((event) => events.push(event))
+
+    acc.pushText(`正文A${REASONING_OPEN.slice(0, 3)}`)
+    acc.pushText(`${REASONING_OPEN.slice(3)}思考${REASONING_CLOSE}正文B`, true)
+    acc.finalize()
+
+    expect(acc.fullText).toBe('正文A正文B')
+    expect(acc.fullThinking).toBe('思考')
+    expect(acc.segments).toEqual([
+      { type: 'content', text: '正文A' },
+      { type: 'thinking', text: '思考' },
+      { type: 'content', text: '正文B' },
+    ])
+    expect(events.map(e => e.type)).toEqual([
+      'content',
+      'thinking_start',
+      'thinking',
+      'thinking_done',
+      'content',
+    ])
+  })
+
+  it('flushes open text before tool cards and updates tool results', () => {
+    const events: StreamSegmentEvent[] = []
+    const acc = new ReasoningSegmentAccumulator((event) => events.push(event))
+
+    acc.pushText('开头正文')
+    acc.flushForBoundary()
+    acc.addToolCall('save_draft', { file_path: 'ch01.md' })
+    acc.addToolResult('save_draft', 'ok')
+    acc.pushText('结尾', true)
+    acc.finalize()
+
+    expect(acc.segments).toEqual([
+      { type: 'content', text: '开头正文' },
+      { type: 'tool_call', name: 'save_draft', argsPreview: '{"file_path":"ch01.md"}', status: 'done', result: 'ok' },
+      { type: 'content', text: '结尾' },
+    ])
+    expect(events.map(e => e.type)).toEqual(['content', 'tool_start', 'tool_done', 'content'])
   })
 })
