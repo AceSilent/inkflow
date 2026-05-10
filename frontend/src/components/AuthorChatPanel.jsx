@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Trash2, Wrench, Paperclip, X, FileText, ChevronDown, ChevronRight, Brain, PenTool, User, Loader, Check, History, Square } from 'lucide-react'
+import { Send, Trash2, Paperclip, X, FileText, PenTool, Loader, History, Square } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { useI18n } from '../hooks/useI18n'
 import { ContextStatusBar } from './ContextStatusBar'
 import { AgentRunTimeline } from './AgentRunTimeline'
 import { CreativeStageBar } from './CreativeStageBar'
+import { MessageBubble, OptionsCard, StreamingToolCard, ThinkingCard } from './author-chat/MessageCards'
+import { DATA_MUTATING_TOOLS, buildAttachmentMessage, restoreChatMessages, sentHistoryFromMessages } from './author-chat/messageUtils'
 
 export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
   const { t } = useI18n()
@@ -30,20 +32,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
 
   const bookId = currentBook?.book_id
   const refreshAfterTool = useCallback((toolName) => {
-    const dataMutatingTools = new Set([
-      'save_lore',
-      'save_outline',
-      'save_draft',
-      'analyze_style_profile',
-      'add_plot_node',
-      'add_edge',
-      'remove_edge',
-      'confirm_path',
-      'prune_branch',
-      'merge_branches',
-      'submit_to_editorial',
-    ])
-    if (dataMutatingTools.has(toolName)) {
+    if (DATA_MUTATING_TOOLS.has(toolName)) {
       onLoreUpdated?.()
       setStageRefreshKey(k => k + 1)
     }
@@ -55,50 +44,9 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (!data?.messages) return
-        const restored = data.messages.map((m, i) => {
-          const id = m.id || Date.now() + i
-          const out = { ...m, id }
-          if (m.role === 'user' && m.content?.includes('\n\n--- 附件:')) {
-            const parts = m.content.split('\n\n--- 附件:')
-            const names = parts.slice(1).map(p => {
-              const match = p.match(/^([^\n(]+)/)
-              return match ? match[1].trim() : 'file'
-            })
-            out.hasAttachments = true
-            out.attachmentNames = names
-          }
-          // Build the unified segments array. Two backward-compat paths:
-          //  (a) old messages with no segments → reconstruct from tool_calls + content
-          //  (b) any message with a top-level `thinking` field but no thinking-type
-          //      segment → prepend a single thinking segment (everything used to
-          //      collapse to one block, that becomes one segment now)
-          if (m.role === 'assistant') {
-            let segs = m.segments
-            if (!segs) {
-              segs = []
-              if (m.tool_calls?.length > 0) {
-                m.tool_calls.forEach(t => {
-                  const toolName = typeof t === 'string' ? t : t.name
-                  segs.push({ type: 'tool_call', name: toolName, status: 'done' })
-                })
-              }
-              if (m.content) segs.push({ type: 'content', text: m.content })
-            }
-            if (m.thinking && !segs.some(s => s.type === 'thinking')) {
-              segs = [{ type: 'thinking', text: m.thinking }, ...segs]
-            }
-            out.segments = segs
-          }
-          return out
-        })
+        const restored = restoreChatMessages(data.messages)
         setMessages(restored)
-        // Seed sent-history from the user messages we just loaded so the
-        // arrow-key recall works across sessions / refreshes.
-        sentHistory.current = restored
-          .filter(m => m.role === 'user' && m.content)
-          .map(m => m.hasAttachments
-            ? (m.content.split('\n\n--- 附件:')[0] || '')
-            : m.content)
+        sentHistory.current = sentHistoryFromMessages(restored)
         setHistIdx(null)
       })
       .catch(() => {})
@@ -207,10 +155,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
 
     let userMsg = baseInput
     if (useAttachments) {
-      const fileParts = attachments.map(a =>
-        `\n\n--- ${t('authorChat.attachment')}: ${a.name} (${(a.size / 1024).toFixed(1)}KB) ---\n${a.content}`
-      ).join('')
-      userMsg = userMsg + fileParts
+      userMsg = buildAttachmentMessage(baseInput, attachments, t('authorChat.attachment'))
     }
 
     const attachmentNames = useAttachments ? attachments.map(a => a.name) : []
@@ -721,260 +666,6 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
           </button>
         )}
       </div>
-    </div>
-  )
-}
-
-// ── Tool Call Card (streaming) ──
-
-function StreamingToolCard({ segment }) {
-  const hasResult = segment.status === 'done' && segment.result
-  const resultLooksBad = /Error|Warning|失败|低于|少于|blocked/i.test(segment.result ?? '')
-  return (
-    <div style={{
-      padding: '5px 10px',
-      borderLeft: `3px solid ${resultLooksBad ? 'var(--warning)' : '#00BCD4'}`,
-      background: 'var(--bg-elevated)',
-      borderRadius: '0 6px 6px 0',
-      fontSize: 11,
-      display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 4,
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <Wrench size={10} style={{ color: '#00BCD4', flexShrink: 0 }} />
-        <code style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--ink)' }}>{segment.name}</code>
-        {segment.status === 'running'
-          ? <Loader size={10} style={{ animation: 'spin 1.5s linear infinite', color: '#00BCD4' }} />
-          : <Check size={10} style={{ color: resultLooksBad ? 'var(--warning)' : '#4CAF50' }} />
-        }
-      </div>
-      {hasResult && (
-        <div style={{
-          color: resultLooksBad ? 'var(--warning)' : 'var(--ink-secondary)',
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          fontFamily: 'monospace',
-        }}>
-          {segment.result}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── Thinking Card (one per step, collapsible) ──
-
-function ThinkingCard({ segment, t }) {
-  const live = !!segment.streaming
-  const [expanded, setExpanded] = useState(false)
-  const len = segment.text?.length ?? 0
-  return (
-    <div style={{
-      width: '100%',
-      borderLeft: '3px solid rgba(139,92,246,0.55)',
-      paddingLeft: 8,
-    }}>
-      <button
-        onClick={() => setExpanded(v => !v)}
-        style={{
-          background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0',
-          display: 'flex', alignItems: 'center', gap: 4, fontSize: 11,
-          color: live ? 'rgba(139,92,246,1)' : 'rgba(139,92,246,0.85)', fontWeight: 600,
-        }}
-      >
-        {expanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
-        <Brain size={11} />
-        执行分析已折叠 ({len} {t('authorChat.chars')}){live ? ' · 分析中…' : ''}
-      </button>
-      {expanded && (
-        <div style={{
-          padding: '8px 12px', borderRadius: 8, marginTop: 4,
-          background: 'linear-gradient(135deg, rgba(139,92,246,0.08), rgba(59,130,246,0.08))',
-          border: '1px solid rgba(139,92,246,0.15)', fontSize: 11, lineHeight: 1.6,
-          color: 'var(--ink-muted)', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-          maxHeight: 300, overflowY: 'auto',
-        }}>
-          {segment.text || '(空)'}
-          {live && <span style={{ animation: 'pulse 1s infinite' }}>▍</span>}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── Options Card (terminal tool: present_options) ──
-
-function OptionsCard({ segment, disabled, onSelect }) {
-  return (
-    <div style={{
-      borderLeft: '3px solid #8b5cf6',
-      background: 'linear-gradient(135deg, rgba(139,92,246,0.06), rgba(59,130,246,0.04))',
-      borderRadius: '0 8px 8px 0',
-      padding: '8px 12px',
-      display: 'flex', flexDirection: 'column', gap: 6,
-    }}>
-      {segment.description && (
-        <div style={{ fontSize: 12, color: 'var(--ink-secondary)', lineHeight: 1.5 }}>
-          {segment.description}
-        </div>
-      )}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        {segment.options.map((opt, i) => (
-          <button
-            key={i}
-            disabled={disabled}
-            onClick={() => onSelect?.(opt)}
-            style={{
-              textAlign: 'left',
-              padding: '6px 10px',
-              borderRadius: 6,
-              border: '1px solid var(--border-subtle)',
-              background: 'var(--bg-elevated)',
-              color: 'var(--ink)',
-              cursor: disabled ? 'default' : 'pointer',
-              opacity: disabled ? 0.55 : 1,
-              fontSize: 12,
-              lineHeight: 1.5,
-              transition: 'background 0.15s, border-color 0.15s',
-            }}
-            onMouseEnter={(e) => {
-              if (disabled) return
-              e.currentTarget.style.borderColor = '#8b5cf6'
-              e.currentTarget.style.background = 'rgba(139,92,246,0.08)'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = 'var(--border-subtle)'
-              e.currentTarget.style.background = 'var(--bg-elevated)'
-            }}
-          >
-            {opt}
-          </button>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-// ── Tool Call Card (committed, expandable) ──
-
-function ToolCallCard({ segment }) {
-  const [expanded, setExpanded] = useState(false)
-
-  return (
-    <div
-      style={{
-        padding: '5px 10px',
-        borderLeft: '3px solid #00BCD4',
-        background: 'var(--bg-elevated)',
-        borderRadius: '0 6px 6px 0',
-        fontSize: 11,
-        cursor: segment.result ? 'pointer' : 'default',
-        transition: 'background 0.15s',
-      }}
-      onClick={() => segment.result && setExpanded(!expanded)}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        {segment.result ? (
-          expanded ? <ChevronDown size={10} style={{ color: 'var(--ink-muted)' }} /> : <ChevronRight size={10} style={{ color: 'var(--ink-muted)' }} />
-        ) : null}
-        <Wrench size={10} style={{ color: '#00BCD4', flexShrink: 0 }} />
-        <code style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--ink)' }}>{segment.name}</code>
-        {segment.argsPreview && (
-          <span style={{ color: 'var(--ink-muted)', fontSize: 10, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            ({segment.argsPreview})
-          </span>
-        )}
-        <Check size={10} style={{ color: '#4CAF50', marginLeft: 'auto' }} />
-      </div>
-      {expanded && segment.result && (
-        <pre style={{
-          margin: '4px 0 0 20px', fontSize: 10, color: 'var(--ink-muted)',
-          whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-          maxHeight: 200, overflowY: 'auto',
-          padding: '4px 0', borderTop: '1px solid var(--border-subtle)', marginTop: 4
-        }}>{segment.result}</pre>
-      )}
-    </div>
-  )
-}
-
-// ── Message Bubble Component ──
-
-function MessageBubble({ msg, onOptionSelect, optionsDisabled }) {
-  const { t } = useI18n()
-  const isUser = msg.role === 'user'
-
-  return (
-    <div style={{
-      display: 'flex', flexDirection: 'column',
-      alignItems: isUser ? 'flex-end' : 'flex-start',
-    }}>
-      <div style={{ fontSize: 10, color: 'var(--ink-muted)', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 3 }}>
-        {isUser ? <><User size={9} /> {t('authorChat.you')}</> : <><PenTool size={9} /> {t('authorChat.author')}</>}
-      </div>
-
-      {/* Attachment badges */}
-      {msg.attachmentNames?.length > 0 && (
-        <div style={{ display: 'flex', gap: 4, marginBottom: 4, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-          {msg.attachmentNames.map((name, j) => (
-            <span key={j} style={{
-              fontSize: 10, padding: '2px 6px', borderRadius: 4,
-              background: 'var(--accent)', color: 'white', opacity: 0.8,
-              display: 'flex', alignItems: 'center', gap: 3
-            }}>
-              <FileText size={9} /> {name}
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* Segment-based rendering for assistant — thinking blocks now live
-          inline with content/tool_calls in their natural step order. */}
-      {!isUser && msg.segments ? (
-        <div style={{ maxWidth: '85%', display: 'flex', flexDirection: 'column', gap: 4, width: '100%' }}>
-          {/* Defensive: if loadChatHistory's migration didn't run (e.g. HMR
-              preserved old state), still surface a top-level msg.thinking
-              field as a thinking card here so it never silently disappears. */}
-          {msg.thinking && !msg.segments.some(s => s.type === 'thinking') && (
-            <ThinkingCard segment={{ text: msg.thinking }} t={t} />
-          )}
-          {msg.segments.map((seg, i) => (
-            seg.type === 'content' ? (
-              <div key={i} className="markdown-chat" style={{
-                padding: '10px 14px', borderRadius: 12,
-                fontSize: 13, lineHeight: 1.6, wordBreak: 'break-word',
-                background: 'var(--bg-elevated)', color: 'var(--ink)',
-                borderBottomLeftRadius: 4,
-              }}>
-                <ReactMarkdown>{seg.text}</ReactMarkdown>
-              </div>
-            ) : seg.type === 'thinking' ? (
-              <ThinkingCard key={i} segment={seg} t={t} />
-            ) : seg.type === 'tool_call' ? (
-              <ToolCallCard key={i} segment={seg} />
-            ) : seg.type === 'options' ? (
-              <OptionsCard key={i} segment={seg} disabled={optionsDisabled} onSelect={onOptionSelect} />
-            ) : null
-          ))}
-        </div>
-      ) : (
-        /* User messages or legacy assistant messages */
-        <div className={isUser ? '' : 'markdown-chat'} style={{
-          maxWidth: '85%', padding: '10px 14px', borderRadius: 12,
-          fontSize: 13, lineHeight: 1.6,
-          whiteSpace: isUser ? 'pre-wrap' : 'normal',
-          wordBreak: 'break-word',
-          background: isUser ? 'var(--accent)' : 'var(--bg-elevated)',
-          color: isUser ? 'white' : 'var(--ink)',
-          borderBottomRightRadius: isUser ? 4 : 12,
-          borderBottomLeftRadius: isUser ? 12 : 4,
-        }}>
-          {isUser
-            ? (msg.hasAttachments ? msg.content.split('\n\n--- 附件:')[0] || t('authorChat.sentAttachment') : msg.content)
-            : <ReactMarkdown>{msg.content}</ReactMarkdown>
-          }
-        </div>
-      )}
     </div>
   )
 }

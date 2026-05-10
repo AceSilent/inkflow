@@ -10,7 +10,7 @@ import { type FastifyInstance } from 'fastify'
 import { type ModelMessage } from 'ai'
 import { runAgentStream } from '../agent/agent-loop.js'
 import { createAllTools } from '../tools/index.js'
-import { type LLMConfig, REASONING_OPEN, REASONING_CLOSE } from '../llm/provider.js'
+import { REASONING_OPEN, REASONING_CLOSE } from '../llm/provider.js'
 import { sanitizePathSegment } from '../utils/path-sanitizer.js'
 import { sendChatBody } from './schemas.js'
 import { getSettings } from './settings.js'
@@ -24,80 +24,10 @@ import { createSessionState, updateSessionStateAfterToolCall } from '../context/
 import { loadBreakerState, resetBreaker } from '../context/circuit-breaker.js'
 import { getModelContextWindow, evaluateBudgetTier } from '../context/model-window.js'
 import { appendRunEvent, createRunId, loadRecentRuns, type RunTimelineEvent, type RunEventStatus } from '../runs/run-timeline.js'
+import { loadAuthorChatConfig, persistUsageBestEffort, previewValue } from './author-chat-support.js'
 
-export const USAGE_PERSIST_TIMEOUT_MS = 2000
-
-/**
- * Resolve LLM config from settings.json (provider/model selector).
- * Falls back to environment variables if settings not configured.
- */
-function loadConfig(): { llmConfig: LLMConfig; dataDir: string } {
-  const dataDir = process.env.AUTONOVEL_DATA_DIR || 'books'
-
-  // Try settings.json first
-  const settings = getSettings(dataDir)
-  const modelSelector = settings.authorModel || ''
-
-  if (modelSelector.includes('/')) {
-    const [providerId, ...modelParts] = modelSelector.split('/')
-    const model = modelParts.join('/')
-    const provider = settings.providers.find(p => p.id === providerId)
-    if (provider) {
-      return {
-        llmConfig: {
-          apiKey: provider.apiKey,
-          baseURL: provider.baseUrl,
-          model,
-        },
-        dataDir,
-      }
-    }
-  }
-
-  // Fallback to environment variables
-  return {
-    llmConfig: {
-      apiKey: process.env.LLM_API_KEY || '',
-      baseURL: process.env.LLM_BASE_URL,
-      model: process.env.LLM_MODEL || 'gpt-4o',
-    },
-    dataDir,
-  }
-}
-
-const usagePersistTimedOut = Symbol('usagePersistTimedOut')
-
-function previewValue(value: unknown, max = 320): string {
-  const text = typeof value === 'string' ? value : JSON.stringify(value)
-  return (text ?? '').replace(/\s+/g, ' ').slice(0, max)
-}
-
-export async function persistUsageBestEffort(
-  usagePromise: PromiseLike<unknown>,
-  usageFile: string,
-  timeoutMs = USAGE_PERSIST_TIMEOUT_MS,
-): Promise<'written' | 'skipped' | 'timeout'> {
-  let timer: NodeJS.Timeout | null = null
-  const timeout = new Promise<typeof usagePersistTimedOut>((resolve) => {
-    timer = setTimeout(() => resolve(usagePersistTimedOut), timeoutMs)
-  })
-  try {
-    const usage = await Promise.race([Promise.resolve(usagePromise), timeout])
-    if (usage === usagePersistTimedOut) return 'timeout'
-    const total = (usage as any)?.totalTokens ?? (usage as any)?.total_tokens
-    if (typeof total === 'number' && total > 0) {
-      fs.writeFileSync(
-        usageFile,
-        JSON.stringify({ total_tokens: total }),
-        'utf8',
-      )
-      return 'written'
-    }
-    return 'skipped'
-  } finally {
-    if (timer) clearTimeout(timer)
-  }
-}
+const loadConfig = loadAuthorChatConfig
+export { persistUsageBestEffort }
 
 export async function authorChatRoutes(app: FastifyInstance) {
   const toolRegistry = createAllTools()
