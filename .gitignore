@@ -91,6 +91,7 @@ temp/
 # Local Claude config / book data
 /.claude/
 /server/books/
+/server/global/
 
 # Local scratch & smoke artifacts
 /*.png

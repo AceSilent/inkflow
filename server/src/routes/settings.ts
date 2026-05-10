@@ -37,6 +37,14 @@ export interface AppSettings {
   contextBudgetCustom?: ContextBudgetCustom
 }
 
+type RuntimeSettingsEnv = Partial<Record<
+  'LLM_MODEL' |
+  'AUTHOR_MODEL' |
+  'EDITORIAL_MODEL' |
+  'EDITOR_MODEL',
+  string
+>>
+
 const DEFAULT_SETTINGS: AppSettings = {
   providers: [],
   authorModel: '',
@@ -75,6 +83,17 @@ export function saveSettings(dataDir: string, settings: AppSettings): void {
   writeJson(settingsPath(dataDir), settings)
 }
 
+export function applyRuntimeSettingsFallback(
+  settings: AppSettings,
+  env: RuntimeSettingsEnv = process.env
+): AppSettings {
+  return {
+    ...settings,
+    authorModel: settings.authorModel || env.LLM_MODEL || env.AUTHOR_MODEL || '',
+    editorModel: settings.editorModel || env.EDITORIAL_MODEL || env.EDITOR_MODEL || env.LLM_MODEL || env.AUTHOR_MODEL || '',
+  }
+}
+
 // ── Mask all API keys in a settings object ──
 
 function maskSettings(settings: AppSettings): AppSettings {
@@ -94,7 +113,7 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
 
   // GET /api/v1/settings — return settings with masked API keys
   app.get('/api/v1/settings', async () => {
-    const settings = getSettings(dataDir())
+    const settings = applyRuntimeSettingsFallback(getSettings(dataDir()))
     return maskSettings(settings)
   })
 

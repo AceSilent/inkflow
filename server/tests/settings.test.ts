@@ -5,6 +5,7 @@ import {
   getSettings,
   saveSettings,
   maskApiKey,
+  applyRuntimeSettingsFallback,
   type AppSettings,
   type ProviderConfig,
 } from '../src/routes/settings.js'
@@ -87,5 +88,32 @@ describe('Settings route helpers', () => {
 
     // Empty key
     expect(maskApiKey('')).toBe('****')
+  })
+
+  it('should expose runtime model fallbacks without adding providers', () => {
+    const settings = applyRuntimeSettingsFallback(
+      { providers: [], authorModel: '', editorModel: '' },
+      {
+        LLM_MODEL: 'qwen/test-author',
+        EDITORIAL_MODEL: 'deepseek/test-editor',
+      }
+    )
+
+    expect(settings.authorModel).toBe('qwen/test-author')
+    expect(settings.editorModel).toBe('deepseek/test-editor')
+    expect(settings.providers).toEqual([])
+  })
+
+  it('should prefer persisted model selections over runtime fallbacks', () => {
+    const settings = applyRuntimeSettingsFallback(
+      { providers: [], authorModel: 'saved/author', editorModel: 'saved/editor' },
+      {
+        LLM_MODEL: 'qwen/test-author',
+        EDITORIAL_MODEL: 'deepseek/test-editor',
+      }
+    )
+
+    expect(settings.authorModel).toBe('saved/author')
+    expect(settings.editorModel).toBe('saved/editor')
   })
 })

@@ -1,0 +1,14 @@
+{
+  "name": "inkflow",
+  "version": "1.0.0",
+  "private": true,
+  "description": "InkFlow novel authoring studio",
+  "scripts": {
+    "install:all": "npm --prefix server install && npm --prefix frontend install",
+    "dev:server": "npm --prefix server run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "build": "npm --prefix server run build && npm --prefix frontend run build",
+    "test": "npm --prefix server test",
+    "start": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-dev.ps1"
+  }
+}

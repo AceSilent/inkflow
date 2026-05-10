@@ -118,7 +118,7 @@ export default function App() {
       <header className="titlebar">
         <div className="titlebar-brand">
           <BookOpen size={16} />
-          <span className="wordmark">AutoNovel · Studio</span>
+          <span className="wordmark">InkFlow · Studio</span>
           <span className="label-sc" style={{ opacity: 0.4 }}>{t('app.version')}</span>
         </div>
         <div className="titlebar-actions">

@@ -1,0 +1,55 @@
+name: Package InkFlow
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install backend dependencies
+        run: npm ci --prefix server
+
+      - name: Install frontend dependencies
+        run: npm ci --prefix frontend
+
+      - name: Test backend
+        run: npm --prefix server test
+
+      - name: Build backend
+        run: npm --prefix server run build
+
+      - name: Build frontend
+        run: npm --prefix frontend run build
+
+      - name: Assemble package
+        shell: bash
+        run: |
+          set -euo pipefail
+          pkg="release/inkflow"
+          mkdir -p "$pkg"
+          cp -r server frontend prompts docs scripts "$pkg/"
+          for file in package.json package-lock.json .env.example .gitignore START.md AGENTS.md start.cmd; do
+            if [ -f "$file" ]; then cp "$file" "$pkg/"; fi
+          done
+          rm -rf "$pkg/server/node_modules" "$pkg/server/dist" "$pkg/frontend/node_modules" "$pkg/frontend/dist"
+          cp -r server/dist "$pkg/server/dist"
+          cp -r frontend/dist "$pkg/frontend/dist"
+          cd release
+          zip -r "inkflow-${GITHUB_SHA::7}.zip" inkflow
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: inkflow-${{ github.sha }}
+          path: release/*.zip
