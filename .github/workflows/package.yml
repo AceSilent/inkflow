@@ -38,8 +38,8 @@ jobs:
           set -euo pipefail
           pkg="release/inkflow"
           mkdir -p "$pkg"
-          cp -r server frontend prompts docs scripts "$pkg/"
-          for file in package.json package-lock.json .env.example .gitignore START.md AGENTS.md start.cmd; do
+          cp -r server frontend prompts scripts "$pkg/"
+          for file in package.json package-lock.json .env.example .gitignore README.md START.md start.cmd; do
             if [ -f "$file" ]; then cp "$file" "$pkg/"; fi
           done
           rm -rf "$pkg/server/node_modules" "$pkg/server/dist" "$pkg/frontend/node_modules" "$pkg/frontend/dist"

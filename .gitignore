@@ -1,5 +1,9 @@
 # Brainstorming / visual companion (local only)
 .superpowers/
+/.agents/
+/AGENTS.md
+/CLAUDE.md
+/docs/
 
 # Python
 __pycache__/
