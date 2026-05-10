@@ -199,6 +199,10 @@ describe('saveSettingsBody', () => {
       providers: [validProvider],
       authorModel: 'test/model-1',
       editorModel: 'test/model-1',
+      reviewerModels: {
+        editorial_lore: 'test/model-1',
+        editorial_ai_tone: '',
+      },
     }
     expect(saveSettingsBody.parse(body)).toEqual(body)
   })

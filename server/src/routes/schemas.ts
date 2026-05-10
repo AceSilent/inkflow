@@ -38,6 +38,7 @@ export const saveSettingsBody = z.object({
   providers: z.array(providerSchema).max(10),
   authorModel: z.string().max(200),
   editorModel: z.string().max(200),
+  reviewerModels: z.record(z.string().max(100), z.string().max(200)).optional(),
   contextManager: z.enum(['auto', 'decay_only', 'disabled']).optional(),
   contextBudgetCustom: z.object({
     green: z.number().min(0).max(1).optional(),
@@ -96,6 +97,11 @@ export const updateAnnotationSchema = annotationSchema.partial().omit({ id: true
 export const chapterStatusSchema = z.object({
   chapter_id: z.string().regex(/^ch\d{1,4}$/i),
   user_decision: z.enum(['approved', 'rejected']).nullable(),
+  human_gate: z.object({
+    pre_review_decision: z.enum(['approved', 'needs_revision', 'needs_machine_review']).optional(),
+    post_review_decision: z.enum(['approved', 'needs_revision']).optional(),
+    note: z.string().optional(),
+  }).optional(),
   decided_at: z.string().optional(),
   note: z.string().optional(),
 })
@@ -103,12 +109,24 @@ export type ChapterStatus = z.infer<typeof chapterStatusSchema>
 
 export const setStatusBodySchema = z.object({
   user_decision: z.enum(['approved', 'rejected']).nullable(),
+  gate: z.enum(['pre_review', 'post_review']).optional(),
+  pre_review_decision: z.enum(['approved', 'needs_revision', 'needs_machine_review']).optional(),
+  post_review_decision: z.enum(['approved', 'needs_revision']).optional(),
   note: z.string().optional(),
 })
 
 export const sendAnnotationsBodySchema = z.object({
   annotation_ids: z.array(z.string()).min(1),
+  review_after_revision: z.enum(['none', 'failed_only', 'full']).optional().default('none'),
 })
+
+export const resubmitReviewBodySchema = z.object({
+  review_scope: z.enum(['full', 'failed_only', 'targeted']).optional().default('full'),
+  reviewers: z.array(z.enum([
+    'editorial_lore',
+    'editorial_causality',
+  ])).optional(),
+}).optional()
 
 // ── Plot graph schemas ──
 

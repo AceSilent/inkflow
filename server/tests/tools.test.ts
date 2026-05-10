@@ -13,6 +13,8 @@ describe('Tool Registration', () => {
     expect(registry.get('read_graph')).toBeDefined()
     expect(registry.get('submit_for_review')).toBeDefined()
     expect(registry.get('present_options')).toBeDefined()
+    expect(registry.get('browse_examples')).toBeDefined()
+    expect(registry.get('analyze_style_profile')).toBeDefined()
   })
 
   it('should mark write tools correctly', () => {
@@ -22,8 +24,10 @@ describe('Tool Registration', () => {
     expect(writeTools).toContain('save_lore')
     expect(writeTools).toContain('save_outline')
     expect(writeTools).toContain('submit_for_review')
+    expect(writeTools).toContain('analyze_style_profile')
     expect(writeTools).not.toContain('read_file')
     expect(writeTools).not.toContain('search_lore')
+    expect(writeTools).not.toContain('browse_examples')
   })
 
   it('should identify terminal tools', () => {
@@ -33,6 +37,56 @@ describe('Tool Registration', () => {
     expect(registry.isTerminal('request_guidance')).toBe(true)
     expect(registry.isTerminal('read_file')).toBe(false)
     expect(registry.isTerminal('save_draft')).toBe(false)
+  })
+})
+
+describe('BrowseExamples Tool', () => {
+  it('should return matching micro examples by category and tag', async () => {
+    const registry = createAllTools()
+    const result = await registry.execute('browse_examples', {
+      category: 'ai_tone',
+      tags: ['camera_blocking'],
+      limit: 1,
+    }, { bookId: 'test-book', dataDir: '/tmp' })
+
+    expect(result).toContain('开篇镜头编排过密')
+    expect(result).toContain('只学习结构、节奏、信息分配和修订方向')
+  })
+})
+
+describe('AnalyzeStyleProfile Tool', () => {
+  let tmpDir: string
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'style-profile-'))
+    fs.mkdirSync(path.join(tmpDir, 'test-book'), { recursive: true })
+  })
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true })
+  })
+
+  it('should persist a compact style profile for reference text', async () => {
+    const registry = createAllTools()
+    const reference = [
+      '张墨看着手机，沉默了两秒。',
+      '没有信号。',
+      '也没有地图。',
+      '他觉得这事多少有点离谱。',
+      '“行吧。”他说，“至少我还活着。”',
+    ].join('\n').repeat(30)
+
+    const result = await registry.execute('analyze_style_profile', {
+      reference_text: reference,
+    }, { bookId: 'test-book', dataDir: tmpDir })
+
+    expect(result).toContain('Style profile saved')
+    const file = path.join(tmpDir, 'test-book', '01_Global_Settings', 'style_profile.json')
+    expect(fs.existsSync(file)).toBe(true)
+    const profile = JSON.parse(fs.readFileSync(file, 'utf8'))
+    expect(profile.metrics.avg_sentence_chars).toBeGreaterThan(0)
+    expect(profile.style_rules.join('\n')).toContain('网文直叙')
+    expect(profile.anti_patterns.join('\n')).toContain('镜头链')
   })
 })
 
@@ -115,7 +169,6 @@ describe('Write Tools', () => {
 
   it('save_draft should create file and audit log', async () => {
     const registry = createAllTools()
-    // Must be >= MIN_DRAFT_CHARS (800) or save_draft refuses as an empty shell.
     const body = '# 第一章\n' + '这是正文。'.repeat(200)
     const result = await registry.execute('save_draft', {
       file_path: 'ch01.md',
@@ -132,18 +185,18 @@ describe('Write Tools', () => {
     expect(fs.existsSync(log)).toBe(true)
   })
 
-  it('save_draft should reject too-short content as empty shell', async () => {
+  it('save_draft should save short work-in-progress content with review warning', async () => {
     const registry = createAllTools()
     const result = await registry.execute('save_draft', {
       file_path: 'ch01.md',
       content: '# 第一章\n这是正文。',
     }, { bookId: 'test-book', dataDir: tmpDir })
 
-    expect(result).toContain('Error')
-    expect(result).toContain('最低要求')
-    // File should NOT have been written.
+    expect(result).toContain('Draft saved')
+    expect(result).toContain('Warning')
+    expect(result).toContain('低于送审最低要求')
     const file = path.join(tmpDir, 'test-book', '04_Drafts', 'ch01.md')
-    expect(fs.existsSync(file)).toBe(false)
+    expect(fs.existsSync(file)).toBe(true)
   })
 
   it('save_outline should accept a valid chapter tree', async () => {
@@ -165,6 +218,24 @@ describe('Write Tools', () => {
     })
     const result = await registry.execute('save_outline', { outline_json: outline }, { bookId: 'test-book', dataDir: tmpDir })
     expect(result).toContain('Outline saved')
+  })
+
+  it('read_outline should select a volume from the current children tree schema', async () => {
+    const registry = createAllTools()
+    const outline = JSON.stringify({
+      id: 'test-book',
+      type: 'book',
+      label: '测试小说',
+      children: [
+        { id: 'vol1', type: 'volume', label: '第一卷', children: [{ id: 'ch01', type: 'chapter', label: '开篇' }] },
+        { id: 'vol2', type: 'volume', label: '第二卷', children: [{ id: 'ch02', type: 'chapter', label: '进城' }] },
+      ],
+    })
+    await registry.execute('save_outline', { outline_json: outline }, { bookId: 'test-book', dataDir: tmpDir })
+
+    const result = await registry.execute('read_outline', { volume: 2 }, { bookId: 'test-book', dataDir: tmpDir })
+    expect(result).toContain('"id": "vol2"')
+    expect(result).toContain('"id": "ch02"')
   })
 
   it('save_outline should reject free-form JSON missing type', async () => {

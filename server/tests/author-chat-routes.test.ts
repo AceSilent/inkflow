@@ -9,6 +9,7 @@ import fs from 'fs'
 import path from 'path'
 import { sanitizePathSegment } from '../src/utils/path-sanitizer.js'
 import { sendChatBody } from '../src/routes/schemas.js'
+import { persistUsageBestEffort } from '../src/routes/author-chat.js'
 
 const TEST_DIR = path.join(process.cwd(), '__test_author_chat__')
 
@@ -181,5 +182,29 @@ describe('Author Chat Schema Validation', () => {
   it('should reject invalid mode', () => {
     const result = sendChatBody.safeParse({ message: 'hi', mode: 'invalid_mode' })
     expect(result.success).toBe(false)
+  })
+})
+
+describe('Author Chat Usage Persistence', () => {
+  it('writes usage when it resolves with a positive token count', async () => {
+    const usageFile = path.join(TEST_DIR, 'book-usage', 'last_usage.json')
+    fs.mkdirSync(path.dirname(usageFile), { recursive: true })
+
+    const result = await persistUsageBestEffort(Promise.resolve({ totalTokens: 123 }), usageFile, 20)
+
+    expect(result).toBe('written')
+    expect(JSON.parse(fs.readFileSync(usageFile, 'utf8'))).toEqual({ total_tokens: 123 })
+  })
+
+  it('times out instead of waiting forever for unresolved usage', async () => {
+    const usageFile = path.join(TEST_DIR, 'book-timeout', 'last_usage.json')
+    fs.mkdirSync(path.dirname(usageFile), { recursive: true })
+
+    const started = Date.now()
+    const result = await persistUsageBestEffort(new Promise(() => {}), usageFile, 20)
+
+    expect(result).toBe('timeout')
+    expect(Date.now() - started).toBeLessThan(500)
+    expect(fs.existsSync(usageFile)).toBe(false)
   })
 })

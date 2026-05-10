@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { Moon, Sun, Settings, BookOpen, Languages } from 'lucide-react'
 import { useI18n } from './hooks/useI18n'
 import { ActivityBar } from './components/ActivityBar'
@@ -27,7 +27,21 @@ export default function App() {
   const [activeChapter, setActiveChapter] = useState(null)
   const [showNewBook, setShowNewBook] = useState(false)
   const [dataVersion, setDataVersion] = useState(0)
+  const [authorModel, setAuthorModel] = useState('')
   const { toasts, addToast, removeToast } = useToast()
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/v1/settings')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!cancelled) setAuthorModel(data?.authorModel || '')
+      })
+      .catch(() => {
+        if (!cancelled) setAuthorModel('')
+      })
+    return () => { cancelled = true }
+  }, [dataVersion])
 
   const refreshData = useCallback(() => {
     setDataVersion(prev => prev + 1)
@@ -138,7 +152,7 @@ export default function App() {
           <div className="statusbar-item"><Settings size={11} /><span>TS Backend</span></div>
         </div>
         <div className="statusbar-section">
-          <div className="statusbar-item"><span>{t('status.model')}: {t('status.demo')}</span></div>
+          <div className="statusbar-item"><span>{t('status.model')}: {authorModel || t('status.demo')}</span></div>
         </div>
         <div className="statusbar-section">
           <div className="statusbar-item"><span>{t('status.words')}: 0</span></div>

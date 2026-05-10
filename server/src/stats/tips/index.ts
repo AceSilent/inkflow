@@ -14,6 +14,7 @@ import { type RuleContext, type TipEmit } from './types.js'
 import { exemplarBeforeDraft } from './exemplar-before-draft.js'
 import { readOutlineBeforeSave } from './read-outline-before-save.js'
 import { reviewPrevChapter } from './review-prev-chapter.js'
+import { creativeStageGate } from './creative-stage-gate.js'
 
 export type { TipEvent, TipEmit, TipSeverity } from './types.js'
 
@@ -40,6 +41,7 @@ export function createTipHooks(dataDir: string, bookId: string, emit: TipEmit): 
     sessionTracker,
     exemplarBeforeDraft(ctx),
     readOutlineBeforeSave(ctx),
+    creativeStageGate(ctx),
     reviewPrevChapter(ctx),
   )
 }

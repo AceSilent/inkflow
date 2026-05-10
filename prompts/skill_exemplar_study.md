@@ -13,9 +13,19 @@ when_to_use: 需要参考范文提高写作质量时
 
 ## 使用流程
 
-1. 用 `browse_examples(category='...')` 获取范文样本
-2. 按以下框架分析范文
-3. 提取可迁移的技巧，应用到当前创作中
+1. 先判断当前场景最需要学习什么：开篇、AI腔调、对话、战斗、情绪或信息揭示。
+2. 用 `browse_examples(category='...', tags=[...])` 获取 1-3 条微型正反例。
+3. 按以下框架分析范文，只提取可迁移的技巧。
+4. 写作时只迁移结构、节奏、信息分配和修订方向，不复用具体句子、设定或桥段。
+
+常用检索：
+- 开篇干净网文：`browse_examples(category='opening', tags=['webnovel_clean'])`
+- AI腔调/镜头过密：`browse_examples(category='ai_tone', tags=['camera_blocking'])`
+- 比喻堆砌：`browse_examples(category='ai_tone', tags=['rhetoric_pileup'])`
+- 后置解释：`browse_examples(category='ai_tone', tags=['explanatory_afterthought'])`
+- 碎句流水账：`browse_examples(category='prose', tags=['fragmented_short_lines'])`
+
+写作前必须同时拿一条正例和一条反例：正例告诉你如何推进，反例告诉你哪里会变成 AI 味或流水账。不要把“少镜头”误解为“每句都短、每段都切镜头”。
 
 ## 分析框架
 
@@ -43,7 +53,13 @@ when_to_use: 需要参考范文提高写作质量时
 - 角色的措辞、语气、节奏是否和人设匹配？
 - 有没有"作者声音入侵角色"的情况？
 
-### 五、可迁移技巧提取
+### 五、反例诊断
+
+- 反例具体坏在哪里：镜头调度、后置说明、碎句、强排比，还是信息说明书？
+- 如果把反例改好，需要删什么、合并什么、补哪一个行动链？
+- 这个问题是否也可能出现在当前章节？保存前先主动检查一遍。
+
+### 六、可迁移技巧提取
 
 分析完成后，提取 2-3 个具体的、可迁移的技巧：
 - "这个作者用触觉描写来传递角色的紧张：'指甲嵌进掌心'"

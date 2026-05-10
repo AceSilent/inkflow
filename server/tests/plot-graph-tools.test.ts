@@ -47,6 +47,8 @@ describe('plot-graph tools', () => {
     expect(first.type).toBe('setup')
     expect(first.references).toEqual(['ch01'])
     expect(first.characters).toEqual(['林舟'])
+    const audit = fs.readFileSync(path.join(tmpDir, 'book1', 'audit_log.jsonl'), 'utf8')
+    expect(audit).toContain('"tool":"add_plot_node"')
   })
 
   it('add_edge creates an edge', async () => {
@@ -56,6 +58,8 @@ describe('plot-graph tools', () => {
     const [a, b] = Object.keys(pg.nodes)
     const r = await addEdgeTool.execute({ from: a, to: b, type: 'causes' }, mkCtx())
     expect(r).toMatch(/edge created/i)
+    const audit = fs.readFileSync(path.join(tmpDir, 'book1', 'audit_log.jsonl'), 'utf8')
+    expect(audit).toContain('"tool":"add_edge"')
   })
 
   it('query_unresolved_setups returns unresolved list', async () => {

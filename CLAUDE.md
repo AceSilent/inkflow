@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-AutoNovel-Studio is an AI-powered novel generation system using a **single-agent architecture**: one Author Agent (powered by LLM) operates autonomously with a toolbox of 20 tools via Vercel AI SDK's `streamText({ maxSteps: 20 })`. When quality review is needed, the Agent invokes `submit_to_editorial` which triggers 5 parallel specialized reviewers (lore/pacing/AI-tone/character/causality) and auto-persists results. The system is migrated from Python to TypeScript with **207 tests** across 18 test files.
+AutoNovel-Studio is an AI-powered novel generation system using a **single-agent architecture**: one Author Agent (powered by LLM) operates autonomously with a toolbox of 20 tools via Vercel AI SDK's `streamText({ maxSteps: 20 })`. When quality review is needed, the Agent invokes `submit_to_editorial` which triggers 5 parallel specialized reviewers (lore/pacing/AI-tone/character/causality) and auto-persists results. The system is migrated from Python to TypeScript with **392 tests** across 52 test files.
 
 ## Commands
 
@@ -233,7 +233,7 @@ books/{book_id}/
 - **Error types**: use custom `AgentError` hierarchy from `server/src/utils/errors.ts`
 - **User approval override**: `chapter_status_{chId}.json.user_decision` takes precedence over `review_{chId}.json.overall_pass` in the `review-prev-chapter` hook
 - **Workbench lock**: while `workbench_lock_{chId}` exists (and is fresh < 10min), Agent's `save_draft` for that chapter is blocked by the `block-while-user-editing` hook
-- **chat-history full-load**: `loadHistoryFull` (replacing `.slice(-20)` `loadHistory`) is the source of truth. Trimming is done by ContextManager's zone-based logic, not by history load.
+- **chat-history full-load**: `loadHistoryFull` (replacing `.slice(-20)` `loadHistory`) does not truncate on read — trimming is done by ContextManager's zone-based logic. `saveHistory` still caps at 50 messages on disk (by design); early messages beyond this window are not lost — ContextManager's cold compact writes them to `session_summaries/*.md` before they age out, and Memory v2 recall injects those summaries back into the system prompt.
 
 ## Configuration
 

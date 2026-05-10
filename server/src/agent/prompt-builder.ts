@@ -5,11 +5,24 @@
  * Static sections are cacheable. Dynamic sections are rebuilt per call.
  */
 import { unresolvedSetups } from '../services/plot-graph.js'
+import fs from 'fs'
+import path from 'path'
+
+const PROMPTS_DIR = path.resolve(
+  path.dirname(new URL(import.meta.url).pathname).replace(/^\/([A-Z]:)/, '$1'),
+  '../../../prompts',
+)
+
+function readPromptFile(name: string): string {
+  return fs.readFileSync(path.join(PROMPTS_DIR, name), 'utf8').trim()
+}
 
 export interface PromptContext {
   memory?: string
   bookTitle?: string
   plotLedger?: string
+  styleProfile?: string
+  creativeStage?: string
   [key: string]: unknown
 }
 
@@ -45,33 +58,20 @@ export function buildSystemPrompt(sections: PromptSection[], ctx: PromptContext)
 export const AUTHOR_SECTIONS: PromptSection[] = [
   {
     title: '身份',
-    content: [
-      '你是[作者]，AutoNovel-Studio 的核心创作引擎。',
-      '你不是聊天机器人，而是拥有工具箱（Tools）的自主智能体。',
-      '你正在与人类用户直接对话。用户可能给你下达写作任务、要求修改大纲、查询设定、或讨论创作方向。',
-    ].join('\n'),
+    contentFn: () => readPromptFile('author_system.md'),
   },
   {
-    title: '铁律',
-    content: [
-      '- 动作泄密，不用旁白告知',
-      '- 一段只许一个特写',
-      '- 长短句交错呼吸',
-      '- 数据库即圣经，查不到就不写',
-      "- 写正文前先 load_skill('iceberg_writing')",
-      '- 构思剧情前先 read_graph() 了解当前全局',
-      '- 独立的只读工具（如 read_file, search_lore, read_graph, read_outline, list_skills）可以在同一轮里一次性调用多个，系统会并发执行，比串行分多轮快很多。',
-      '- 用户给你提供"设定 / 世界观 / 角色 / lore"等内容时，必须先用 save_lore 把它们入库（characters 和 world_setting 两个分类），然后才能基于设定动笔。不要把设定塞进 outline 里凑数。',
-      "- save_outline 接收的 outline_json 必须是规范的章节树结构 { id, label, type:'book', children:[{id,label,type:'volume',children:[{type:'chapter',...}]}] }。不要塞 free-form JSON（title/intro/characters/worldview 这些应走 save_lore）。",
-      "- save_draft 的 file_path 写文件名即可（如 'ch01.md' 或 '001_第一章.md'），不要写目录前缀；后台会强制放进 04_Drafts/，否则前端 sidebar 找不到。理想命名：和 outline 中的 chapter id 一致（如 'ch01.md'），UI 会自动把它对应到大纲章节。",
-      '- 章节顺序硬约束：写 chN（N>1）前，chN-1 必须已经 submit_to_editorial 走过审稿且 overall_pass=true。否则 save_draft 会被 hooks 拦截、返回 [BLOCKED]。流程：save_draft ch01 → submit_to_editorial ch01 → 看 review.overall_pass，若不通过则按 feedback 改正 → 再 submit → 通过后才能 save_draft ch02。',
-      '- 写新章前，如对要回收哪些伏笔不确定，先调用 query_unresolved_setups。',
-      '',
-      '用 list_skills() 查看所有可用 skill。',
-      '你的工作模式：自治循环调用工具直到完成任务。',
-      '注意：如果人类给你派发了写作或修改任务，你必须输出实质性的草稿文本，不要只是答应或讨论。',
-      '回复时使用中文。完成写入操作后告诉用户你做了什么。',
-    ].join('\n'),
+    title: '写作硬门槛',
+    contentFn: () => readPromptFile('writing_guardrails.md'),
+  },
+  {
+    title: '保存前自检',
+    contentFn: () => readPromptFile('self_check_before_save.md'),
+  },
+  {
+    title: '创作阶段',
+    contentFn: (ctx) => (ctx.creativeStage as string | undefined) ?? '',
+    condition: (ctx) => !!ctx.creativeStage,
   },
   {
     title: '工具箱',
@@ -85,6 +85,11 @@ export const AUTHOR_SECTIONS: PromptSection[] = [
     title: '剧情账本',
     contentFn: (ctx) => (ctx.plotLedger as string | undefined) ?? '',
     condition: (ctx) => !!ctx.plotLedger,
+  },
+  {
+    title: '文风控制面',
+    contentFn: (ctx) => (ctx.styleProfile as string | undefined) ?? '',
+    condition: (ctx) => !!ctx.styleProfile,
   },
   {
     title: '记忆',
@@ -132,6 +137,30 @@ export function buildBrainstormPrompt(ctx: PromptContext): string {
  */
 export function buildAuthorPrompt(ctx: PromptContext): string {
   return buildSystemPrompt(AUTHOR_SECTIONS, ctx)
+}
+
+export function buildStyleProfileStatus(bookDir: string): string {
+  const file = path.join(bookDir, '01_Global_Settings', 'style_profile.json')
+  if (!fs.existsSync(file)) return ''
+  try {
+    const profile = JSON.parse(fs.readFileSync(file, 'utf8'))
+    const metrics = profile.metrics ?? {}
+    const rules = Array.isArray(profile.style_rules) ? profile.style_rules.slice(0, 5) : []
+    const anti = Array.isArray(profile.anti_patterns) ? profile.anti_patterns.slice(0, 6) : []
+    return [
+      '【本书文风指纹】',
+      `平均句长：${metrics.avg_sentence_chars ?? '?'} 字；平均段落：${metrics.avg_paragraph_chars ?? '?'} 字；比喻密度：${metrics.metaphor_density_per_1000_chars ?? '?'} / 千字；破折号数量：${metrics.dash_count ?? 0}。`,
+      '',
+      '写作规则：',
+      ...rules.map((r: string) => `- ${r}`),
+      '',
+      '文风禁区：',
+      ...anti.map((r: string) => `- ${r}`),
+      profile.opening_guidance ? `\n开篇：${profile.opening_guidance}` : '',
+    ].filter(Boolean).join('\n')
+  } catch {
+    return ''
+  }
 }
 
 /**

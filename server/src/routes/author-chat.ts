@@ -23,6 +23,9 @@ import { processContext, type ContextMode } from '../context/decision.js'
 import { createSessionState, updateSessionStateAfterToolCall } from '../context/session-state.js'
 import { loadBreakerState, resetBreaker } from '../context/circuit-breaker.js'
 import { getModelContextWindow, evaluateBudgetTier } from '../context/model-window.js'
+import { appendRunEvent, createRunId, loadRecentRuns, type RunTimelineEvent, type RunEventStatus } from '../runs/run-timeline.js'
+
+export const USAGE_PERSIST_TIMEOUT_MS = 2000
 
 /**
  * Resolve LLM config from settings.json (provider/model selector).
@@ -62,6 +65,40 @@ function loadConfig(): { llmConfig: LLMConfig; dataDir: string } {
   }
 }
 
+const usagePersistTimedOut = Symbol('usagePersistTimedOut')
+
+function previewValue(value: unknown, max = 320): string {
+  const text = typeof value === 'string' ? value : JSON.stringify(value)
+  return (text ?? '').replace(/\s+/g, ' ').slice(0, max)
+}
+
+export async function persistUsageBestEffort(
+  usagePromise: PromiseLike<unknown>,
+  usageFile: string,
+  timeoutMs = USAGE_PERSIST_TIMEOUT_MS,
+): Promise<'written' | 'skipped' | 'timeout'> {
+  let timer: NodeJS.Timeout | null = null
+  const timeout = new Promise<typeof usagePersistTimedOut>((resolve) => {
+    timer = setTimeout(() => resolve(usagePersistTimedOut), timeoutMs)
+  })
+  try {
+    const usage = await Promise.race([Promise.resolve(usagePromise), timeout])
+    if (usage === usagePersistTimedOut) return 'timeout'
+    const total = (usage as any)?.totalTokens ?? (usage as any)?.total_tokens
+    if (typeof total === 'number' && total > 0) {
+      fs.writeFileSync(
+        usageFile,
+        JSON.stringify({ total_tokens: total }),
+        'utf8',
+      )
+      return 'written'
+    }
+    return 'skipped'
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
 export async function authorChatRoutes(app: FastifyInstance) {
   const toolRegistry = createAllTools()
 
@@ -75,6 +112,21 @@ export async function authorChatRoutes(app: FastifyInstance) {
         const history = loadHistoryFull(dataDir, bookId)
         const display = history.filter(m => m.role === 'user' || m.role === 'assistant')
         return { messages: display }
+      } catch (err: any) {
+        reply.code(400)
+        return { error: err.message }
+      }
+    }
+  )
+
+  app.get<{ Params: { bookId: string }; Querystring: { limit?: string } }>(
+    '/api/v1/books/:bookId/runs/recent',
+    async (request, reply) => {
+      try {
+        const bookId = sanitizePathSegment(request.params.bookId, 'bookId')
+        const { dataDir } = loadConfig()
+        const limit = Math.min(20, Math.max(1, Number(request.query.limit ?? 5) || 5))
+        return { runs: loadRecentRuns(dataDir, bookId, limit) }
       } catch (err: any) {
         reply.code(400)
         return { error: err.message }
@@ -189,10 +241,37 @@ export async function authorChatRoutes(app: FastifyInstance) {
         'X-Accel-Buffering': 'no',
       })
 
-      const sse = (data: Record<string, unknown>) =>
+      const sse = (data: unknown) =>
         reply.raw.write(`data: ${JSON.stringify(data)}\n\n`)
 
       const toolsUsed: string[] = []
+      const runId = createRunId()
+      let runSeq = 0
+      const timeline = (
+        type: string,
+        label: string,
+        status: RunEventStatus,
+        patch: Partial<RunTimelineEvent> = {},
+        send = true,
+      ): RunTimelineEvent => {
+        const event: RunTimelineEvent = {
+          runId,
+          seq: ++runSeq,
+          ts: new Date().toISOString(),
+          type,
+          status,
+          label,
+          ...patch,
+        }
+        try {
+          appendRunEvent(dataDir, bookId, event)
+        } catch (err) {
+          app.log.warn({ err, bookId, runId }, '[author-chat] run timeline append failed')
+        }
+        if (send) sse({ type: 'timeline', event })
+        return event
+      }
+      timeline('run_start', '收到用户指令', 'running', { inputPreview: previewValue(message) })
 
       // AbortController for client disconnect
       // Listen on the response socket, not the request —
@@ -217,12 +296,17 @@ export async function authorChatRoutes(app: FastifyInstance) {
         // user can rewind to the moment right before they hit send. Logged but
         // never blocking — snapshot failure shouldn't kill the actual chat.
         try {
+          timeline('snapshot_start', '创建发送前快照', 'running')
           createSnapshot(dataDir, bookId, message)
+          timeline('snapshot_done', '快照已创建', 'done')
         } catch (snapErr) {
           app.log.warn({ err: snapErr, bookId }, '[author-chat] snapshot failed; continuing without checkpoint')
+          timeline('snapshot_error', '快照创建失败，继续执行', 'error', { error: String((snapErr as any)?.message ?? snapErr).slice(0, 500) })
         }
 
+        timeline('history_load_start', '读取对话历史', 'running')
         const rawHistory = loadHistoryFull(dataDir, bookId)
+        timeline('history_load_done', '对话历史已读取', 'done', { meta: { messages: rawHistory.length } })
         // For LLM context: drop pairs marked status='incomplete' / 'aborted'
         // (failed or cancelled turns are kept on disk for UI replay but must
         // never be replayed to the model — partial assistant content + an
@@ -256,15 +340,32 @@ export async function authorChatRoutes(app: FastifyInstance) {
         // existing deployments without the field set get the full pipeline.
         const contextMode: ContextMode = getSettings(dataDir).contextManager ?? 'auto'
 
-        const { newMessages, decision } = await processContext({
-          messages: history,
-          model: llmConfig.model,
-          lastUsage,
-          sessionState,
-          bookDir,
-          llmConfig,
-          mode: contextMode,
-        })
+        let newMessages: ModelMessage[]
+        let decision: Awaited<ReturnType<typeof processContext>>['decision']
+        try {
+          timeline('context_start', '处理上下文预算', 'running', { meta: { contextMode, model: llmConfig.model } })
+          const processed = await processContext({
+            messages: history,
+            model: llmConfig.model,
+            lastUsage,
+            sessionState,
+            bookDir,
+            llmConfig,
+            mode: contextMode,
+          })
+          newMessages = processed.newMessages
+          decision = processed.decision
+          timeline('context_done', '上下文处理完成', 'done', {
+            meta: {
+              tier: decision.tier,
+              decayedCount: decision.decayedCount,
+              compactedCount: decision.compactedCount,
+            },
+          })
+        } catch (ctxErr) {
+          timeline('context_error', '上下文处理失败', 'error', { error: String((ctxErr as any)?.message ?? ctxErr).slice(0, 500) })
+          throw ctxErr
+        }
 
         // Append decision to context_log.jsonl (fire-and-forget; log is purely
         // for diagnostics so a write error must not kill the chat turn).
@@ -293,7 +394,35 @@ export async function authorChatRoutes(app: FastifyInstance) {
           },
         }
 
+          timeline('agent_loop_start', '模型与工具链运行中', 'running')
         sse({ type: 'status', phase: 'agent_loop' })
+
+        const timelineHook: ToolHooks = {
+          async beforeToolCall(name, args) {
+            timeline('tool_start', `调用工具：${name}`, 'running', {
+              toolName: name,
+              toolCallId: `${runId}:${name}:${runSeq + 1}`,
+              inputPreview: previewValue(args),
+            })
+          },
+          async afterToolCall(name, args, result, durationMs) {
+            timeline('tool_done', `工具完成：${name}`, result.startsWith('[BLOCKED]') ? 'error' : 'done', {
+              toolName: name,
+              inputPreview: previewValue(args),
+              outputPreview: previewValue(result),
+              durationMs,
+              error: result.startsWith('[BLOCKED]') ? result : undefined,
+            })
+          },
+          async onToolError(name, args, err, durationMs) {
+            timeline('tool_error', `工具失败：${name}`, 'error', {
+              toolName: name,
+              inputPreview: previewValue(args),
+              durationMs,
+              error: String((err as any)?.message ?? err).slice(0, 500),
+            })
+          },
+        }
 
         const result = runAgentStream({
           bookId,
@@ -308,6 +437,7 @@ export async function authorChatRoutes(app: FastifyInstance) {
             createStatsHooks(dataDir, bookId),
             createTipHooks(dataDir, bookId, (evt) => sse(evt)),
             sessionStateHook,
+            timelineHook,
           ),
           onProgress: (evt) => {
             if (evt.type === 'retry') {
@@ -323,6 +453,16 @@ export async function authorChatRoutes(app: FastifyInstance) {
                 reason: evt.reason,
               })
             }
+          },
+          onToolProgress: (evt) => {
+            timeline(evt.type, evt.label, evt.status, {
+              toolName: evt.toolName ?? evt.sourceTool,
+              inputPreview: evt.inputPreview,
+              outputPreview: evt.outputPreview,
+              durationMs: evt.durationMs,
+              error: evt.error,
+              meta: evt.meta,
+            })
           },
         })
 
@@ -533,39 +673,47 @@ export async function authorChatRoutes(app: FastifyInstance) {
         flushOpenContent()
 
         if (streamError) {
+          timeline('stream_error', '模型流返回错误', 'error', { error: String((streamError as any)?.message ?? streamError).slice(0, 500) })
+            timeline('agent_loop_error', '模型与工具链失败', 'error', { error: String((streamError as any)?.message ?? streamError).slice(0, 500) })
           sse({ type: 'error', message: String((streamError as any)?.message ?? streamError).slice(0, 500) })
         } else {
           streamSucceeded = true
+          timeline('stream_done', '模型主响应完成', 'done')
+            timeline('agent_loop_done', '模型与工具链完成', 'done')
         }
 
         streamDone = true
 
-        // Persist usage so the NEXT turn's processContext has a real token
-        // count to classify the budget tier against. Only on successful
-        // completions (abort/error leave the file untouched — re-using the
-        // previous turn's count is safer than writing a partial figure).
-        if (streamSucceeded) {
-          try {
-            const usage: any = await result.usage
-            const total = usage?.totalTokens ?? usage?.total_tokens
-            if (typeof total === 'number' && total > 0) {
-              fs.writeFileSync(
-                path.join(bookDir, 'last_usage.json'),
-                JSON.stringify({ total_tokens: total }),
-                'utf8',
-              )
-            }
-          } catch (usageErr) {
-            app.log.warn({ err: usageErr, bookId }, '[author-chat] usage persist failed')
-          }
-        }
-
         sse({ type: 'done', tools_used: toolsUsed, has_thinking: fullThinking.length > 0 })
+        timeline('run_done', '本轮运行完成', 'done')
+
+        // Persist usage for the NEXT turn's context manager. This is strictly
+        // background telemetry: do not keep the UI in a running state for it.
+        if (streamSucceeded) {
+          timeline('usage_persist_start', '后台记录 token 用量', 'running', {
+            message: '后台记录，不影响生成结果',
+          }, false)
+          ;(async () => {
+            try {
+              const usageStatus = await persistUsageBestEffort(result.usage, path.join(bookDir, 'last_usage.json'))
+              if (usageStatus === 'timeout') {
+                app.log.warn({ bookId }, '[author-chat] usage persist timed out; completing stream anyway')
+                timeline('usage_persist_timeout', '后台 token 用量记录超时，不影响生成结果', 'timeout', {}, false)
+              } else {
+                timeline('usage_persist_done', usageStatus === 'written' ? '后台 token 用量已记录' : '后台 token 用量无需记录', 'done', { meta: { usageStatus } }, false)
+              }
+            } catch (usageErr) {
+              app.log.warn({ err: usageErr, bookId }, '[author-chat] usage persist failed')
+              timeline('usage_persist_error', '后台 token 用量记录失败，不影响生成结果', 'error', { error: String((usageErr as any)?.message ?? usageErr).slice(0, 500) }, false)
+            }
+          })()
+        }
 
         // Fire-and-forget memory extraction — failure must NEVER affect main response.
         // Only runs on successful completions (not aborted / mid-stream errors); otherwise
         // we'd be feeding the extractor a partial turn with no coherent user→assistant pair.
         if (streamSucceeded) {
+          timeline('memory_extract_start', '后台提取记忆', 'running', {}, false)
           ;(async () => {
             try {
               const { extractMemories, ingestExtracted } = await import('../memory/extractor.js')
@@ -579,15 +727,19 @@ export async function authorChatRoutes(app: FastifyInstance) {
               if (extracted.length > 0) {
                 await ingestExtracted(dataDir, extracted)
               }
+              timeline('memory_extract_done', '后台记忆提取完成', 'done', { meta: { extracted: extracted.length } }, false)
             } catch (e) {
               console.warn('[author-chat] memory extraction failed:', e)
+              timeline('memory_extract_error', '后台记忆提取失败', 'error', { error: String((e as any)?.message ?? e).slice(0, 500) }, false)
             }
           })()
         }
       } catch (err: any) {
         if (abortController.signal.aborted) {
+          timeline('run_aborted', '用户取消运行', 'aborted', { message: 'Stream cancelled by client' })
           sse({ type: 'aborted', message: 'Stream cancelled by client' })
         } else {
+          timeline('run_error', '运行失败', 'error', { error: String(err).slice(0, 500) })
           sse({ type: 'error', message: String(err) })
         }
       } finally {

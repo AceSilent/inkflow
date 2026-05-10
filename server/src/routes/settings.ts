@@ -32,6 +32,7 @@ export interface AppSettings {
   providers: ProviderConfig[]
   authorModel: string
   editorModel: string
+  reviewerModels?: Record<string, string>
   contextManager?: ContextManagerMode
   contextBudgetCustom?: ContextBudgetCustom
 }
@@ -63,6 +64,7 @@ export function getSettings(dataDir: string): AppSettings {
     providers: raw.providers ?? [],
     authorModel: raw.authorModel ?? '',
     editorModel: raw.editorModel ?? '',
+    reviewerModels: raw.reviewerModels ?? {},
     contextManager: raw.contextManager ?? 'auto',
     ...(raw.contextBudgetCustom ? { contextBudgetCustom: raw.contextBudgetCustom } : {}),
   }

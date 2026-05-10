@@ -9,18 +9,17 @@ import { type ToolDefinition } from './base-tool.js'
 import { createBackup, appendAuditLog, withFileLock } from './safety.js'
 import { archivePriorDraft } from './draft-history.js'
 import { ensureDir, safeReadJson } from '../utils/file-io.js'
+import { formatDraftSelfCheck, runDraftSelfCheck } from './draft-self-check.js'
 
 /**
- * Minimum characters a draft must contain. Rejects the "200-char shell" failure
- * mode where the agent saves a placeholder and submits it for review, getting
- * a free ✅. A real novel chapter is ≥ 2000 chars; 800 is well below that floor
- * so legitimate short scenes/interludes still pass.
+ * Target lower bound for a reviewable novel chapter. We allow saving shorter
+ * drafts as work-in-progress, but editorial submission must clear this floor.
  */
-export const MIN_DRAFT_CHARS = 800
+export const MIN_REVIEW_DRAFT_CHARS = 2500
 
 export const saveDraftTool: ToolDefinition = {
   name: 'save_draft',
-  description: `保存章节草稿到 04_Drafts/{ch{N}.md}。文件名必须是 ch{N}.md 形式（如 ch01.md），UI 才能把草稿对应到 outline 中相同 id 的 chapter 节点。草稿正文至少 ${MIN_DRAFT_CHARS} 字，否则拒绝保存（防止空壳草稿绕过审稿）。`,
+  description: `保存章节草稿到 04_Drafts/{ch{N}.md}。文件名必须是 ch{N}.md 形式（如 ch01.md），UI 才能把草稿对应到 outline 中相同 id 的 chapter 节点。允许保存低于 ${MIN_REVIEW_DRAFT_CHARS} 字的半成品，但送审会被 submit_to_editorial 硬拦；保存后若低于门槛，请继续扩写。`,
   parameters: z.object({
     file_path: z.string()
       .regex(/^ch\d{1,4}\.md$/, "file_path 必须是 'ch{N}.md' 形式（如 ch01.md, ch02.md, ch137.md）。N 是阿拉伯数字章节序号，1-4 位，建议 2-3 位零填充以方便排序。")
@@ -30,11 +29,6 @@ export const saveDraftTool: ToolDefinition = {
   permissionLevel: 'write',
   category: '写入',
   execute: async ({ file_path, content }, ctx) => {
-    // Short-shell guard: fail fast before backup/write/audit.
-    if (content.length < MIN_DRAFT_CHARS) {
-      return `Error: 草稿正文只有 ${content.length} 字，少于最低要求 ${MIN_DRAFT_CHARS} 字。完整写完章节正文再保存——不要保存大纲、占位、或"下回分解"式的空壳。`
-    }
-
     const bookDir = path.join(ctx.dataDir, ctx.bookId)
     // Always relocate into 04_Drafts/ — strip any path prefix the agent put in,
     // keep just the leaf filename. This is the difference between drafts the
@@ -63,7 +57,14 @@ export const saveDraftTool: ToolDefinition = {
       const relPath = path.posix.join('04_Drafts', baseName)
       appendAuditLog(logFile, 'save_draft', { file_path: relPath }, `saved ${content.length} chars`, true)
 
-      return `Draft saved to ${relPath} (${content.length} chars)`
+      const warning = content.length < MIN_REVIEW_DRAFT_CHARS
+        ? `\nWarning: 当前草稿 ${content.length} 字，低于送审最低要求 ${MIN_REVIEW_DRAFT_CHARS} 字。可以作为半成品保存，但必须扩写到达标后再调用 submit_to_editorial。`
+        : ''
+      const selfCheck = runDraftSelfCheck(content, { minReviewChars: MIN_REVIEW_DRAFT_CHARS, bookDir })
+      const selfCheckMessage = selfCheck.issues.length > 0
+        ? `\n\n${formatDraftSelfCheck(selfCheck)}`
+        : ''
+      return `Draft saved to ${relPath} (${content.length} chars)${warning}${selfCheckMessage}`
     })
   },
 }
@@ -222,7 +223,7 @@ export const saveLoreTool: ToolDefinition = {
 
 export const readOutlineTool: ToolDefinition = {
   name: 'read_outline',
-  description: '读取书籍大纲，可选筛选卷号。',
+  description: "读取书籍大纲，可选筛选卷号。大纲是当前标准 children 树：book.children[] 为 volume，volume.children[] 为 chapter。",
   parameters: z.object({
     volume: z.number().optional().describe('卷号（可选）'),
   }),
@@ -233,8 +234,15 @@ export const readOutlineTool: ToolDefinition = {
     if (!data) return 'Error: Outline file not found or unreadable.'
 
     if (volume !== undefined) {
-      const volumes = data.volumes ?? []
-      const found = volumes.find((v: { title?: string }) => String(volume) === String(v.title ?? ''))
+      const volumes = Array.isArray(data.children)
+        ? data.children.filter((v: any) => v?.type === 'volume')
+        : []
+      const volIndex = Number(volume) - 1
+      const found = volumes.find((v: any, index: number) =>
+        index === volIndex
+        || String(volume) === String(v.id ?? '').replace(/^vol/i, '')
+        || String(volume) === String(v.label ?? '').replace(/[^\d]/g, '')
+      )
       return found ? JSON.stringify(found, null, 2) : `Error: Volume ${volume} not found in outline.`
     }
     return JSON.stringify(data, null, 2)

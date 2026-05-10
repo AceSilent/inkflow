@@ -6,6 +6,7 @@
  */
 import { z } from 'zod'
 import { tool, asSchema } from 'ai'
+import { validateInput } from './safety.js'
 
 export type PermissionLevel = 'read' | 'write' | 'destructive'
 
@@ -14,19 +15,34 @@ export type PermissionLevel = 'read' | 'write' | 'destructive'
  * getToolSummary() can group tools without a hard-coded name → category map
  * that has to be maintained in lockstep with the registration list.
  */
-export type ToolCategory = '读取' | '写入' | '剧情树' | '终端' | '技能' | '编辑部' | '其他'
+export type ToolCategory = '读取' | '写入' | '剧情图' | '终端' | '技能' | '范文库' | '编辑部' | '其他'
 
 /**
  * Fixed display order for tool categories in getToolSummary(). Kept separate
  * from ToolCategory so adding a new category is a one-line change here.
  */
-export const TOOL_CATEGORY_ORDER: ToolCategory[] = ['读取', '写入', '剧情树', '终端', '技能', '编辑部', '其他']
+export const TOOL_CATEGORY_ORDER: ToolCategory[] = ['读取', '写入', '剧情图', '终端', '技能', '范文库', '编辑部', '其他']
 
 export interface ToolContext {
   bookId: string
   dataDir: string
   /** Current agent mode: 'brainstorm' | 'author' */
   mode?: string
+  /** Optional progress channel for long-running tool internals. */
+  emitProgress?: (event: ToolProgressEvent) => void | Promise<void>
+}
+
+export interface ToolProgressEvent {
+  sourceTool: string
+  type: string
+  label: string
+  status: 'running' | 'done' | 'error'
+  toolName?: string
+  durationMs?: number
+  inputPreview?: string
+  outputPreview?: string
+  error?: string
+  meta?: Record<string, unknown>
 }
 
 export interface ToolDefinition<T extends z.ZodType = z.ZodType> {
@@ -126,6 +142,7 @@ export class ToolRegistry {
   async execute(name: string, args: Record<string, unknown>, ctx: ToolContext): Promise<string> {
     const def = this.tools.get(name)
     if (!def) return `Error: Unknown tool ${name}`
+    validateInput(name, args)
     return def.execute(args, ctx)
   }
 
@@ -149,6 +166,7 @@ export class ToolRegistry {
         description: def.description,
         inputSchema: asSchema(def.parameters),
         execute: async (args: any) => {
+          validateInput(name, args)
           await fire(() => hooks?.beforeToolCall?.(name, args, ctx))
           // Policy gate. If any interceptor returns { block: true, message },
           // skip execution and feed the message back to the LLM as the result.

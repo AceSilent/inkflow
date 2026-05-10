@@ -13,8 +13,9 @@
  */
 import path from 'path'
 import { streamText, stepCountIs, type ModelMessage } from 'ai'
-import { composeHooks, type ToolRegistry, type ToolContext, type ToolHooks, type BlockedToolCall } from '../tools/base-tool.js'
-import { buildAuthorPrompt, buildBrainstormPrompt, buildPlotGraphStatus } from './prompt-builder.js'
+import { composeHooks, type ToolRegistry, type ToolContext, type ToolHooks, type BlockedToolCall, type ToolProgressEvent } from '../tools/base-tool.js'
+import { buildAuthorPrompt, buildBrainstormPrompt, buildPlotGraphStatus, buildStyleProfileStatus } from './prompt-builder.js'
+import { buildCreativeStagePrompt } from './creative-stage.js'
 import { type LLMConfig, type ProviderProgressCallback, createProvider } from '../llm/provider.js'
 import { blockWhileUserEditing } from '../stats/tips/block-while-user-editing.js'
 
@@ -59,6 +60,8 @@ export interface AgentRunOptions {
   hooks?: ToolHooks
   /** Provider-level progress callback (currently used for retry-with-backoff events). */
   onProgress?: ProviderProgressCallback
+  /** Long-running tool internals can report progress here. */
+  onToolProgress?: (event: ToolProgressEvent) => void | Promise<void>
 }
 
 /**
@@ -69,8 +72,10 @@ function selectPrompt(
   memoryContext?: string,
   toolSummary?: string,
   plotLedger?: string,
+  styleProfile?: string,
+  creativeStage?: string,
 ): string {
-  const ctx = { memory: memoryContext, toolSummary, plotLedger }
+  const ctx = { memory: memoryContext, toolSummary, plotLedger, styleProfile, creativeStage }
   return mode === 'brainstorm'
     ? buildBrainstormPrompt(ctx)
     : buildAuthorPrompt(ctx)
@@ -91,6 +96,7 @@ export function runAgentStream(options: AgentRunOptions): AgentStreamResult {
     abortSignal,
     hooks,
     onProgress,
+    onToolProgress,
   } = options
 
   const toolSummary = toolRegistry.getToolSummary()
@@ -99,9 +105,11 @@ export function runAgentStream(options: AgentRunOptions): AgentStreamResult {
   // still renders; only the "距今 N 章" span is elided.
   const bookDir = path.join(dataDir, bookId)
   const plotLedger = buildPlotGraphStatus(bookDir)
-  const systemPrompt = selectPrompt(mode, memoryContext, toolSummary, plotLedger)
+  const styleProfile = buildStyleProfileStatus(bookDir)
+  const creativeStage = buildCreativeStagePrompt(bookDir)
+  const systemPrompt = selectPrompt(mode, memoryContext, toolSummary, plotLedger, styleProfile, creativeStage)
   const model = createProvider(llmConfig, onProgress)
-  const ctx: ToolContext = { bookId, dataDir, mode }
+  const ctx: ToolContext = { bookId, dataDir, mode, emitProgress: onToolProgress }
 
   const messages: ModelMessage[] = [
     ...history,

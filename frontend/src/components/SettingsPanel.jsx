@@ -12,6 +12,7 @@ export function SettingsPanel({ addToast, theme, toggleTheme, currentBook }) {
       .then(r => r.json())
       .then(data => {
         if (!data.providers) data.providers = []
+        if (!data.reviewerModels) data.reviewerModels = {}
         setSettings(data)
         setLoading(false)
       })
@@ -137,6 +138,22 @@ export function SettingsPanel({ addToast, theme, toggleTheme, currentBook }) {
           onChange={v => setSettings({ ...settings, editorModel: v })}
           providers={settings.providers}
         />
+        <div style={{ marginTop: 8, paddingTop: 12, borderTop: '1px solid var(--border-subtle)' }}>
+          <div className="field-label" style={{ marginBottom: 8 }}>审稿人模型分配</div>
+          {REVIEWER_MODEL_LABELS.map(item => (
+            <ModelSelector
+              key={item.id}
+              label={item.label}
+              value={settings.reviewerModels?.[item.id] || ''}
+              onChange={v => setSettings({
+                ...settings,
+                reviewerModels: { ...(settings.reviewerModels || {}), [item.id]: v }
+              })}
+              providers={settings.providers}
+              includeDefault
+            />
+          ))}
+        </div>
       </Section>
 
       {/* Context Manager: mode dropdown + breaker reset.
@@ -199,6 +216,11 @@ export function SettingsPanel({ addToast, theme, toggleTheme, currentBook }) {
   )
 }
 
+const REVIEWER_MODEL_LABELS = [
+  { id: 'editorial_lore', label: '设定考据' },
+  { id: 'editorial_causality', label: '逻辑审核' },
+]
+
 function Section({ title, children }) {
   return (
     <div style={{ marginBottom: 28 }}>
@@ -208,11 +230,12 @@ function Section({ title, children }) {
   )
 }
 
-function ModelSelector({ label, value, onChange, providers }) {
+function ModelSelector({ label, value, onChange, providers, includeDefault = false }) {
   return (
     <div className="field">
       <label className="field-label">{label}</label>
       <select className="select" value={value} onChange={e => onChange(e.target.value)}>
+        {includeDefault && <option value="">默认编辑模型</option>}
         {providers.map(p => (
           <optgroup key={p.id} label={p.name}>
             {p.models.map(m => (

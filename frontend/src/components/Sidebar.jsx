@@ -18,8 +18,15 @@ export function Sidebar({ activePanel, addToast, onSelect, onBookSelect, onNewBo
         const data = await resp.json()
         const tree = Array.isArray(data) ? data : (data.tree || [])
         setTreeData(tree)
+        const books = tree.filter(n => n.type === 'book')
+        const savedBookId = localStorage.getItem('autonovel:lastBookId')
+        const restored = books.find(n => n.id === savedBookId) || (!selectedId ? books[books.length - 1] : null)
+        if (restored && selectedId !== restored.id) {
+          setSelectedId(restored.id)
+          onBookSelect?.({ book_id: restored.id, title: restored.label })
+        }
         if (showFeedback) addToast?.(t('sidebar.refreshed'), 'success')
-        return tree.filter(n => n.type === 'book').map(n => n.id)
+        return books.map(n => n.id)
       }
     } catch (e) {
       console.error(e)
@@ -43,6 +50,7 @@ export function Sidebar({ activePanel, addToast, onSelect, onBookSelect, onNewBo
   const handleNodeSelect = (node, bookId) => {
     setSelectedId(node.id)
     if (node.type === 'book') {
+      localStorage.setItem('autonovel:lastBookId', node.id)
       onBookSelect?.({ book_id: node.id, title: node.label })
     }
     if (node.type === 'scene') {

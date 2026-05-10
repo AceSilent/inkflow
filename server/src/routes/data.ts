@@ -17,6 +17,7 @@ import { outlineBody } from './schemas.js'
 import { loadStats } from '../stats/tool-stats.js'
 import { archivePriorDraft } from '../tools/draft-history.js'
 import { createBackup } from '../tools/safety.js'
+import { getCreativeStageStatus } from '../agent/creative-stage.js'
 
 // ── Helper functions (exported for direct testing) ──
 
@@ -186,6 +187,16 @@ export async function dataRoutes(app: FastifyInstance): Promise<void> {
     async (request) => {
       const bookId = sanitizePathSegment(request.params.bookId, 'bookId')
       return readLore(dataDir(), bookId)
+    }
+  )
+
+  // GET /api/v1/books/:bookId/creative-stage
+  app.get<{ Params: { bookId: string } }>(
+    '/api/v1/books/:bookId/creative-stage',
+    async (request) => {
+      const bookId = sanitizePathSegment(request.params.bookId, 'bookId')
+      const bookDir = path.join(dataDir(), bookId)
+      return getCreativeStageStatus(bookDir)
     }
   )
 

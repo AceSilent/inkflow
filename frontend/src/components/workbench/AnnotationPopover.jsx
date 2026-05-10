@@ -24,7 +24,6 @@ export function AnnotationPopover({ anchor, selectedText, onCancel, onSubmit }) 
         placeholder="批注..."
         value={comment}
         onChange={(e) => setComment(e.target.value)}
-        autoFocus
       />
       <div className="popover-actions">
         <button onClick={onCancel}><X size={12} /></button>

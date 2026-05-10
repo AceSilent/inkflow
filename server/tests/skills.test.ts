@@ -5,13 +5,15 @@ import path from 'path'
 const PROMPTS_DIR = path.resolve(__dirname, '../../prompts')
 
 describe('Skill Discovery', () => {
-  it('should find all 9 skill files', () => {
+  it('should find all skill files', () => {
     const skills = discoverSkills(PROMPTS_DIR)
-    expect(Object.keys(skills).length).toBe(9)
+    expect(Object.keys(skills).length).toBeGreaterThanOrEqual(11)
     expect(skills['iceberg_writing']).toBeDefined()
     expect(skills['scene_rhythm']).toBeDefined()
     expect(skills['plot_tree_methodology']).toBeDefined()
     expect(skills['volume_planning']).toBeDefined()
+    expect(skills['chapter_edit']).toBeDefined()
+    expect(skills['chapter_rewrite']).toBeDefined()
   })
 
   it('should parse YAML frontmatter correctly', () => {

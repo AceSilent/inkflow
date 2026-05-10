@@ -3,6 +3,8 @@ import { Send, Trash2, Wrench, Paperclip, X, FileText, ChevronDown, ChevronRight
 import ReactMarkdown from 'react-markdown'
 import { useI18n } from '../hooks/useI18n'
 import { ContextStatusBar } from './ContextStatusBar'
+import { AgentRunTimeline } from './AgentRunTimeline'
+import { CreativeStageBar } from './CreativeStageBar'
 
 export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
   const { t } = useI18n()
@@ -13,6 +15,9 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
   const [streamingMsg, setStreamingMsg] = useState(null) // {thinking, segments[], thinkingDone, phase}
   const [snapshots, setSnapshots] = useState([])
   const [snapsOpen, setSnapsOpen] = useState(false)
+  const [recentRuns, setRecentRuns] = useState([])
+  const [currentRun, setCurrentRun] = useState(null)
+  const [stageRefreshKey, setStageRefreshKey] = useState(0)
   const chatEndRef = useRef(null)
   const inputRef = useRef(null)
   const fileInputRef = useRef(null)
@@ -24,6 +29,25 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
   const draftBeforeNav = useRef('')
 
   const bookId = currentBook?.book_id
+  const refreshAfterTool = useCallback((toolName) => {
+    const dataMutatingTools = new Set([
+      'save_lore',
+      'save_outline',
+      'save_draft',
+      'analyze_style_profile',
+      'add_plot_node',
+      'add_edge',
+      'remove_edge',
+      'confirm_path',
+      'prune_branch',
+      'merge_branches',
+      'submit_to_editorial',
+    ])
+    if (dataMutatingTools.has(toolName)) {
+      onLoreUpdated?.()
+      setStageRefreshKey(k => k + 1)
+    }
+  }, [onLoreUpdated])
 
   const loadChatHistory = useCallback(() => {
     if (!bookId) return
@@ -82,6 +106,19 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
 
   useEffect(() => { loadChatHistory() }, [loadChatHistory])
 
+  const fetchRecentRuns = useCallback(() => {
+    if (!bookId) return
+    fetch(`/api/v1/books/${bookId}/runs/recent?limit=5`)
+      .then(r => r.ok ? r.json() : { runs: [] })
+      .then(data => setRecentRuns(data.runs || []))
+      .catch(() => setRecentRuns([]))
+  }, [bookId])
+
+  useEffect(() => {
+    setCurrentRun(null)
+    fetchRecentRuns()
+  }, [fetchRecentRuns])
+
   const fetchSnapshots = useCallback(() => {
     if (!bookId) return
     fetch(`/api/v1/books/${bookId}/snapshots`)
@@ -100,6 +137,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
       setSnapsOpen(false)
       loadChatHistory()
       onLoreUpdated?.()  // bump dataVersion → other panels (outline / lore / plot tree) refresh
+      setStageRefreshKey(k => k + 1)
     } catch (e) {
       addToast?.('回滚失败：' + e.message, 'error')
     }
@@ -188,6 +226,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
     }])
     setLoading(true)
     setStreamingMsg({ thinking: '', segments: [], thinkingDone: false, phase: 'init', retry: null })
+    setCurrentRun(null)
 
     abortRef.current = new AbortController()
     try {
@@ -239,6 +278,27 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
 
             if (evt.type === 'status') {
               setStreamingMsg(prev => ({ ...prev, phase: evt.phase }))
+            } else if (evt.type === 'timeline') {
+              const event = evt.event
+              if (event?.runId) {
+                setCurrentRun(prev => {
+                  const base = prev?.runId === event.runId ? prev : {
+                    runId: event.runId,
+                    startedAt: event.ts,
+                    status: 'running',
+                    events: [],
+                  }
+                  const events = [...(base.events || []).filter(e => e.seq !== event.seq), event]
+                    .sort((a, b) => a.seq - b.seq)
+                  const terminal = [...events].reverse().find(e => e.type === 'run_done' || e.type === 'run_error' || e.type === 'run_aborted' || e.type === 'run_interrupted')
+                  return {
+                    ...base,
+                    status: terminal?.status || event.status || 'running',
+                    endedAt: terminal?.ts || base.endedAt,
+                    events,
+                  }
+                })
+              }
             } else if (evt.type === 'retry') {
               // Stamp `retryStartedAt` so the UI can tick down delayMs in real time
               // (the server only emits one retry event per attempt).
@@ -289,6 +349,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
                 }
               }
               setStreamingMsg(prev => ({ ...prev, segments: [...segments] }))
+              refreshAfterTool(evt.name)
             } else if (evt.type === 'error') {
               currentContentBuf += `${t('authorChat.error')}: ${evt.message}`
               setStreamingMsg(prev => ({
@@ -318,6 +379,8 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
               if (evt.tools_used?.length > 0 && onLoreUpdated) {
                 onLoreUpdated()
               }
+              setStageRefreshKey(k => k + 1)
+              fetchRecentRuns()
             }
           } catch { /* SSE parse error — skip malformed event */ }
         }
@@ -347,6 +410,8 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
       abortRef.current = null
       setLoading(false)
       setStreamingMsg(null)
+      setStageRefreshKey(k => k + 1)
+      fetchRecentRuns()
       inputRef.current?.focus()
     }
   }
@@ -414,7 +479,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
           <PenTool size={18} style={{ color: 'var(--accent)' }} />
           <span style={{ fontSize: 13, fontWeight: 600 }}>作者 Agent</span>
           <span style={{ fontSize: 10, color: 'var(--ink-muted)', background: 'var(--bg-elevated)', padding: '2px 6px', borderRadius: 4 }}>
-            17 tools · streaming
+            22 tools · streaming
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, position: 'relative' }}>
@@ -479,6 +544,9 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
           </button>
         </div>
       </div>
+
+      <AgentRunTimeline currentRun={currentRun} recentRuns={recentRuns} loading={loading} />
+      <CreativeStageBar bookId={bookId} refreshKey={stageRefreshKey} loading={loading} />
 
       {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -660,21 +728,36 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
 // ── Tool Call Card (streaming) ──
 
 function StreamingToolCard({ segment }) {
+  const hasResult = segment.status === 'done' && segment.result
+  const resultLooksBad = /Error|Warning|失败|低于|少于|blocked/i.test(segment.result ?? '')
   return (
     <div style={{
       padding: '5px 10px',
-      borderLeft: '3px solid #00BCD4',
+      borderLeft: `3px solid ${resultLooksBad ? 'var(--warning)' : '#00BCD4'}`,
       background: 'var(--bg-elevated)',
       borderRadius: '0 6px 6px 0',
       fontSize: 11,
-      display: 'flex', alignItems: 'center', gap: 6,
+      display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 4,
     }}>
-      <Wrench size={10} style={{ color: '#00BCD4', flexShrink: 0 }} />
-      <code style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--ink)' }}>{segment.name}</code>
-      {segment.status === 'running'
-        ? <Loader size={10} style={{ animation: 'spin 1.5s linear infinite', color: '#00BCD4' }} />
-        : <Check size={10} style={{ color: '#4CAF50' }} />
-      }
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <Wrench size={10} style={{ color: '#00BCD4', flexShrink: 0 }} />
+        <code style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--ink)' }}>{segment.name}</code>
+        {segment.status === 'running'
+          ? <Loader size={10} style={{ animation: 'spin 1.5s linear infinite', color: '#00BCD4' }} />
+          : <Check size={10} style={{ color: resultLooksBad ? 'var(--warning)' : '#4CAF50' }} />
+        }
+      </div>
+      {hasResult && (
+        <div style={{
+          color: resultLooksBad ? 'var(--warning)' : 'var(--ink-secondary)',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          fontFamily: 'monospace',
+        }}>
+          {segment.result}
+        </div>
+      )}
     </div>
   )
 }
@@ -682,11 +765,8 @@ function StreamingToolCard({ segment }) {
 // ── Thinking Card (one per step, collapsible) ──
 
 function ThinkingCard({ segment, t }) {
-  // Streaming → expanded so the user can watch tokens land live.
-  // Committed → collapsed so the conversation log stays scannable; the purple
-  // left rail + header chip make the card obvious even when shut.
   const live = !!segment.streaming
-  const [expanded, setExpanded] = useState(live)
+  const [expanded, setExpanded] = useState(false)
   const len = segment.text?.length ?? 0
   return (
     <div style={{
@@ -704,7 +784,7 @@ function ThinkingCard({ segment, t }) {
       >
         {expanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
         <Brain size={11} />
-        {t('authorChat.thinkingProcess')} ({len} {t('authorChat.chars')}){live ? ' · 思考中…' : ''}
+        执行分析已折叠 ({len} {t('authorChat.chars')}){live ? ' · 分析中…' : ''}
       </button>
       {expanded && (
         <div style={{

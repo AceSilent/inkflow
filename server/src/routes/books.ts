@@ -29,7 +29,7 @@ export interface BookMeta {
 export interface TreeNode {
   id: string
   label: string
-  type: 'book' | 'volume' | 'chapter' | 'scene'
+  type: 'book' | 'volume' | 'chapter' | 'scene' | 'draft'
   status?: string
   summary?: string
   children?: TreeNode[]

@@ -4,13 +4,26 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { Loader, Check, RefreshCw, Send } from 'lucide-react'
 import { useI18n } from '../hooks/useI18n'
-import { useWorkbenchSSE } from '../hooks/useWorkbenchSSE'
 import { toRoman } from '../utils/roman'
 import { MilkdownEditor } from './workbench/MilkdownEditor'
 import { CommentFeed } from './workbench/CommentFeed'
 import { AnnotationPopover } from './workbench/AnnotationPopover'
 import { DiffModal } from './workbench/DiffModal'
 import { ApprovalConfirmModal } from './workbench/ApprovalConfirmModal'
+
+const MIN_REVIEW_CHARS = 2500
+
+function normalizeReviewPayload(review) {
+  if (!review) return null
+  const feedbacks = review.feedbacks ?? []
+  const hasPersistedReviewSignal =
+    typeof review.overall_pass === 'boolean' ||
+    review.merged_summary ||
+    review.revision_strategy ||
+    review.revision_round ||
+    feedbacks.length > 0
+  return hasPersistedReviewSignal ? review : null
+}
 
 export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, dataVersion }) {
   const { t } = useI18n()
@@ -19,6 +32,7 @@ export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, da
   const [dirty, setDirty] = useState(false)
   const [locked, setLocked] = useState(false)  // Agent is writing this chapter
   const [review, setReview] = useState(null)
+  const [selfCheckReview, setSelfCheckReview] = useState(null)
   const [annotations, setAnnotations] = useState([])
   const [status, setStatus] = useState({ user_decision: null })
   // Task 13 — selection-driven popover state: {text, start, end, anchor:{x,y}}
@@ -30,6 +44,8 @@ export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, da
   // Task 17 — approval confirm modal visibility (prompts when there are still
   // open annotations at the moment the user clicks "用户通过").
   const [approvalOpen, setApprovalOpen] = useState(false)
+  const [reviewAfterRevision, setReviewAfterRevision] = useState('none')
+  const jumpCleanupRef = useRef(null)
 
   // Task 17 — memoized count of still-open user annotations. Drives the
   // "发送 N 条批注" button label + disabled state, and whether the approval
@@ -59,7 +75,8 @@ export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, da
         ])
         if (cancelled) return
         setContent(draftR?.content ?? '')
-        setReview(reviewR)
+        setReview(normalizeReviewPayload(reviewR))
+        setSelfCheckReview(null)
         setAnnotations(annR)
         setStatus(statusR)
       } finally {
@@ -81,6 +98,7 @@ export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, da
       })
       if (r.ok) {
         setDirty(false)
+        setSelfCheckReview(null)
         fetch(`/api/v1/books/${bookId}/chapters/${chapterId}/workbench-lock`, { method: 'DELETE' })
         addToast?.('已保存', 'success')
       } else {
@@ -96,20 +114,49 @@ export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, da
   // handleApproveClick so the latter can reference it without a TDZ.
   const doApprove = useCallback(async () => {
     try {
+      const gate = review ? 'post_review' : 'pre_review'
       const r = await fetch(`/api/v1/books/${bookId}/chapters/${chapterId}/status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_decision: 'approved' }),
+        body: JSON.stringify({
+          user_decision: 'approved',
+          gate,
+          pre_review_decision: gate === 'pre_review' ? 'approved' : undefined,
+          post_review_decision: gate === 'post_review' ? 'approved' : undefined,
+        }),
       })
       if (!r.ok) throw new Error('status update failed')
       const data = await r.json()
       setStatus(data)
       setApprovalOpen(false)
-      addToast?.('章节已通过', 'success')
+      addToast?.(gate === 'pre_review' ? '人审通过，可进入下一章' : '终审通过，可进入下一章', 'success')
     } catch (e) {
       addToast?.(`保存失败：${e.message}`, 'error')
     }
-  }, [bookId, chapterId, addToast])
+  }, [bookId, chapterId, review, addToast])
+
+  const doReject = useCallback(async () => {
+    try {
+      const gate = review ? 'post_review' : 'pre_review'
+      const r = await fetch(`/api/v1/books/${bookId}/chapters/${chapterId}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_decision: 'rejected',
+          gate,
+          pre_review_decision: gate === 'pre_review' ? 'needs_revision' : undefined,
+          post_review_decision: gate === 'post_review' ? 'needs_revision' : undefined,
+          note: '人类退回，等待批注修改。',
+        }),
+      })
+      if (!r.ok) throw new Error('status update failed')
+      const data = await r.json()
+      setStatus(data)
+      addToast?.('已标记为人类未通过；请添加或发送批注', 'info')
+    } catch (e) {
+      addToast?.(`保存失败：${e.message}`, 'error')
+    }
+  }, [bookId, chapterId, review, addToast])
 
   // Task 17 — batch-send open annotations to the Author Agent. Two-step flow:
   //   (1) POST /send-annotations → server composes a prompt + marks the chosen
@@ -127,7 +174,7 @@ export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, da
       const prep = await fetch(`/api/v1/books/${bookId}/chapters/${chapterId}/send-annotations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ annotation_ids: openIds }),
+        body: JSON.stringify({ annotation_ids: openIds, review_after_revision: reviewAfterRevision }),
       }).then(r => r.json())
       if (!prep.prompt) throw new Error('no prompt')
       setLocked(true)
@@ -162,7 +209,117 @@ export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, da
       setLocked(false)
       addToast?.(`发送失败：${e.message}`, 'error')
     }
-  }, [annotations, bookId, chapterId, addToast])
+  }, [annotations, bookId, chapterId, reviewAfterRevision, addToast])
+
+  const jumpToQuote = useCallback((quote) => {
+    if (!quote) return
+    const root = document.querySelector('.workbench-editor')
+    if (!root) return
+
+    jumpCleanupRef.current?.()
+    jumpCleanupRef.current = null
+
+    root.querySelectorAll('.workbench-jump-highlight').forEach(el => {
+      el.classList.remove('workbench-jump-highlight')
+    })
+    document.querySelectorAll('.workbench-range-ring').forEach(el => el.remove())
+
+    const makeNormalized = (value) => value.replace(/\s+/g, '')
+    const quoteCandidates = [
+      quote,
+      ...quote.split(/\.{3,}|…+/).map(s => s.trim()).filter(s => s.length >= 8),
+    ]
+      .map(makeNormalized)
+      .filter(Boolean)
+
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode: (node) => {
+        const parent = node.parentElement
+        if (!parent) return NodeFilter.FILTER_REJECT
+        if (parent.closest('.annotation-popover')) return NodeFilter.FILTER_REJECT
+        return NodeFilter.FILTER_ACCEPT
+      },
+    })
+    const charMap = []
+    let fullText = ''
+    let node
+    while ((node = walker.nextNode())) {
+      const text = node.nodeValue || ''
+      for (let i = 0; i < text.length; i += 1) {
+        if (/\s/.test(text[i])) continue
+        charMap.push({ node, offset: i })
+        fullText += text[i]
+      }
+    }
+
+    let start = -1
+    let matchedLength = 0
+    for (const candidate of quoteCandidates) {
+      const idx = fullText.indexOf(candidate)
+      if (idx >= 0) {
+        start = idx
+        matchedLength = candidate.length
+        break
+      }
+    }
+
+    if (start >= 0 && matchedLength > 0) {
+      const first = charMap[start]
+      const last = charMap[start + matchedLength - 1]
+      if (!first || !last) return
+      const range = document.createRange()
+      range.setStart(first.node, first.offset)
+      range.setEnd(last.node, last.offset + 1)
+      const targetElement = first.node.parentElement ?? range.commonAncestorContainer.parentElement
+      targetElement?.scrollIntoView({ behavior: 'auto', block: 'center' })
+
+      const drawRings = () => {
+        document.querySelectorAll('.workbench-range-ring').forEach(el => el.remove())
+        for (const rect of range.getClientRects()) {
+          if (rect.width < 2 || rect.height < 2) continue
+          const ring = document.createElement('div')
+          ring.className = 'workbench-range-ring'
+          ring.style.left = `${rect.left - 3}px`
+          ring.style.top = `${rect.top - 3}px`
+          ring.style.width = `${rect.width + 6}px`
+          ring.style.height = `${rect.height + 6}px`
+          document.body.appendChild(ring)
+        }
+      }
+      requestAnimationFrame(() => requestAnimationFrame(drawRings))
+
+      const clear = () => {
+        document.querySelectorAll('.workbench-range-ring').forEach(el => el.remove())
+        window.removeEventListener('scroll', drawRings, true)
+        window.removeEventListener('resize', drawRings)
+      }
+      window.addEventListener('scroll', drawRings, true)
+      window.addEventListener('resize', drawRings)
+      jumpCleanupRef.current = clear
+      window.setTimeout(clear, 5200)
+      addToast?.('已定位并高亮原文', 'success')
+      return
+    }
+
+    const normalizedQuote = makeNormalized(quote)
+    const paragraphWalker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+    while ((node = paragraphWalker.nextNode())) {
+      const text = node.nodeValue || ''
+      const normalizedText = makeNormalized(text)
+      if (!normalizedText.includes(normalizedQuote)) continue
+      const parent = node.parentElement
+      if (!parent) break
+      parent.scrollIntoView({ behavior: 'auto', block: 'center' })
+      parent.classList.add('workbench-jump-highlight')
+      window.setTimeout(() => parent.classList.remove('workbench-jump-highlight'), 2600)
+      addToast?.('已定位到原文所在段落', 'success')
+      return
+    }
+    try {
+      if (window.find?.(quote)) return
+    } catch { /* quiet */ }
+    addToast?.('没有精确定位到原文，可能是段落已被修改', 'warning')
+  }, [addToast])
 
   // Task 17 — re-run the 5-reviewer editorial pipeline against the currently
   // saved draft (no Agent invocation). Locks the UI for the duration so the
@@ -170,11 +327,34 @@ export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, da
   const handleResubmit = useCallback(async () => {
     setLocked(true)
     try {
+      const reviewScope = reviewAfterRevision === 'failed_only' ? 'failed_only' : 'full'
       const r = await fetch(`/api/v1/books/${bookId}/chapters/${chapterId}/resubmit-review`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ review_scope: reviewScope }),
       })
-      if (!r.ok) throw new Error('resubmit failed')
+      if (!r.ok) {
+        const body = await r.json().catch(() => null)
+        if (body?.code === 'DRAFT_SELF_CHECK_FAILED' && body?.self_check) {
+          const issues = (body.self_check.issues ?? []).map(issue => ({
+            ...issue,
+            fix_instruction: issue.fix_instruction ?? issue.fixInstruction ?? issue.message,
+          }))
+          setSelfCheckReview({
+            overall_pass: false,
+            revision_round: null,
+            feedbacks: [{
+              reviewer: 'draft_self_check',
+              pass_status: false,
+              quick_comment: body.error,
+              issues,
+            }],
+          })
+        }
+        throw new Error(body?.error ?? 'resubmit failed')
+      }
       const result = await r.json()
+      setSelfCheckReview(null)
       setReview(result)
       addToast?.('审稿已刷新', 'success')
     } catch (e) {
@@ -182,7 +362,7 @@ export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, da
     } finally {
       setLocked(false)
     }
-  }, [bookId, chapterId, addToast])
+  }, [bookId, chapterId, reviewAfterRevision, addToast])
 
   // Task 17 — approve-button click handler. Gates through the confirm modal
   // only when there are still-open annotations; otherwise approves directly.
@@ -231,10 +411,14 @@ export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, da
   }, [bookId, chapterId])
 
   // Task 13 — detect text selections inside `.workbench-editor` and surface
-  // a popover anchored to the bottom of the selection rect. Markdown source
-  // offsets are out-of-scope for MVP (see plan Risk 1) — anchor_start/end = 0.
+  // a popover anchored to the bottom of the final selection rect. We wait
+  // until pointerup before rendering the popover; rendering it during drag
+  // interrupts native text selection in ProseMirror/Milkdown.
   useEffect(() => {
-    function onSelChange() {
+    let pointerSelecting = false
+    let ignoreSelectionChangesUntil = 0
+
+    function updateSelectionFromWindow() {
       const sel = window.getSelection()
       if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
         setSelection(null)
@@ -258,31 +442,37 @@ export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, da
         },
       })
     }
-    document.addEventListener('selectionchange', onSelChange)
-    return () => document.removeEventListener('selectionchange', onSelChange)
-  }, [])
 
-  // Task 14 — SSE stub: placeholder for Agent write events. Currently a no-op
-  // (see hook source). Real locked-state is flipped manually in Task 17.
-  useWorkbenchSSE({
-    bookId,
-    chapterId,
-    onChapterWriteStart: () => setLocked(true),
-    onChapterWriteDone: async () => {
-      // Use the ref to dodge the stale-closure on `content`.
-      const prevContent = contentRef.current
-      setLocked(false)
-      const r = await fetch(`/api/v1/books/${bookId}/chapters/${chapterId}`).then(x => x.json()).catch(() => null)
-      const newContent = r?.content ?? ''
-      setContent(newContent)
-      if (prevContent && prevContent !== newContent) {
-        setRecentAgentEdit({ rev: Date.now() % 1000, oldText: prevContent })
-      }
-    },
-    onOtherChapterWrite: (otherChId) => {
-      addToast?.(`Author 正在写 ${otherChId} → [点此跳转]`, 'info')
-    },
-  })
+    function onSelChange() {
+      if (Date.now() < ignoreSelectionChangesUntil) return
+      if (document.activeElement?.closest?.('.annotation-popover')) return
+      if (pointerSelecting) return
+      updateSelectionFromWindow()
+    }
+
+    function onPointerDown(e) {
+      const editorEl = document.querySelector('.workbench-editor')
+      if (!editorEl || !editorEl.contains(e.target)) return
+      pointerSelecting = true
+      setSelection(null)
+    }
+
+    function onPointerUp() {
+      if (!pointerSelecting) return
+      pointerSelecting = false
+      ignoreSelectionChangesUntil = Date.now() + 300
+      updateSelectionFromWindow()
+    }
+
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('pointerup', onPointerUp)
+    document.addEventListener('selectionchange', onSelChange)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('pointerup', onPointerUp)
+      document.removeEventListener('selectionchange', onSelChange)
+    }
+  }, [])
 
   if (loading) {
     return (
@@ -320,11 +510,25 @@ export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, da
             >
               <Send size={12} /> 📤 {openAnnotationCount > 0 ? `发送 ${openAnnotationCount} 条批注` : '无批注'}
             </button>
+            <select
+              className="workbench-review-select"
+              value={reviewAfterRevision}
+              disabled={locked}
+              onChange={(e) => setReviewAfterRevision(e.target.value)}
+              title="批注修改后的复审策略"
+            >
+              <option value="none">改后等我看</option>
+              <option value="failed_only">只复审未过</option>
+              <option value="full">全量复审</option>
+            </select>
             <button className="btn btn-sm" disabled={locked} onClick={handleResubmit}>
-              <RefreshCw size={12} /> 再次送审
+              <RefreshCw size={12} /> 送设定/逻辑慢审
+            </button>
+            <button className="btn btn-sm" disabled={locked} onClick={doReject}>
+              人类退回
             </button>
             <button className="btn btn-sm" disabled={locked} onClick={handleApproveClick}>
-              <Check size={12} /> {status.user_decision === 'approved' ? '已通过' : '用户通过'}
+              <Check size={12} /> {status.user_decision === 'approved' ? '已通过' : review ? '终审通过' : '人审通过'}
             </button>
           </div>
         </div>
@@ -361,7 +565,7 @@ export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, da
             key={chapterId}
             initial={content}
             readOnly={locked}
-            onChange={(md) => { setContent(md); setDirty(true) }}
+            onChange={(md) => { setContent(md); setDirty(true); setSelfCheckReview(null) }}
           />
           {selection && (
             <AnnotationPopover
@@ -394,23 +598,27 @@ export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, da
 
         {/* Status bar */}
         <div className="workbench-statusbar">
-          <span className="label-sc">{content.length} Words</span>
+          <span className="label-sc">{content.length} Chars</span>
+          <span className="label-sc" style={{ color: content.length >= MIN_REVIEW_CHARS ? 'var(--success)' : 'var(--danger)' }}>
+            送审 {content.length >= MIN_REVIEW_CHARS ? '已达标' : `需 ≥${MIN_REVIEW_CHARS}`}
+          </span>
           <span className="label-sc">{status.user_decision ?? 'Draft'}</span>
+          <span className="label-sc">
+            {status.user_decision === 'approved'
+              ? '人类已通过'
+              : review
+                ? '慢审后待人审'
+                : '待人审'}
+          </span>
         </div>
       </div>
 
       {/* Right feed — unified CommentFeed (Task 12) */}
       <aside className="workbench-feed">
         <CommentFeed
-          review={review}
+          review={selfCheckReview ?? review}
           annotations={annotations}
-          // Best-effort "jump to quote in rendered chapter" — uses the non-
-          // standard but widely-supported window.find(). Swallows any error
-          // quietly; if the browser blocks it the user just sees no scroll.
-          onJump={(quote) => {
-            if (!quote) return
-            try { window.find?.(quote) } catch { /* quiet */ }
-          }}
+          onJump={jumpToQuote}
           // Adopt a reviewer-issue into a persisted user annotation so it
           // joins the batch-send queue. anchor_start/end = 0 mirrors the
           // AnnotationPopover MVP (markdown source offsets are out-of-scope).
@@ -439,6 +647,19 @@ export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, da
           // disappears from the feed for this session. The composite id lets
           // us key it uniquely against the memoized feed items.
           onIgnore={(id) => {
+            if (selfCheckReview) {
+              setSelfCheckReview(prev => {
+                if (!prev?.feedbacks) return prev
+                const feedbacks = prev.feedbacks.map(fb => ({
+                  ...fb,
+                  issues: (fb.issues ?? []).filter(iss =>
+                    `${fb.reviewer}:${iss.quote ?? ''}:${iss.fix_instruction ?? ''}` !== id
+                  ),
+                }))
+                return { ...prev, feedbacks }
+              })
+              return
+            }
             setReview(prev => {
               if (!prev?.feedbacks) return prev
               const feedbacks = prev.feedbacks.map(fb => ({

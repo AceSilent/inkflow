@@ -59,11 +59,13 @@ describe('reviewPrevChapter — user_decision override', () => {
     expect((result as any).message).toMatch(/拒绝|rejected/)
   })
 
-  it('prev chapter user_decision=null but passing review → hook falls back and allows', () => {
+  it('prev chapter user_decision=null but passing review → hook still blocks for human final approval', () => {
     writeStatus('ch01', null)
     writeReview('ch01', true)
     const hooks = reviewPrevChapter(ctx)
     const result = hooks.interceptToolCall!('save_draft', { file_path: 'ch02.md' })
-    expect(result).toBeFalsy()
+    expect(result).toBeTruthy()
+    expect((result as any).block).toBe(true)
+    expect((result as any).message).toContain('人类')
   })
 })

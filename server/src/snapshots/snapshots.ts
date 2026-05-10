@@ -59,10 +59,17 @@ export function createSnapshot(dataDir: string, bookId: string, label: string): 
   const dest = snapPath(dataDir, bookId, id)
   fs.mkdirSync(dest, { recursive: true })
 
-  fs.cpSync(root, dest, {
-    recursive: true,
-    filter: (src) => !isExcluded(src),
-  })
+  // `dest` lives inside `root`; copying root -> dest directly throws
+  // ERR_FS_CP_EINVAL before Node applies the filter. Copy top-level entries
+  // instead so `.snapshots` can be skipped before recursion starts.
+  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+    const src = path.join(root, entry.name)
+    if (isExcluded(src)) continue
+    fs.cpSync(src, path.join(dest, entry.name), {
+      recursive: true,
+      filter: (p) => !isExcluded(p),
+    })
+  }
 
   const meta: SnapshotMeta = {
     id,

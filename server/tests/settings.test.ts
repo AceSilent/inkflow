@@ -48,6 +48,10 @@ describe('Settings route helpers', () => {
       providers: [provider],
       authorModel: 'deepseek-chat',
       editorModel: 'deepseek-reasoner',
+      reviewerModels: {
+        editorial_lore: 'deepseek/deepseek-reasoner',
+        editorial_ai_tone: 'dashscope/qwen3.6-plus',
+      },
     }
 
     saveSettings(TEST_DIR, original)
@@ -61,6 +65,8 @@ describe('Settings route helpers', () => {
     expect(loaded.providers[0].models).toEqual(['deepseek-chat', 'deepseek-reasoner'])
     expect(loaded.authorModel).toBe('deepseek-chat')
     expect(loaded.editorModel).toBe('deepseek-reasoner')
+    expect(loaded.reviewerModels?.editorial_lore).toBe('deepseek/deepseek-reasoner')
+    expect(loaded.reviewerModels?.editorial_ai_tone).toBe('dashscope/qwen3.6-plus')
   })
 
   it('should mask API keys in GET response', () => {

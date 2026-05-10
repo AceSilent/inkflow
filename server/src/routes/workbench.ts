@@ -13,11 +13,14 @@ import {
   updateAnnotationSchema,
   setStatusBodySchema,
   sendAnnotationsBodySchema,
+  resubmitReviewBodySchema,
   type Annotation,
   type ChapterStatus,
 } from './schemas.js'
 import { sanitizePathSegment } from '../utils/path-sanitizer.js'
 import { ensureDir, safeReadJson, writeJson } from '../utils/file-io.js'
+import { MIN_REVIEW_DRAFT_CHARS } from '../tools/write-tools.js'
+import { formatDraftSelfCheck, runDraftSelfCheck } from '../tools/draft-self-check.js'
 
 interface WorkbenchOptions {
   dataDir: string
@@ -49,7 +52,12 @@ function nanoId(): string {
   return 'ann_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4)
 }
 
-function buildAnnotationPrompt(chId: string, _draftText: string, annotations: Annotation[]): string {
+function buildAnnotationPrompt(
+  chId: string,
+  _draftText: string,
+  annotations: Annotation[],
+  reviewAfterRevision: 'none' | 'failed_only' | 'full' = 'none',
+): string {
   const lines: string[] = [
     `请根据以下批注修改第 ${chId} 章（原文在 04_Drafts/${chId}.md）。`,
     '',
@@ -62,7 +70,20 @@ function buildAnnotationPrompt(chId: string, _draftText: string, annotations: An
     lines.push(`  评论：${a.comment}`)
     lines.push('')
   })
-  lines.push('请修改后用 save_draft 保存新版本，然后告知哪些批注已处理。')
+  lines.push(
+    `请先 load_skill("chapter_edit")，优先做局部编辑和必要扩写，保留已经成立的段落、语气和伏笔；只有结构整体失效时才 load_skill("chapter_rewrite") 整章重写。`,
+  )
+  lines.push(
+    `修改后用 save_draft 保存完整新版本。保存稿必须不少于 ${MIN_REVIEW_DRAFT_CHARS} 字符。`,
+  )
+  if (reviewAfterRevision === 'failed_only') {
+    lines.push('保存后调用 submit_to_editorial，并传 review_scope: "failed_only"、reset_auto_revision_budget: true，只复审上一轮未过的设定/逻辑审稿人；慢审通过后仍等待人类终审。')
+  } else if (reviewAfterRevision === 'full') {
+    lines.push('保存后调用 submit_to_editorial，并传 review_scope: "full"、reset_auto_revision_budget: true，重新跑设定考据和逻辑审核。慢审通过后仍等待人类终审。')
+  } else {
+    lines.push('保存后不要再次送审，先停下来向我汇报改了什么，等待我人工确认或另行要求送审。')
+  }
+  lines.push('最后告知哪些批注已处理，哪些未处理以及原因。')
   return lines.join('\n')
 }
 
@@ -147,9 +168,22 @@ export const workbenchRoutes: FastifyPluginAsync<WorkbenchOptions> = async (app,
       const body = setStatusBodySchema.parse(req.body)
       const file = statusFile(dataDir, bookId, chId)
       ensureDir(path.dirname(file))
+      const existing = safeReadJson<ChapterStatus>(file)
+      const humanGate = { ...(existing?.human_gate ?? {}) }
+      if (body.gate === 'pre_review') {
+        humanGate.pre_review_decision = body.pre_review_decision ?? (
+          body.user_decision === 'approved' ? 'approved' : 'needs_revision'
+        )
+      } else if (body.gate === 'post_review') {
+        humanGate.post_review_decision = body.post_review_decision ?? (
+          body.user_decision === 'approved' ? 'approved' : 'needs_revision'
+        )
+      }
+      if (body.note) humanGate.note = body.note
       const status: ChapterStatus = {
         chapter_id: chId,
         user_decision: body.user_decision,
+        human_gate: Object.keys(humanGate).length > 0 ? humanGate : undefined,
         decided_at: body.user_decision ? new Date().toISOString() : undefined,
         note: body.note,
       }
@@ -181,7 +215,7 @@ export const workbenchRoutes: FastifyPluginAsync<WorkbenchOptions> = async (app,
       const draftText = fs.existsSync(draftFile) ? fs.readFileSync(draftFile, 'utf8') : ''
       const batchId =
         'batch_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
-      const promptText = buildAnnotationPrompt(chId, draftText, chosen)
+      const promptText = buildAnnotationPrompt(chId, draftText, chosen, body.review_after_revision)
       const now = new Date().toISOString()
       const chosenIds = new Set(chosen.map((a) => a.id))
       const updated: Annotation[] = all.map((a) =>
@@ -216,9 +250,30 @@ export const workbenchRoutes: FastifyPluginAsync<WorkbenchOptions> = async (app,
         return reply.code(400).send({ error: `Draft ${safeCh}.md not found.` })
       }
       const draftText = fs.readFileSync(draftFile, 'utf8')
+      if (draftText.length < MIN_REVIEW_DRAFT_CHARS) {
+        return reply.code(400).send({
+          error: `Draft ${safeCh}.md has ${draftText.length} chars; minimum for editorial review is ${MIN_REVIEW_DRAFT_CHARS}.`,
+          code: 'DRAFT_TOO_SHORT_FOR_REVIEW',
+          current_chars: draftText.length,
+          minimum_chars: MIN_REVIEW_DRAFT_CHARS,
+        })
+      }
+      const selfCheck = runDraftSelfCheck(draftText, {
+        minReviewChars: MIN_REVIEW_DRAFT_CHARS,
+        bookDir,
+      })
+      if (selfCheck.blockEditorial) {
+        return reply.code(400).send({
+          error: '保存草稿未通过本地快速自检，暂不进入慢审稿。',
+          code: 'DRAFT_SELF_CHECK_FAILED',
+          self_check: selfCheck,
+          message: formatDraftSelfCheck(selfCheck),
+        })
+      }
       const meta = safeReadJson<{ tone?: string; genre?: string }>(
         path.join(bookDir, '00_Config', 'book_meta.json'),
       ) ?? {}
+      const body = resubmitReviewBodySchema.parse(req.body ?? {})
 
       const { runEditorialPipelineForChapter } = await import('../editorial/editorial.js')
       const result = await runEditorialPipelineForChapter({
@@ -227,6 +282,9 @@ export const workbenchRoutes: FastifyPluginAsync<WorkbenchOptions> = async (app,
         draftText,
         bookTone: meta.tone,
         bookGenre: meta.genre,
+        reviewScope: body?.review_scope,
+        reviewers: body?.reviewers ?? ['editorial_lore', 'editorial_causality'],
+        resetAutoRevisionBudget: true,
       })
       return reply.code(200).send(result)
     } catch (e) {

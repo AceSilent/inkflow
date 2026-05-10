@@ -17,9 +17,14 @@ import {
   updateNode,
 } from '../services/plot-graph.js'
 import { NODE_TYPES, EDGE_TYPES } from '../routes/schemas.js'
+import { appendAuditLog } from './safety.js'
 
 const bookDirOf = (ctx: { dataDir: string; bookId: string }) =>
   path.join(ctx.dataDir, ctx.bookId)
+
+function auditPlotTool(ctx: { dataDir: string; bookId: string }, toolName: string, args: Record<string, unknown>, result: string, success: boolean): void {
+  appendAuditLog(path.join(bookDirOf(ctx), 'audit_log.jsonl'), toolName, args, result, success)
+}
 
 export const readGraphTool: ToolDefinition = {
   name: 'read_graph',
@@ -63,9 +68,13 @@ export const addPlotNodeTool: ToolDefinition = {
         characters: chars,
         status: 'draft',
       })
-      return `Node created: ${node.id} (type=${node.type}, title="${node.title}")`
+      const result = `Node created: ${node.id} (type=${node.type}, title="${node.title}")`
+      auditPlotTool(ctx, 'add_plot_node', args, result, true)
+      return result
     } catch (e) {
-      return `Error: ${(e as Error).message}`
+      const result = `Error: ${(e as Error).message}`
+      auditPlotTool(ctx, 'add_plot_node', args, result, false)
+      return result
     }
   },
 }
@@ -88,9 +97,13 @@ export const addEdgeTool: ToolDefinition = {
   execute: async (args, ctx) => {
     try {
       const edge = addEdge(bookDirOf(ctx), args)
-      return `Edge created: ${edge.id} (${args.from} --${args.type}--> ${args.to})`
+      const result = `Edge created: ${edge.id} (${args.from} --${args.type}--> ${args.to})`
+      auditPlotTool(ctx, 'add_edge', args, result, true)
+      return result
     } catch (e) {
-      return `Error: ${(e as Error).message}`
+      const result = `Error: ${(e as Error).message}`
+      auditPlotTool(ctx, 'add_edge', args, result, false)
+      return result
     }
   },
 }
@@ -102,8 +115,16 @@ export const removeEdgeTool: ToolDefinition = {
   permissionLevel: 'write',
   category: '剧情图',
   execute: async ({ edge_id }, ctx) => {
-    removeEdge(bookDirOf(ctx), edge_id)
-    return `Edge ${edge_id} removed.`
+    try {
+      removeEdge(bookDirOf(ctx), edge_id)
+      const result = `Edge ${edge_id} removed.`
+      auditPlotTool(ctx, 'remove_edge', { edge_id }, result, true)
+      return result
+    } catch (e) {
+      const result = `Error: ${(e as Error).message}`
+      auditPlotTool(ctx, 'remove_edge', { edge_id }, result, false)
+      return result
+    }
   },
 }
 
@@ -149,9 +170,13 @@ export const confirmPathTool: ToolDefinition = {
   execute: async ({ node_id }, ctx) => {
     try {
       updateNode(bookDirOf(ctx), node_id, { status: 'confirmed' })
-      return `Node ${node_id} confirmed.`
+      const result = `Node ${node_id} confirmed.`
+      auditPlotTool(ctx, 'confirm_path', { node_id }, result, true)
+      return result
     } catch (e) {
-      return `Error: ${(e as Error).message}`
+      const result = `Error: ${(e as Error).message}`
+      auditPlotTool(ctx, 'confirm_path', { node_id }, result, false)
+      return result
     }
   },
 }
@@ -168,9 +193,13 @@ export const pruneBranchTool: ToolDefinition = {
   execute: async ({ node_id, reason }, ctx) => {
     try {
       updateNode(bookDirOf(ctx), node_id, { status: 'pruned', pruned_reason: reason })
-      return `Node ${node_id} pruned.`
+      const result = `Node ${node_id} pruned.`
+      auditPlotTool(ctx, 'prune_branch', { node_id, reason }, result, true)
+      return result
     } catch (e) {
-      return `Error: ${(e as Error).message}`
+      const result = `Error: ${(e as Error).message}`
+      auditPlotTool(ctx, 'prune_branch', { node_id, reason }, result, false)
+      return result
     }
   },
 }
@@ -194,9 +223,13 @@ export const mergeBranchesTool: ToolDefinition = {
         characters: [],
         status: 'confirmed',
       })
-      return `Convergence node created: ${node.id}. Use add_edge from each branch to link them.`
+      const result = `Convergence node created: ${node.id}. Use add_edge from each branch to link them.`
+      auditPlotTool(ctx, 'merge_branches', { convergence_title, description }, result, true)
+      return result
     } catch (e) {
-      return `Error: ${(e as Error).message}`
+      const result = `Error: ${(e as Error).message}`
+      auditPlotTool(ctx, 'merge_branches', { convergence_title, description }, result, false)
+      return result
     }
   },
 }

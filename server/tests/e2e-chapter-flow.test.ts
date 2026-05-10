@@ -103,10 +103,10 @@ describe('Full chapter flow: lore → outline → draft → editorial', () => {
     )
     expect(outlineResult).toContain('Outline saved')
 
-    // 4. save_draft (must clear MIN_DRAFT_CHARS = 800)
+    // 4. save_draft (must clear the editorial review minimum).
     const draftBody = '# 第一章 重生归来\n\n' +
-      '林辰睁开眼，看着熟悉的茅屋顶。'.repeat(60)
-    expect(draftBody.length).toBeGreaterThan(800)
+      '林辰睁开眼，看着熟悉的茅屋顶。'.repeat(180)
+    expect(draftBody.length).toBeGreaterThan(2500)
     const draftResult = await registry.execute(
       'save_draft',
       { file_path: 'ch01.md', content: draftBody },
@@ -115,7 +115,8 @@ describe('Full chapter flow: lore → outline → draft → editorial', () => {
     expect(draftResult).toContain('saved')
     expect(fs.existsSync(path.join(tmpDir, bookId, '04_Drafts', 'ch01.md'))).toBe(true)
 
-    // 5. submit_to_editorial — this triggers all 5 reviewers (mocked LLM).
+    // 5. submit_to_editorial — this triggers the default machine reviewers
+    // (lore + causality; mocked LLM).
     const editorialResult = await registry.execute(
       'submit_to_editorial',
       {
@@ -129,13 +130,11 @@ describe('Full chapter flow: lore → outline → draft → editorial', () => {
     )
     const parsed = JSON.parse(editorialResult)
     expect(parsed.overall_pass).toBe(true)
+    expect(parsed.requires_human_approval).toBe(true)
     expect(parsed.revision_round).toBe(1)
-    expect(parsed.feedbacks).toHaveLength(5)
+    expect(parsed.feedbacks).toHaveLength(2)
     const reviewerNames = parsed.feedbacks.map((f: any) => f.reviewer)
     expect(reviewerNames).toContain('editorial_lore')
-    expect(reviewerNames).toContain('editorial_pacing')
-    expect(reviewerNames).toContain('editorial_ai_tone')
-    expect(reviewerNames).toContain('editorial_character')
     expect(reviewerNames).toContain('editorial_causality')
 
     // 6. The persisted review file should have the same shape + history bookkeeping.
@@ -145,7 +144,7 @@ describe('Full chapter flow: lore → outline → draft → editorial', () => {
     expect(reviewFile.revision_round).toBe(1)
     expect(reviewFile.issue_history).toBeTruthy()
     expect(Object.keys(reviewFile.issue_history).length).toBeGreaterThan(0)
-    expect(reviewFile.feedbacks).toHaveLength(5)
+    expect(reviewFile.feedbacks).toHaveLength(2)
   })
 
   it('should inject lore + outline context into reviewer prompts (P0-1 regression guard)', async () => {
@@ -174,15 +173,15 @@ describe('Full chapter flow: lore → outline → draft → editorial', () => {
       }),
     }, ctx)
 
-    const draft = '正文'.repeat(500)
+    const draft = '正文'.repeat(1300)
     await registry.execute('save_draft', { file_path: 'ch02.md', content: draft }, ctx)
     await registry.execute('submit_to_editorial', {
       draft_text: draft,
       chapter_id: 'ch02',
     }, ctx)
 
-    // 5 reviewers × 1 prompt each.
-    expect(seenPrompts.length).toBeGreaterThanOrEqual(5)
+    // Default machine reviewers × 1 prompt each.
+    expect(seenPrompts.length).toBeGreaterThanOrEqual(2)
     const allPrompts = seenPrompts.join('\n=====\n')
 
     // Lore content must reach the lore reviewer's prompt.
@@ -198,6 +197,17 @@ describe('Full chapter flow: lore → outline → draft → editorial', () => {
 
   it('should increment revision_round + flag persistent issues across rounds', async () => {
     const { createAllTools } = await import('../src/tools/index.js')
+    const { generateText } = await import('ai')
+    vi.mocked(generateText).mockImplementation(async (opts: { prompt: string }) => {
+      seenPrompts.push(opts.prompt)
+      return {
+        text: JSON.stringify({
+          pass_status: false,
+          issues: [{ type: 'Camera_Blocking_Density', severity: 4, fix_instruction: '删开篇镜头链' }],
+          quick_comment: 'mocked fail',
+        }),
+      } as any
+    })
     const registry = createAllTools()
     const ctx = { bookId, dataDir: tmpDir }
 
@@ -213,7 +223,7 @@ describe('Full chapter flow: lore → outline → draft → editorial', () => {
         }],
       }),
     }, ctx)
-    const draft = '正文'.repeat(500)
+    const draft = '正文'.repeat(1300)
     await registry.execute('save_draft', { file_path: 'ch01.md', content: draft }, ctx)
 
     // Three consecutive submissions — same canned reviewer issue → persistent
@@ -227,6 +237,10 @@ describe('Full chapter flow: lore → outline → draft → editorial', () => {
       { draft_text: draft, chapter_id: 'ch01' }, ctx))
     expect(r2.revision_round).toBe(2)
     expect(r2.persistent_issues).toEqual([])
+    expect(r2.revision_strategy.action).toBe('stop_auto_revision')
+    expect(r2.revision_strategy.auto_revision.exhausted).toBe(true)
+    expect(r2.summary).toContain('停止自动重写')
+    expect(r2.summary).toContain('不要继续保存草稿或再次送审')
 
     const r3 = JSON.parse(await registry.execute('submit_to_editorial',
       { draft_text: draft, chapter_id: 'ch01' }, ctx))
@@ -234,5 +248,12 @@ describe('Full chapter flow: lore → outline → draft → editorial', () => {
     expect(r3.persistent_issues.length).toBeGreaterThan(0)
     expect(r3.summary).toContain('收敛警告')
     expect(r3.summary).toContain('request_guidance')
+
+    const rReset = JSON.parse(await registry.execute('submit_to_editorial',
+      { draft_text: draft, chapter_id: 'ch01', reset_auto_revision_budget: true }, ctx))
+    expect(rReset.revision_round).toBe(1)
+    expect(rReset.persistent_issues).toEqual([])
+    expect(rReset.revision_strategy.auto_revision.current_round).toBe(1)
+    expect(rReset.revision_strategy.action).not.toBe('stop_auto_revision')
   })
 })

@@ -66,6 +66,23 @@ describe('buildAuthorPrompt', () => {
     expect(prompt).toContain('并发')
     expect(prompt).toMatch(/read_file|read_graph/)
   })
+
+  it('should include creative stage when provided', () => {
+    const prompt = buildAuthorPrompt({ creativeStage: '当前阶段：剧情图' })
+    expect(prompt).toContain('# 创作阶段')
+    expect(prompt).toContain('当前阶段：剧情图')
+    expect(prompt).toContain('阶段推进')
+  })
+
+  it('should front-load common AI-tone prohibitions before drafting', () => {
+    const prompt = buildAuthorPrompt({})
+    expect(prompt).toContain('正文生成硬门槛')
+    expect(prompt).toContain('密集镜头编排')
+    expect(prompt).toContain('破折号')
+    expect(prompt).toContain('强排比')
+    expect(prompt).toContain('后置说明')
+    expect(prompt).toContain('行动链')
+  })
 })
 
 describe('Brainstorm Prompt', () => {

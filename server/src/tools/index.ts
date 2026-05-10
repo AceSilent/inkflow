@@ -18,6 +18,7 @@ import {
 } from './plot-graph.js'
 import { submitForReviewTool, presentOptionsTool, requestGuidanceTool } from './terminal.js'
 import { loadSkillTool, listSkillsTool } from './skills.js'
+import { analyzeStyleProfileTool, browseExamplesTool } from './examples.js'
 import { submitToEditorialTool } from '../editorial/editorial.js'
 
 export function createAllTools(): ToolRegistry {
@@ -51,6 +52,8 @@ export function createAllTools(): ToolRegistry {
   // Skill tools
   registry.register(loadSkillTool)
   registry.register(listSkillsTool)
+  registry.register(browseExamplesTool)
+  registry.register(analyzeStyleProfileTool)
 
   // Editorial tools
   registry.register(submitToEditorialTool)

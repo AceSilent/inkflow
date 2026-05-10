@@ -125,6 +125,9 @@ describe('Settings Save/Load with Validated Data', () => {
       }],
       authorModel: 'test-provider/model-a',
       editorModel: 'test-provider/model-b',
+      reviewerModels: {
+        editorial_lore: 'test-provider/model-b',
+      },
     }
 
     saveSettings(TEST_DIR, settings)
@@ -134,6 +137,7 @@ describe('Settings Save/Load with Validated Data', () => {
     expect(loaded.providers[0].id).toBe('test-provider')
     expect(loaded.providers[0].apiKey).toBe('sk-test-key-12345')
     expect(loaded.authorModel).toBe('test-provider/model-a')
+    expect(loaded.reviewerModels?.editorial_lore).toBe('test-provider/model-b')
   })
 
   it('should mask API keys correctly for display', () => {
