@@ -248,7 +248,7 @@ const zh = {
   'memory.pending': '待审核',
   'memory.active': '已激活',
   'memory.archived': '已归档',
-  'memory.addManual': '📝 手动添加记忆',
+  'memory.addManual': '手动添加记忆',
 
   // Plot Graph
   'plotGraph.addNode': '节点',
@@ -590,7 +590,7 @@ const en = {
   'memory.pending': 'Pending',
   'memory.active': 'Active',
   'memory.archived': 'Archived',
-  'memory.addManual': '📝 Add memory manually',
+  'memory.addManual': 'Add memory manually',
 
   // Plot Graph
   'plotGraph.addNode': 'Node',

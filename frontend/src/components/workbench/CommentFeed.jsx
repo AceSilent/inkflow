@@ -150,7 +150,7 @@ export function CommentFeed({ review, annotations, onJump, onAdopt, onIgnore, on
 
       {openAnnotationCount > 0 && (
         <button className="btn btn-sm" style={{ width: '100%', marginBottom: 8 }} onClick={onSendBatch}>
-          📤 发送 {openAnnotationCount} 条批注给 Author
+          发送 {openAnnotationCount} 条批注给 Author
         </button>
       )}
 

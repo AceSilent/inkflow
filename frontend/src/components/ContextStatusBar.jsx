@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react'
 import { useI18n } from '../hooks/useI18n'
 
 const TIER_STYLE = {
-  green:  { color: 'var(--success)', icon: '🟢' },
-  yellow: { color: 'var(--warning)', icon: '🟡' },
-  orange: { color: '#d07020',        icon: '🟠' },
-  red:    { color: 'var(--danger)',  icon: '🚨' },
+  green:  { color: 'var(--success)', label: 'OK' },
+  yellow: { color: 'var(--warning)', label: 'WARN' },
+  orange: { color: '#d07020',        label: 'HIGH' },
+  red:    { color: 'var(--danger)',  label: 'FULL' },
 }
 
 export function ContextStatusBar({ bookId }) {
@@ -40,7 +40,7 @@ export function ContextStatusBar({ bookId }) {
 
   return (
     <div className="context-status-bar" style={{ color: style.color }}>
-      <span>{style.icon} Context · {pct}% used · {state.tokens_used}/{state.window_size} tokens</span>
+      <span>{style.label} · Context · {pct}% used · {state.tokens_used}/{state.window_size} tokens</span>
       {tier === 'red' && (
         <span className="context-red-banner">
           Context 已达 100%。下一轮将强制 compact。

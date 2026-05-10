@@ -255,7 +255,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
             } else if (evt.type === 'heartbeat') {
               setStreamingMsg(prev => ({ ...prev, idleMs: evt.idle_ms }))
             } else if (evt.type === 'tip') {
-              addToast?.(`💡 ${evt.title}：${evt.message}`, evt.severity === 'warning' ? 'warning' : 'info')
+              addToast?.(`${evt.title}：${evt.message}`, evt.severity === 'warning' ? 'warning' : 'info')
             } else if (evt.type === 'thinking_start') {
               flushContent()
               segments.push({ type: 'thinking', text: '', streaming: true })
@@ -316,7 +316,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
                 setMessages(prev => [...prev, {
                   id: `ctx_cp_${Date.now()}`,
                   role: 'system_notice',
-                  content: `📚 已压缩 ${d.compactedCount} 条早期消息到会话摘要`,
+                  content: `已压缩 ${d.compactedCount} 条早期消息到会话摘要`,
                 }])
               }
             } else if (evt.type === 'done') {

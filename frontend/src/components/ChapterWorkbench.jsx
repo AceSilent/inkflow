@@ -293,7 +293,7 @@ export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, da
               disabled={openAnnotationCount === 0 || locked}
               onClick={handleSendBatch}
             >
-              <Send size={12} /> 📤 {openAnnotationCount > 0 ? `发送 ${openAnnotationCount} 条批注` : '无批注'}
+              <Send size={12} /> {openAnnotationCount > 0 ? `发送 ${openAnnotationCount} 条批注` : '无批注'}
             </button>
             <select
               className="workbench-review-select"
