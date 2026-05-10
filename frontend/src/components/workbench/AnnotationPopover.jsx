@@ -1,6 +1,5 @@
-// Task 13 — small popover that appears near a text selection in the editor
-// and lets the user attach a comment. Positioned absolutely inside a
-// relatively-positioned `.workbench-editor` container by the parent.
+// Small popover anchored to a selected editor range; the parent owns absolute
+// positioning inside the relatively positioned `.workbench-editor` container.
 import { useState } from 'react'
 import { X, Check } from 'lucide-react'
 

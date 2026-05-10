@@ -230,10 +230,8 @@ export const workbenchRoutes: FastifyPluginAsync<WorkbenchOptions> = async (app,
     }
   })
 
-  // Re-submit an already-saved draft to the Editorial department WITHOUT going
-  // through the Author Agent — used by the workbench "Re-review" button so a
-  // human can re-run the same 5-reviewer pipeline after editing the draft
-  // directly. The Agent path (submit_to_editorial tool) runs exactly the same
+  // Re-submit an already-saved draft to the Editorial department without going
+  // through the Author Agent. The Agent path uses the same
   // runEditorialPipelineForChapter() helper, so both entry points converge.
   //
   // Dynamic import of ../editorial/editorial.js is deliberate: it lets vitest

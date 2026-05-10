@@ -5,6 +5,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import fs from 'fs'
 import path from 'path'
 import { type EditorialResult } from '../src/editorial/pipeline.js'
+import { persistReview } from '../src/editorial/review-persistence.js'
 
 const TEST_DIR = path.join(process.cwd(), '__test_review_persist__')
 
@@ -22,26 +23,6 @@ beforeEach(() => {
 afterEach(() => {
   cleanDir()
 })
-
-// Same logic as editorial.ts persistReview
-function persistReview(
-  dataDir: string,
-  bookId: string,
-  chapterId: string,
-  result: EditorialResult,
-): void {
-  const draftsDir = path.join(dataDir, bookId, '04_Drafts')
-  if (!fs.existsSync(draftsDir)) {
-    fs.mkdirSync(draftsDir, { recursive: true })
-  }
-  const reviewPath = path.join(draftsDir, `review_${chapterId}.json`)
-  fs.writeFileSync(reviewPath, JSON.stringify({
-    overall_pass: result.overall_pass,
-    feedbacks: result.feedbacks,
-    merged_summary: result.merged_summary,
-    reviewed_at: new Date().toISOString(),
-  }, null, 2), 'utf-8')
-}
 
 // Same logic as data.ts readReview
 function readReview(dataDir: string, bookId: string, chapterId: string): any {
@@ -126,7 +107,8 @@ describe('Review Persistence', () => {
 
     const saved = readReview(TEST_DIR, 'book-3', 'ch-1')
     expect(saved.overall_pass).toBe(true)
-    expect(saved.merged_summary).toBe('Second review - passed')
+    expect(saved.revision_round).toBe(2)
+    expect(saved.reviewed_at).toBeTruthy()
   })
 
   it('should persist passing review result', () => {
@@ -148,6 +130,7 @@ describe('Review Persistence', () => {
     const saved = readReview(TEST_DIR, 'book-4', 'ch-final')
     expect(saved.overall_pass).toBe(true)
     expect(saved.feedbacks).toHaveLength(3)
+    expect(saved.revision_strategy.action).toBe('none')
     expect(saved.reviewed_at).toBeTruthy()
   })
 

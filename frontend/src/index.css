@@ -573,7 +573,7 @@ button { font-family: var(--font-body); cursor: pointer; }
 }
 .markdown-chat a { color: var(--accent); text-decoration: underline; }
 
-/* ===== Chapter Workbench shell (Task 10) ===== */
+/* ===== Chapter Workbench shell ===== */
 .workbench {
   display: grid;
   grid-template-columns: 40px 1fr 230px;
@@ -654,7 +654,7 @@ button { font-family: var(--font-body); cursor: pointer; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .anim-spin { animation: spin 1.2s linear infinite; }
 
-/* ── CommentFeed (Task 12) ─────────────────────────────────────────── */
+/* ── CommentFeed ───────────────────────────────────────────────────── */
 .comment-feed { display: flex; flex-direction: column; gap: 6px; }
 .comment-filter { display: flex; gap: 4px; margin-bottom: 8px; }
 .filter-chip {
@@ -690,7 +690,7 @@ button { font-family: var(--font-body); cursor: pointer; }
   background: var(--bg); color: var(--ink-secondary); cursor: pointer;
 }
 
-/* ── AnnotationPopover (Task 13) ───────────────────────────────────── */
+/* ── AnnotationPopover ──────────────────────────────────────────────── */
 .annotation-popover {
   background: var(--bg-elevated);
   border: 1px solid var(--border-strong);
@@ -728,7 +728,7 @@ button { font-family: var(--font-body); cursor: pointer; }
 .approval-modal h3 { margin: 0 0 10px; }
 .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
 
-/* ─── Agent-edited banner (Task 16) ─── */
+/* ─── Agent-edited banner ─── */
 .workbench-banner {
   background: var(--accent-soft);
   color: var(--ink);
@@ -741,7 +741,7 @@ button { font-family: var(--font-body); cursor: pointer; }
   padding: 2px 8px; font-size: 10px; cursor: pointer;
 }
 
-/* ─── OutlineView (Task 4) ─────────────────────────────────────────── */
+/* ─── OutlineView ──────────────────────────────────────────────────── */
 .outline-view {
   height: 100%; overflow-y: auto;
   background: var(--bg);
@@ -788,7 +788,7 @@ button { font-family: var(--font-body); cursor: pointer; }
 .chapter-status.draft { color: var(--warning); }
 .chapter-status.done { color: var(--success); }
 
-/* ─── EditableField (Task 5) ─────────────────────────────────────── */
+/* ─── EditableField ────────────────────────────────────────────────── */
 .editable-display {
   cursor: text;
   border-bottom: 1px dashed transparent;
@@ -816,7 +816,7 @@ button { font-family: var(--font-body); cursor: pointer; }
 .editable-input:focus { border-color: var(--accent); }
 textarea.editable-input { resize: vertical; font-family: var(--font-body); }
 
-/* ─── Outline Locked Overlay (Task 9) ─────────────────────────────── */
+/* ─── Outline Locked Overlay ───────────────────────────────────────── */
 .outline-locked-overlay {
   position: absolute; inset: 0;
   background: rgba(244, 237, 224, 0.7);
@@ -827,7 +827,7 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
 [data-theme="dark"] .outline-locked-overlay { background: rgba(31, 23, 18, 0.7); }
 .outline-view { position: relative; }
 
-/* ─── Plot Graph View (Task 7) ────────────────────────────────────── */
+/* ─── Plot Graph View ──────────────────────────────────────────────── */
 .plot-graph-view {
   height: 100%;
   display: flex;
@@ -913,7 +913,7 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
 .plot-node-turning_point .plot-node-type { color: var(--gold, var(--accent)); }
 .plot-node-turning_point .plot-node-title { color: var(--bg); }
 
-/* ─── Node Detail Drawer (Task 9) ─────────────────────────────────── */
+/* ─── Node Detail Drawer ───────────────────────────────────────────── */
 .node-drawer {
   position: absolute;
   top: 50px;

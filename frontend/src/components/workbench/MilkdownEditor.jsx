@@ -1,7 +1,5 @@
-// Milkdown wrapper (Task 11) — thin adapter over @milkdown/react v7.20 for the
-// chapter workbench. The parent controls initial markdown via `initial`; every
-// keystroke flows back through `onChange(markdown)`. Read-only behaviour is
-// delegated to the workbench shell (pointer-events CSS while Agent is writing).
+// Thin Milkdown adapter for the chapter workbench. The parent controls initial
+// markdown via `initial`; every keystroke flows back through `onChange`.
 import { useEffect, useRef } from 'react'
 import { Editor, rootCtx, defaultValueCtx } from '@milkdown/kit/core'
 import { commonmark } from '@milkdown/kit/preset/commonmark'

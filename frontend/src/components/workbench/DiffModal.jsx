@@ -1,4 +1,3 @@
-// Task 16 — DiffModal: view Agent's just-made change.
 // Intentionally avoids a real diff algorithm (no deps); renders both sides
 // line-by-line and tints lines whose index content differs.
 export function DiffModal({ open, oldText, newText, onClose }) {

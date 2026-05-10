@@ -185,9 +185,9 @@ export function rewriteIndex(dataDir: string, bucketDir: string): void {
   for (const f of fs.readdirSync(dir)) {
     if (!f.endsWith('.md') || f === 'MEMORY.md') continue
     const raw = fs.readFileSync(path.join(dir, f), 'utf8')
-    const { frontmatter } = parseMarkdownMemory(raw)
+    const { frontmatter, body } = parseMarkdownMemory(raw)
     if (!frontmatter) continue
-    const title = frontmatter.type  // TODO extract H1 from body if needed
+    const title = body.match(/^#\s+(.+)$/m)?.[1]?.trim() || frontmatter.type
     entries.push(`- [${title}](${f}) — conf ${frontmatter.confidence.toFixed(2)}, ${frontmatter.created_at.slice(0, 10)}`)
   }
   const indexContent = `# Active memories · ${bucketDir}\n\n${entries.join('\n')}\n`

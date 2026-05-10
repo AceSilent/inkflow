@@ -9,7 +9,7 @@
  * Stale locks (> 10 minutes, e.g. tab closed without unlock) are cleaned up
  * and treated as absent — the Agent is allowed to proceed.
  *
- * Hook shape matches the Task 8 spec in the chapter-workbench plan:
+ * Hook shape:
  *   `{ interceptToolCall({ toolName, args }) => Promise<string | null> }`
  * — distinct from the ToolHooks composition shape. agent-loop.ts adapts it
  * into the ToolHooks chain.
