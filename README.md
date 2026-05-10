@@ -1,64 +1,69 @@
 # InkFlow
 
-InkFlow is a local-first AI novel authoring studio. It combines a TypeScript backend, a Vite frontend, an Author Agent tool loop, chapter drafting, project lore, outline management, plot graph tracking, self-checks, and editorial review.
+InkFlow 是一个本地优先的 AI 小说创作工作台。它提供 Web UI、TypeScript 后端、作者 Agent 工具链、设定库、大纲、剧情图、章节草稿、自检和编辑审稿流程，适合个人长期创作项目。
 
-The project is designed for personal writing workflows. Book data, memories, drafts, reviews, and settings are stored on disk instead of in a database, so closing and reopening the app preserves state.
+InkFlow is a local-first AI novel authoring studio with a web UI, TypeScript backend, Author Agent tool loop, lore management, outlines, plot graph tracking, draft self-checks, and editorial review.
 
-## Features
+## 功能 / Features
+
+- 通过 Web UI 创建和管理小说项目。
+- 与作者 Agent 对话，生成设定、大纲、剧情图和章节草稿。
+- 草稿保存前执行自检，拦截常见 AI 腔、字数不足和格式问题。
+- 支持设定考据、逻辑审核等慢审流程。
+- 书籍数据、草稿、审稿结果和设置默认保存在本地文件中，关闭重开后可恢复状态。
 
 - Create and manage novel projects from the web UI.
 - Chat with the Author Agent to build lore, outlines, plot graphs, and chapter drafts.
-- Save drafts through controlled tools with backups and audit logs.
-- Run draft self-checks before slow editorial review.
-- Review chapters with configurable lore and logic reviewers.
-- Keep provider settings local in `.env` or runtime `settings.json`.
+- Run draft self-checks before review.
+- Review chapters with configurable editorial reviewers.
+- Store book data, drafts, reviews, and settings locally on disk.
 
-## Requirements
+## 环境要求 / Requirements
 
-- Node.js 22 or newer
+- Node.js 22 或更新版本
 - npm
-- Windows PowerShell for the bundled `start.cmd` / `npm start` launcher
+- Windows PowerShell（用于 `start.cmd` / `npm start` 启动脚本）
 
-## Quick Start
+## 快速开始 / Quick Start
 
-Install dependencies:
+安装依赖：
 
 ```powershell
 npm run install:all
 ```
 
-Create local configuration:
+创建本地配置：
 
 ```powershell
 copy .env.example .env
 ```
 
-Edit `.env` with your OpenAI-compatible provider settings. Do not commit real API keys.
+编辑 `.env`，填入你的 OpenAI-compatible 模型服务配置。不要提交真实 API key。
 
-Start the app:
+启动应用：
 
 ```powershell
 npm start
 ```
 
-On Windows, you can also double-click:
+Windows 下也可以双击：
 
 ```text
 start.cmd
 ```
 
-The launcher starts:
+启动后访问：
 
 - Backend: `http://127.0.0.1:3001`
 - Frontend: `http://127.0.0.1:5173`
 
-By default, runtime data is stored in the repository root `books/` directory.
+默认运行数据保存在仓库根目录的 `books/`。
 
-## Configuration
+## 配置 / Configuration
 
-InkFlow supports OpenAI-compatible providers through environment variables and the Settings UI.
+InkFlow 支持 OpenAI-compatible 服务，可通过 `.env` 或设置页面配置。
 
-Common `.env` variables:
+常用 `.env` 示例：
 
 ```env
 OPENAI_API_KEY=your_api_key_here
@@ -68,16 +73,16 @@ EDITOR_MODEL=provider/editor-model-name
 AUTONOVEL_DATA_DIR=books
 ```
 
-The startup script maps these compatibility variables for the TypeScript backend:
+启动脚本会自动映射兼容变量：
 
 - `OPENAI_API_KEY` -> `LLM_API_KEY`
 - `OPENAI_BASE_URL` -> `LLM_BASE_URL`
 - `AUTHOR_MODEL` -> `LLM_MODEL`
 - `EDITOR_MODEL` -> `EDITORIAL_MODEL`
 
-## Development
+## 开发 / Development
 
-Backend:
+后端：
 
 ```powershell
 cd server
@@ -86,7 +91,7 @@ npm test
 npm run build
 ```
 
-Frontend:
+前端：
 
 ```powershell
 cd frontend
@@ -94,38 +99,23 @@ npm run dev
 npm run build
 ```
 
-Repo-level shortcuts:
+仓库根目录快捷命令：
 
 ```powershell
 npm test
 npm run build
 ```
 
-## Packaging
+## 打包 / Packaging
 
-GitHub Actions builds an installer-free zip artifact on pushes to `master` and on manual workflow dispatch.
+GitHub Actions 会在 push 到 `master` 或手动触发 workflow 时构建免安装 zip 包。
 
-The package workflow:
+打包流程：
 
-1. Installs backend and frontend dependencies.
-2. Runs backend tests.
-3. Builds backend and frontend.
-4. Assembles `release/inkflow`.
-5. Uploads `inkflow-<commit>.zip` as an Actions artifact.
+1. 安装后端和前端依赖。
+2. 运行后端测试。
+3. 构建后端和前端。
+4. 组装 `release/inkflow`。
+5. 上传 `inkflow-<commit>.zip` 为 Actions artifact。
 
-This is not an installer. Users unzip it, install dependencies, configure `.env`, and run `npm start`.
-
-## Data And Secrets
-
-These paths are intentionally local and ignored by Git:
-
-- `.env`
-- `books/`
-- `server/books/`
-- `server/global/`
-- `.agents/`
-- `AGENTS.md`
-- `CLAUDE.md`
-- `docs/`
-
-Before publishing, scan staged changes and history for real API keys.
+当前产物不是安装器。使用者解压后安装依赖、配置 `.env`，再运行 `npm start`。
