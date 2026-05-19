@@ -15,7 +15,7 @@ import path from 'path'
 import { streamText, stepCountIs, type ModelMessage } from 'ai'
 import { composeHooks, type ToolRegistry, type ToolContext, type ToolHooks, type BlockedToolCall, type ToolProgressEvent } from '../tools/base-tool.js'
 import { buildAuthorPrompt, buildBrainstormPrompt, buildPlotGraphStatus, buildStyleProfileStatus } from './prompt-builder.js'
-import { buildCreativeStagePrompt } from './creative-stage.js'
+import { getCreativeStage, getStageDescription } from './creative-stage.js'
 import { type LLMConfig, type ProviderProgressCallback, createProvider } from '../llm/provider.js'
 import { blockWhileUserEditing } from '../stats/tips/block-while-user-editing.js'
 
@@ -106,7 +106,8 @@ export function runAgentStream(options: AgentRunOptions): AgentStreamResult {
   const bookDir = path.join(dataDir, bookId)
   const plotLedger = buildPlotGraphStatus(bookDir)
   const styleProfile = buildStyleProfileStatus(bookDir)
-  const creativeStage = buildCreativeStagePrompt(bookDir)
+  const stage = getCreativeStage(bookDir)
+  const creativeStage = getStageDescription(stage)
   const systemPrompt = selectPrompt(mode, memoryContext, toolSummary, plotLedger, styleProfile, creativeStage)
   const model = createProvider(llmConfig, onProgress)
   const ctx: ToolContext = { bookId, dataDir, mode, emitProgress: onToolProgress }

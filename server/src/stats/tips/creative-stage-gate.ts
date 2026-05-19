@@ -1,7 +1,7 @@
 import path from 'path'
 import fs from 'fs'
 import { type BlockedToolCall, type ToolHooks } from '../../tools/base-tool.js'
-import { getCreativeStageStatus } from '../../agent/creative-stage.js'
+import { getCreativeStage } from '../../agent/creative-stage.js'
 import { type RuleContext, fireOnce } from './types.js'
 import { sanitizePathSegment } from '../../utils/path-sanitizer.js'
 
@@ -52,22 +52,20 @@ export function creativeStageGate(ctx: RuleContext): ToolHooks {
       }
 
       if (name === 'save_draft') {
-        const status = getCreativeStageStatus(currentBookDir(ctx))
-        if (status.blockers.length === 0) return undefined
+        const stage = getCreativeStage(currentBookDir(ctx))
+        const isReadyForDraft = stage === 'script_draft' || stage === 'self_check' || stage === 'review' || stage === 'export'
+        if (isReadyForDraft) return undefined
         fireOnce(ctx, 'creative_stage_before_draft', {
           severity: 'warning',
           title: '正文阶段条件不足',
-          message: `还不能保存正文草稿：${status.blockers.join('；')}。`,
+          message: `还不能保存正文草稿：当前阶段为 ${stage}，请先完成世界观和大纲。`,
         })
-        return block(`正文阶段条件不足：${status.blockers.join('；')}。请先自然地与用户确认创作意图，并通过工具完成设定库、大纲和剧情图；完成后再写正文。`)
+        return block(`正文阶段条件不足：当前阶段为 ${stage}。请先自然地与用户确认创作意图，并通过工具完成设定库和大纲；完成后再写正文。`)
       }
 
       if (name === 'submit_to_editorial') {
         const bookDir = currentBookDir(ctx)
-        const status = getCreativeStageStatus(bookDir)
-        const chapterId = typeof args?.chapter_id === 'string'
-          ? args.chapter_id
-          : status.metrics.currentChapterId ?? 'ch01'
+        const chapterId = typeof args?.chapter_id === 'string' ? args.chapter_id : 'ch01'
         if (draftExists(bookDir, chapterId)) return undefined
         fireOnce(ctx, 'creative_stage_before_review', {
           severity: 'warning',
