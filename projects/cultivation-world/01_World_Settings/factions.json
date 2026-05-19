@@ -1,0 +1,11 @@
+{
+  "factions": [
+    {
+      "id": "canglang_pai",
+      "name": "沧浪派",
+      "status": "destroyed",
+      "motto": "沧浪之水清兮",
+      "description": "以水法闻名的正道宗门，一夜之间被灭门。"
+    }
+  ]
+}

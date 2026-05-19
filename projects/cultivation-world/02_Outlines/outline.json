@@ -1,0 +1,20 @@
+{
+  "id": "cultivation-world",
+  "type": "project",
+  "label": "修仙世界",
+  "children": [{
+    "type": "story_package",
+    "id": "prologue_wanderer",
+    "label": "凶宅长夜",
+    "children": [
+      {"type": "stage", "id": "arrival"},
+      {"type": "stage", "id": "nightfall"},
+      {"type": "stage", "id": "midnight"},
+      {"type": "stage", "id": "knocking"},
+      {"type": "stage", "id": "branch_calm_wit"},
+      {"type": "stage", "id": "branch_street_deal"},
+      {"type": "stage", "id": "branch_stand_firm"},
+      {"type": "stage", "id": "convergence"}
+    ]
+  }]
+}

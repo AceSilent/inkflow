@@ -1,0 +1,321 @@
+id: prologue_wanderer
+version: 1
+name: 凶宅长夜
+author: cultivation-world
+tags:
+  - prologue
+  - ghost
+  - mystery
+motif: mystery
+tier: medium
+repeatable: false
+description: 中元节之夜，游历至雨溪镇的修士借宿凶宅，在那里邂逅了沧浪派遗孤顾听雨的灵魂。
+stages:
+  - id: arrival
+    lines:
+      - id: p.arrival.001
+        text: 中元节。雨。
+        type: narration
+        direction:
+          bgm: bgm_rain_heavy
+          sfx: sfx_rain_loop
+      - id: p.arrival.002
+        text: 雨溪镇的青石板路上积满了雨水，白灯笼在风雨中摇曳，烧纸钱的灰烬随水漂流。{player_name}提着行囊，走进镇口。
+        type: narration
+      - id: p.arrival.003
+        speaker: 卖纸钱老妇
+        text: 客官，这时候还在赶路？
+        emotion: 惊讶
+      - id: p.arrival.004
+        speaker: "{player_name}"
+        text: 镇上可有客栈？
+      - id: p.arrival.005
+        speaker: 卖纸钱老妇
+        text: 客栈满了……倒是有一处{house_name}，没人住。只是那地方——你最好别去。
+        emotion: 迟疑
+      - id: p.arrival.006
+        text: 老妇欲言又止，眼神飘向镇尾方向。远处，一道灰袍身影在雨幕中若隐若现，似乎也在向镇上张望。
+        type: narration
+      - id: p.arrival.007
+        text: 大雨不停。{player_name}最终还是推开了{house_name}锈蚀的铁门。
+        type: narration
+        direction:
+          sfx: sfx_door_creak
+    advance_next: nightfall
+
+  - id: nightfall
+    lines:
+      - id: p.nightfall.001
+        text: 夜色渐深。{house_name}正厅内，供桌上的灵位歪斜，角落漏着雨水，院中杂草及腰。
+        type: narration
+        direction:
+          bgm: bgm_haunted_ambient
+      - id: p.nightfall.002
+        text: "{player_name}就着残烛端坐，听着屋外雨声与不知从何处传来的细微声响。"
+        type: narration
+      - id: p.nightfall.003
+        text: 走廊里有什么东西轻轻滑动的声音。
+        type: narration
+        direction:
+          sfx: sfx_ambient_creak
+      - id: p.nightfall.004
+        text: 又或许只是风吹旧木。
+        type: narration
+      - id: p.nightfall.005
+        text: 残烛跳了一下，灭了。
+        type: narration
+        direction:
+          sfx: sfx_candle_out
+    advance_next: midnight
+
+  - id: midnight
+    lines:
+      - id: p.midnight.001
+        text: 子时。
+        type: narration
+        direction:
+          bgm: bgm_midnight_eerie
+      - id: p.midnight.002
+        text: 一声响动将{player_name}惊醒。供桌上的油灯自燃，火焰却是幽幽的蓝绿色。
+        type: narration
+        direction:
+          sfx: sfx_lamp_ignite
+      - id: p.midnight.003
+        text: 灵位前，一道白影凝而不散——白衣，长发垂落，面容苍白如玉，周身浮动荧光。
+        type: narration
+        direction:
+          sfx: sfx_ghost_appear
+      - id: p.midnight.004
+        speaker: 顾听雨
+        text: 你……能看见我？
+        emotion: 惊讶
+      - id: p.midnight.005
+        text: 她的声音如远处溪流，清冷，带着一丝颤抖。
+        type: narration
+      - id: p.midnight.006
+        speaker: 顾听雨
+        text: 好多年了，没有人能看见我。
+        emotion: 怔忡
+      - id: p.midnight.007
+        text: "{player_name}尚未来得及回答——"
+        type: narration
+      - id: p.midnight.008
+        text: 叩、叩、叩。
+        type: narration
+        direction:
+          sfx: sfx_knocking_distant
+      - id: p.midnight.009
+        text: 叩门声从镇子另一端传来，沉稳而有节律，一户一户地逼近。
+        type: narration
+      - id: p.midnight.010
+        speaker: 顾听雨
+        text: 是他来了。
+        emotion: 警惕
+    advance_next: knocking
+
+  - id: knocking
+    lines:
+      - id: p.knocking.001
+        text: 叩门声已经到了隔壁。
+        type: narration
+        direction:
+          sfx: sfx_knocking_near
+      - id: p.knocking.002
+        speaker: 僧人
+        text: 施主，贫僧寻一故人，冒昧叩门，还请见谅。
+        emotion: 和善
+      - id: p.knocking.003
+        text: 顾听雨的身影开始动荡，荧光渐淡，像是那声音令她痛苦。
+        type: narration
+      - id: p.knocking.004
+        text: 叩、叩、叩——叩门声落在了{house_name}的大门上。
+        type: narration
+        direction:
+          sfx: sfx_knocking_door
+      - id: p.knocking.005
+        speaker: 顾听雨
+        text: 求你……
+        emotion: 恳求
+    choices:
+      - id: choice_calm_wit
+        label: 嘘，别出声
+        next_stage: branch_calm_wit
+      - id: choice_street_deal
+        label: 先谈条件
+        next_stage: branch_street_deal
+      - id: choice_stand_firm
+        label: 以身挡门
+        next_stage: branch_stand_firm
+
+  - id: branch_calm_wit
+    lines:
+      - id: p.cwit.001
+        speaker: "{player_name}"
+        text: 嘘。
+        emotion: 镇定
+      - id: p.cwit.002
+        text: "{player_name}做了个噤声的手势，顾听雨的荧光沉入供桌下方，隐匿不见。"
+        type: narration
+      - id: p.cwit.003
+        text: "{player_name}揉了揉眼睛，推开门，做出一副刚睡醒的模样。"
+        type: narration
+        direction:
+          sfx: sfx_door_open
+      - id: p.cwit.004
+        speaker: "{player_name}"
+        text: 大师深夜叩门，所为何事？
+        emotion: 困倦
+      - id: p.cwit.005
+        speaker: 僧人
+        text: 贫僧寻一女子，白衣，此宅可曾见过？
+        emotion: 审视
+      - id: p.cwit.006
+        speaker: "{player_name}"
+        text: 此宅荒废已久，鬼气甚重，贫道一人借宿已是壮胆。大师说的白衣女子，想必是入错了方向。
+        emotion: 淡然
+      - id: p.cwit.007
+        text: 僧人的目光越过{player_name}的肩头，扫视厅内。油灯已熄，只余漆黑。
+        type: narration
+      - id: p.cwit.008
+        speaker: 僧人
+        text: 打扰施主了。
+        emotion: 若有所思
+      - id: p.cwit.009
+        text: 僧人念了声佛号，转身离去。
+        type: narration
+      - id: p.cwit.010
+        text: 晨钟远传，鸡鸣三声。
+        type: narration
+        direction:
+          sfx: sfx_dawn_bell
+      - id: p.cwit.011
+        text: 顾听雨从供桌下缓缓浮起，荧光重现，神情复杂地望着{player_name}。
+        type: narration
+      - id: p.cwit.012
+        speaker: 顾听雨
+        text: 你叫什么名字？
+        emotion: 感激
+    advance_next: convergence
+
+  - id: branch_street_deal
+    lines:
+      - id: p.sdeal.001
+        speaker: "{player_name}"
+        text: 等等。我帮你，你给我什么好处？
+        emotion: 精明
+      - id: p.sdeal.002
+        speaker: 顾听雨
+        text: ……
+        emotion: 愕然
+      - id: p.sdeal.003
+        text: "{player_name}压低声音，顾听雨的荧光在犹豫中沉入地板。"
+        type: narration
+      - id: p.sdeal.004
+        text: "{player_name}打开门，面对门外提灯而立的僧人。"
+        type: narration
+        direction:
+          sfx: sfx_door_open
+      - id: p.sdeal.005
+        speaker: "{player_name}"
+        text: 大师，此宅是在下借住，私宅重地，烦请出示搜查文牒。
+        emotion: 理直气壮
+      - id: p.sdeal.006
+        speaker: 僧人
+        text: 贫僧只是寻故人……
+        emotion: 困窘
+      - id: p.sdeal.007
+        speaker: "{player_name}"
+        text: 没有文牒便是私闯民宅。大师修为高深，理应懂得规矩。
+        emotion: 不卑不亢
+      - id: p.sdeal.008
+        text: 僧人面色微变，打量着{player_name}，片刻后退了半步。
+        type: narration
+      - id: p.sdeal.009
+        speaker: 僧人
+        text: 施主说得是，贫僧唐突了。
+        emotion: 克制
+      - id: p.sdeal.010
+        text: 僧人转身消失在晨曦中。晨钟响起。
+        type: narration
+        direction:
+          sfx: sfx_dawn_bell
+      - id: p.sdeal.011
+        text: 顾听雨从地板缝隙中升起，神情里多了几分耐人寻味的审视。
+        type: narration
+      - id: p.sdeal.012
+        speaker: 顾听雨
+        text: 你倒是……有趣。
+        emotion: 玩味
+    advance_next: convergence
+
+  - id: branch_stand_firm
+    lines:
+      - id: p.sfirm.001
+        text: "{player_name}站起身，在厅中深吸一口气，推开门，以身挡住门框。"
+        type: narration
+        direction:
+          sfx: sfx_door_open
+      - id: p.sfirm.002
+        speaker: "{player_name}"
+        text: 有事明日再说，此刻不便见客。
+        emotion: 沉稳
+      - id: p.sfirm.003
+        speaker: 僧人
+        text: 施主，贫僧别无恶意，只是寻人……
+        emotion: 和善
+      - id: p.sfirm.004
+        speaker: "{player_name}"
+        text: 我说了，此刻不便见客。
+        emotion: 不动如山
+      - id: p.sfirm.005
+        text: 两人沉默对峙，雨声如幕。僧人的目光如探针，试图从{player_name}的神情中找到破绽。
+        type: narration
+      - id: p.sfirm.006
+        text: "{player_name}纹丝不动。"
+        type: narration
+      - id: p.sfirm.007
+        speaker: 僧人
+        text: 施主好胆识。
+        emotion: 若有所思
+      - id: p.sfirm.008
+        text: 晨钟悠悠传来。僧人念了一声佛号，缓缓后退，消失在晨雾中。
+        type: narration
+        direction:
+          sfx: sfx_dawn_bell
+      - id: p.sfirm.009
+        text: "{player_name}关上门，转身时，顾听雨已悄然浮在供桌前，荧光稳定而温柔。"
+        type: narration
+      - id: p.sfirm.010
+        text: 她沉默了很久。
+        type: narration
+      - id: p.sfirm.011
+        speaker: 顾听雨
+        text: 谢谢你。
+        emotion: 动容
+      - id: p.sfirm.012
+        text: 两个字，轻如风，却沉如山。
+        type: narration
+    advance_next: convergence
+
+  - id: convergence
+    lines:
+      - id: p.conv.001
+        text: 天光微亮。雨，停了。
+        type: narration
+        direction:
+          bgm: bgm_dawn_peaceful
+          sfx: sfx_rain_fade
+      - id: p.conv.002
+        speaker: 顾听雨
+        text: 日出之后，我便无法留在这里了。我已经……很久没有人陪我说话了。
+        emotion: 感激
+      - id: p.conv.003
+        text: 晨光透过破旧的窗棂照入正厅，顾听雨的身影在光中逐渐淡化，荧光一点一点收敛。
+        type: narration
+      - id: p.conv.004
+        speaker: 顾听雨
+        text: 有缘再见，{player_name}。
+        emotion: 温柔
+      - id: p.conv.005
+        text: 白影散尽。{player_name}独自立于正厅，望着歪斜的灵位，心中留下了许多未解的疑问。
+        type: narration

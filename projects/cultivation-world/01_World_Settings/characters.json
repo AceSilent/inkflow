@@ -1,0 +1,35 @@
+{
+  "characters": [
+    {
+      "id": "gu_tingyu",
+      "name": "顾听雨",
+      "title": "沧浪派遗孤",
+      "gender": "female",
+      "description": "沧浪派灭门惨案唯一幸存者的灵魂。白衣女鬼，面容苍白透明，周身浮动荧光。性格清冷但内心善良，对救命恩人心怀感恩。",
+      "faction": "canglang_pai",
+      "cultivation_realm": "无（灵体）",
+      "traits": ["清冷", "善良", "感恩", "孤独"],
+      "backstory": "沧浪派灭门之夜，顾听雨被师门至宝护住灵魂，但肉身已失。寄居在雨溪镇陈宅旧地的灵位之间，等待有缘人。"
+    },
+    {
+      "id": "monk",
+      "name": "灰袍僧人",
+      "title": "追踪者",
+      "gender": "male",
+      "description": "身着灰袍、手持念珠的神秘僧人。面容和善但目的不明，暴雨天僧鞋干净无泥，暗示修为不凡。挨家挨户敲门搜索顾听雨。",
+      "faction": "unknown",
+      "cultivation_realm": "未知（至少筑基）",
+      "traits": ["温和表象", "执着追踪", "修为深厚"],
+      "backstory": "来历不明的修士，似乎与沧浪派灭门有关。中元节夜冒雨搜索雨溪镇。"
+    },
+    {
+      "id": "paper_money_old_woman",
+      "name": "卖纸钱老妇",
+      "title": "镇民",
+      "gender": "female",
+      "description": "雨溪镇卖纸钱的老妇人，是唯一肯搭话的镇民。对陈宅凶宅之名讳莫如深。",
+      "traits": ["世故", "迷信", "好心"],
+      "backstory": "在镇上生活多年，见证了陈宅的诡异事件。"
+    }
+  ]
+}
