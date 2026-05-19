@@ -2,34 +2,28 @@ import { AlertCircle, CheckCircle2, Circle, Loader2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
 const STAGES = [
-  { id: 'style_profile', label: '文风/意图' },
-  { id: 'story_bible', label: '设定库' },
-  { id: 'outline', label: '大纲' },
-  { id: 'plot_graph', label: '剧情图' },
-  { id: 'chapter_draft', label: '正文' },
-  { id: 'human_review', label: '人审' },
-  { id: 'editorial_review', label: '慢审' },
-  { id: 'revision', label: '修订' },
+  { id: 'world_bible', label: '世界圣经' },
+  { id: 'story_outline', label: '故事大纲' },
+  { id: 'script_draft', label: '剧本草稿' },
+  { id: 'self_check', label: '自检' },
+  { id: 'review', label: '审核' },
+  { id: 'export', label: '导出' },
 ]
 
 function buildStageStates(status) {
   const m = status?.metrics || {}
   const done = {
-    style_profile: Boolean(m.hasStyleProfile || m.hasCharacters || m.hasWorldLore || m.hasOutline),
-    story_bible: Boolean(m.hasCharacters && m.hasWorldLore),
-    outline: Boolean(m.hasOutline),
-    plot_graph: Boolean((m.plotNodes || 0) >= 4 && (m.plotEdges || 0) >= 1),
-    chapter_draft: Boolean(m.hasFirstDraft),
-    human_review: Boolean(m.firstHumanApproved),
-    editorial_review: Boolean(m.hasFirstReview),
-    revision: Boolean(m.firstHumanApproved),
+    world_bible: Boolean(m.hasCharacters && m.hasWorldLore),
+    story_outline: Boolean(m.hasOutline),
+    script_draft: Boolean(m.hasFirstDraft),
+    self_check: Boolean(m.selfCheckPassed),
+    review: Boolean(m.hasFirstReview),
+    export: Boolean(m.hasExport),
   }
 
   return STAGES.map((stage) => {
     let state = done[stage.id] ? 'done' : 'todo'
     if (status?.stage === stage.id) state = done[stage.id] ? 'done' : 'current'
-    if (status?.stage === 'story_bible' && stage.id === 'style_profile' && !done.style_profile) state = 'current'
-    if (status?.stage === 'revision' && stage.id === 'revision') state = m.firstHumanApproved ? 'done' : 'blocked'
     return { ...stage, state }
   })
 }

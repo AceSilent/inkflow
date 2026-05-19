@@ -4,7 +4,7 @@
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import { authorChatRoutes } from './routes/author-chat.js'
-import { booksRoutes } from './routes/books.js'
+import { projectsRoutes } from './routes/projects.js'
 import { dataRoutes } from './routes/data.js'
 import { settingsRoutes } from './routes/settings.js'
 import { snapshotRoutes } from './routes/snapshots.js'
@@ -20,7 +20,7 @@ const dataDir = process.env.AUTONOVEL_DATA_DIR || 'books'
 
 await app.register(cors, { origin: true })
 await app.register(authorChatRoutes)
-await app.register(booksRoutes)
+await app.register(projectsRoutes)
 await app.register(dataRoutes)
 await app.register(settingsRoutes)
 await app.register(snapshotRoutes)

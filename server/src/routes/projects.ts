@@ -1,12 +1,12 @@
 /**
- * Books CRUD Route — Fastify route for managing books as directory structures.
+ * Projects CRUD Route — Fastify route for managing projects as directory structures.
  *
  * Endpoints:
- *   GET    /api/v1/books           — list all books
- *   GET    /api/v1/books/explorer  — tree structure for sidebar navigation
- *   GET    /api/v1/books/:bookId   — get single book metadata
- *   POST   /api/v1/books           — create book with directory structure
- *   DELETE /api/v1/books/:bookId   — delete book directory
+ *   GET    /api/v1/projects           — list all projects
+ *   GET    /api/v1/projects/explorer  — tree structure for sidebar navigation
+ *   GET    /api/v1/projects/:projectId — get single project metadata
+ *   POST   /api/v1/projects           — create project with directory structure
+ *   DELETE /api/v1/projects/:projectId — delete project directory
  */
 import { type FastifyInstance } from 'fastify'
 import fs from 'fs'
@@ -17,7 +17,7 @@ import { createBookBody, bookIdParam } from './schemas.js'
 
 // ── Types ──
 
-export interface BookMeta {
+export interface ProjectMeta {
   book_id: string
   title: string
   genre: string
@@ -37,48 +37,48 @@ export interface TreeNode {
 
 // ── Helper functions (exported for direct testing) ──
 
-export function listBooks(dataDir: string): BookMeta[] {
+export function listProjects(dataDir: string): ProjectMeta[] {
   if (!fs.existsSync(dataDir)) return []
 
-  const books: BookMeta[] = []
+  const projects: ProjectMeta[] = []
   for (const entry of fs.readdirSync(dataDir, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue
-    const meta = safeReadJson<BookMeta>(path.join(dataDir, entry.name, '00_Config', 'book_meta.json'))
-    if (meta) books.push(meta)
+    const meta = safeReadJson<ProjectMeta>(path.join(dataDir, entry.name, '00_Config', 'book_meta.json'))
+    if (meta) projects.push(meta)
   }
-  return books
+  return projects
 }
 
-export function getBook(dataDir: string, bookId: string): BookMeta | null {
-  return safeReadJson<BookMeta>(path.join(dataDir, bookId, '00_Config', 'book_meta.json'))
+export function getProject(dataDir: string, projectId: string): ProjectMeta | null {
+  return safeReadJson<ProjectMeta>(path.join(dataDir, projectId, '00_Config', 'book_meta.json'))
 }
 
-export function createBook(dataDir: string, meta: BookMeta): BookMeta {
-  const bookDir = path.join(dataDir, meta.book_id)
+export function createProject(dataDir: string, meta: ProjectMeta): ProjectMeta {
+  const projectDir = path.join(dataDir, meta.book_id)
 
-  if (fs.existsSync(bookDir)) {
-    throw new Error(`Book '${meta.book_id}' already exists`)
+  if (fs.existsSync(projectDir)) {
+    throw new Error(`Project '${meta.book_id}' already exists`)
   }
 
   for (const sub of ['00_Config', '01_Global_Settings', '02_Outlines', 'memory']) {
-    ensureDir(path.join(bookDir, sub))
+    ensureDir(path.join(projectDir, sub))
   }
 
-  const withTimestamp: BookMeta = {
+  const withTimestamp: ProjectMeta = {
     ...meta,
     created_at: meta.created_at || new Date().toISOString(),
   }
-  writeJson(path.join(bookDir, '00_Config', 'book_meta.json'), withTimestamp)
+  writeJson(path.join(projectDir, '00_Config', 'book_meta.json'), withTimestamp)
 
   return withTimestamp
 }
 
-export function deleteBook(dataDir: string, bookId: string): void {
-  const bookDir = path.join(dataDir, bookId)
-  if (!fs.existsSync(bookDir)) {
-    throw new Error(`Book '${bookId}' not found`)
+export function deleteProject(dataDir: string, projectId: string): void {
+  const projectDir = path.join(dataDir, projectId)
+  if (!fs.existsSync(projectDir)) {
+    throw new Error(`Project '${projectId}' not found`)
   }
-  fs.rmSync(bookDir, { recursive: true, force: true })
+  fs.rmSync(projectDir, { recursive: true, force: true })
 }
 
 function scanOutlineNode(node: any): TreeNode {
@@ -93,15 +93,15 @@ function scanOutlineNode(node: any): TreeNode {
 }
 
 export function explorerTree(dataDir: string): TreeNode[] {
-  const books = listBooks(dataDir)
+  const projects = listProjects(dataDir)
 
-  return books.map((book) => {
-    const bookDir = path.join(dataDir, book.book_id)
+  return projects.map((project) => {
+    const projectDir = path.join(dataDir, project.book_id)
     const children: TreeNode[] = []
     const knownDraftFiles = new Set<string>()
 
     // Outline-defined chapters (canonical: outline.children → volumes → chapters)
-    const outline = safeReadJson<{ children?: any[] }>(path.join(bookDir, '02_Outlines', 'outline.json'))
+    const outline = safeReadJson<{ children?: any[] }>(path.join(projectDir, '02_Outlines', 'outline.json'))
     if (outline?.children) {
       for (const vol of outline.children) children.push(scanOutlineNode(vol))
     }
@@ -116,7 +116,7 @@ export function explorerTree(dataDir: string): TreeNode[] {
     }
     children.forEach(collectIds)
 
-    const draftsDir = path.join(bookDir, '04_Drafts')
+    const draftsDir = path.join(projectDir, '04_Drafts')
     if (fs.existsSync(draftsDir)) {
       const orphans: TreeNode[] = []
       for (const f of fs.readdirSync(draftsDir)) {
@@ -148,8 +148,8 @@ export function explorerTree(dataDir: string): TreeNode[] {
     }
 
     return {
-      id: book.book_id,
-      label: book.title,
+      id: project.book_id,
+      label: project.title,
       type: 'book',
       children,
     }
@@ -158,36 +158,36 @@ export function explorerTree(dataDir: string): TreeNode[] {
 
 // ── Fastify route registration ──
 
-export async function booksRoutes(app: FastifyInstance): Promise<void> {
+export async function projectsRoutes(app: FastifyInstance): Promise<void> {
   const dataDir = () => process.env.AUTONOVEL_DATA_DIR || 'books'
 
-  // GET /api/v1/books — list all books
-  app.get('/api/v1/books', async () => {
-    return { books: listBooks(dataDir()) }
+  // GET /api/v1/projects — list all projects
+  app.get('/api/v1/projects', async () => {
+    return { projects: listProjects(dataDir()) }
   })
 
-  // GET /api/v1/books/explorer — tree structure for sidebar navigation
-  app.get('/api/v1/books/explorer', async () => {
+  // GET /api/v1/projects/explorer — tree structure for sidebar navigation
+  app.get('/api/v1/projects/explorer', async () => {
     return explorerTree(dataDir())
   })
 
-  // GET /api/v1/books/:bookId — get single book metadata
-  app.get<{ Params: { bookId: string } }>(
-    '/api/v1/books/:bookId',
+  // GET /api/v1/projects/:projectId — get single project metadata
+  app.get<{ Params: { projectId: string } }>(
+    '/api/v1/projects/:projectId',
     async (request, reply) => {
-      const bookId = sanitizePathSegment(request.params.bookId, 'bookId')
-      const book = getBook(dataDir(), bookId)
-      if (!book) {
+      const projectId = sanitizePathSegment(request.params.projectId, 'projectId')
+      const project = getProject(dataDir(), projectId)
+      if (!project) {
         reply.code(404)
-        return { error: 'Book not found' }
+        return { error: 'Project not found' }
       }
-      return book
+      return project
     }
   )
 
-  // POST /api/v1/books — create book
-  app.post<{ Body: BookMeta }>(
-    '/api/v1/books',
+  // POST /api/v1/projects — create project
+  app.post<{ Body: ProjectMeta }>(
+    '/api/v1/projects',
     async (request, reply) => {
       try {
         const parsed = createBookBody.safeParse(request.body)
@@ -195,11 +195,11 @@ export async function booksRoutes(app: FastifyInstance): Promise<void> {
           reply.code(400)
           return { error: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ') }
         }
-        const body = parsed.data as BookMeta
+        const body = parsed.data as ProjectMeta
         sanitizePathSegment(body.book_id, 'book_id')
-        const book = createBook(dataDir(), body)
+        const project = createProject(dataDir(), body)
         reply.code(201)
-        return book
+        return project
       } catch (err: any) {
         reply.code(err.message.includes('already exists') ? 409 : 400)
         return { error: err.message }
@@ -207,13 +207,13 @@ export async function booksRoutes(app: FastifyInstance): Promise<void> {
     }
   )
 
-  // DELETE /api/v1/books/:bookId — delete book directory
-  app.delete<{ Params: { bookId: string } }>(
-    '/api/v1/books/:bookId',
+  // DELETE /api/v1/projects/:projectId — delete project directory
+  app.delete<{ Params: { projectId: string } }>(
+    '/api/v1/projects/:projectId',
     async (request, reply) => {
       try {
-        const bookId = sanitizePathSegment(request.params.bookId, 'bookId')
-        deleteBook(dataDir(), bookId)
+        const projectId = sanitizePathSegment(request.params.projectId, 'projectId')
+        deleteProject(dataDir(), projectId)
         return { status: 'ok' }
       } catch (err: any) {
         reply.code(404)

@@ -13,13 +13,13 @@ export function Sidebar({ activePanel, addToast, onSelect, onBookSelect, onNewBo
   const fetchTree = async (showFeedback = false) => {
     setLoading(true)
     try {
-      const resp = await fetch('/api/v1/books/explorer')
+      const resp = await fetch('/api/v1/projects/explorer')
       if (resp.ok) {
         const data = await resp.json()
         const tree = Array.isArray(data) ? data : (data.tree || [])
         setTreeData(tree)
         const books = tree.filter(n => n.type === 'book')
-        const savedBookId = localStorage.getItem('autonovel:lastBookId')
+        const savedBookId = localStorage.getItem('autonovel:lastProjectId')
         const restored = books.find(n => n.id === savedBookId) || (!selectedId ? books[books.length - 1] : null)
         if (restored && selectedId !== restored.id) {
           setSelectedId(restored.id)
@@ -50,7 +50,7 @@ export function Sidebar({ activePanel, addToast, onSelect, onBookSelect, onNewBo
   const handleNodeSelect = (node, bookId) => {
     setSelectedId(node.id)
     if (node.type === 'book') {
-      localStorage.setItem('autonovel:lastBookId', node.id)
+      localStorage.setItem('autonovel:lastProjectId', node.id)
       onBookSelect?.({ book_id: node.id, title: node.label })
     }
     if (node.type === 'scene') {
@@ -74,7 +74,7 @@ export function Sidebar({ activePanel, addToast, onSelect, onBookSelect, onNewBo
     // Second click — confirmed, actually delete
     setPendingDelete(null)
     try {
-      const res = await fetch(`/api/v1/books/${node.id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/v1/projects/${node.id}`, { method: 'DELETE' })
       if (res.ok) {
         addToast?.(t('sidebar.deleted').replace('{label}', node.label), 'success')
         onBookSelect?.(null)  // Clear current book

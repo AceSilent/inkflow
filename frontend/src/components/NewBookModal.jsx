@@ -49,7 +49,7 @@ export function NewBookModal({ onClose, onCreated, addToast }) {
     setCreating(true)
 
     try {
-      const res = await fetch('/api/v1/books', {
+      const res = await fetch('/api/v1/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
