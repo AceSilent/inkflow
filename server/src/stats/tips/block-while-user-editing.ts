@@ -1,9 +1,9 @@
 /**
- * Rule: block Agent save_draft on chapter N while the user is actively editing
+ * Rule: block Agent save_script on chapter N while the user is actively editing
  * that chapter in the workbench.
  *
  * The workbench writes `04_Drafts/workbench_lock_{chId}` with the current ISO
- * timestamp on focus/keystroke; this hook refuses `save_draft` calls that
+ * timestamp on focus/keystroke; this hook refuses `save_script` calls that
  * target the same chapter while that lock is fresh (<= 10 minutes old).
  *
  * Stale locks (> 10 minutes, e.g. tab closed without unlock) are cleaned up
@@ -27,7 +27,7 @@ const STALE_MS = 10 * 60 * 1000 // 10 minutes
 export function blockWhileUserEditing(bookDir: string): Hook {
   return {
     async interceptToolCall({ toolName, args }: HookArgs): Promise<string | null> {
-      if (toolName !== 'save_draft') return null
+      if (toolName !== 'save_script') return null
       const filePath = args?.file_path
       if (!filePath || typeof filePath !== 'string') return null
       const base = path.basename(filePath)

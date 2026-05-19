@@ -18,23 +18,23 @@ afterEach(() => {
 })
 
 describe('blockWhileUserEditing', () => {
-  it('allows save_draft when no lock file', async () => {
+  it('allows save_script when no lock file', async () => {
     const hook = blockWhileUserEditing(bookDir)
     const result = await hook.interceptToolCall!({
-      toolName: 'save_draft',
+      toolName: 'save_script',
       args: { file_path: 'ch01.md', content: 'x'.repeat(900) },
     })
     expect(result).toBeNull()
   })
 
-  it('blocks save_draft when lock file exists and recent', async () => {
+  it('blocks save_script when lock file exists and recent', async () => {
     fs.writeFileSync(
       path.join(bookDir, '04_Drafts', 'workbench_lock_ch01'),
       new Date().toISOString()
     )
     const hook = blockWhileUserEditing(bookDir)
     const result = await hook.interceptToolCall!({
-      toolName: 'save_draft',
+      toolName: 'save_script',
       args: { file_path: 'ch01.md', content: 'x'.repeat(900) },
     })
     expect(result).toContain('User is currently editing')
@@ -46,7 +46,7 @@ describe('blockWhileUserEditing', () => {
     fs.writeFileSync(lockFile, oldTs)
     const hook = blockWhileUserEditing(bookDir)
     const result = await hook.interceptToolCall!({
-      toolName: 'save_draft',
+      toolName: 'save_script',
       args: { file_path: 'ch01.md', content: 'x'.repeat(900) },
     })
     expect(result).toBeNull()
@@ -54,7 +54,7 @@ describe('blockWhileUserEditing', () => {
     expect(fs.existsSync(lockFile)).toBe(false)
   })
 
-  it('ignores tools other than save_draft', async () => {
+  it('ignores tools other than save_script', async () => {
     fs.writeFileSync(path.join(bookDir, '04_Drafts', 'workbench_lock_ch01'), new Date().toISOString())
     const hook = blockWhileUserEditing(bookDir)
     const result = await hook.interceptToolCall!({

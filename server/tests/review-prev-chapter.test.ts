@@ -43,7 +43,7 @@ describe('reviewPrevChapter — user_decision override', () => {
   it('prev chapter approved by user (no review file) → hook returns null/allows', () => {
     writeStatus('ch01', 'approved')
     const hooks = reviewPrevChapter(ctx)
-    const result = hooks.interceptToolCall!('save_draft', { file_path: 'ch02.md' })
+    const result = hooks.interceptToolCall!('save_script', { file_path: 'ch02.md' })
     expect(result).toBeFalsy()
   })
 
@@ -51,7 +51,7 @@ describe('reviewPrevChapter — user_decision override', () => {
     writeStatus('ch01', 'rejected')
     writeReview('ch01', true)
     const hooks = reviewPrevChapter(ctx)
-    const result = hooks.interceptToolCall!('save_draft', { file_path: 'ch02.md' })
+    const result = hooks.interceptToolCall!('save_script', { file_path: 'ch02.md' })
     expect(result).toBeTruthy()
     expect((result as any).block).toBe(true)
     expect((result as any).message).toContain('[BLOCKED]')
@@ -63,7 +63,7 @@ describe('reviewPrevChapter — user_decision override', () => {
     writeStatus('ch01', null)
     writeReview('ch01', true)
     const hooks = reviewPrevChapter(ctx)
-    const result = hooks.interceptToolCall!('save_draft', { file_path: 'ch02.md' })
+    const result = hooks.interceptToolCall!('save_script', { file_path: 'ch02.md' })
     expect(result).toBeTruthy()
     expect((result as any).block).toBe(true)
     expect((result as any).message).toContain('人类')

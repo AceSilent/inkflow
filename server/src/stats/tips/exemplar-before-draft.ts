@@ -1,7 +1,7 @@
 /**
  * Rule: writing chapter content without ever having studied exemplars.
  *
- * Trigger: beforeToolCall save_draft
+ * Trigger: beforeToolCall save_script
  * Check  : agent_stats.json shows load_skill('exemplar_study') was never called
  *          for this book (cross-session — once you've studied once, the rule rests)
  */
@@ -12,7 +12,7 @@ import { type RuleContext, fireOnce } from './types.js'
 export function exemplarBeforeDraft(ctx: RuleContext): ToolHooks {
   return {
     beforeToolCall(name) {
-      if (name !== 'save_draft') return
+      if (name !== 'save_script') return
       const stats = loadStats(ctx.dataDir, ctx.bookId)
       const everLoaded = ((stats['load_skill']?.by_arg ?? {})['exemplar_study'] ?? 0) > 0
       if (everLoaded) return

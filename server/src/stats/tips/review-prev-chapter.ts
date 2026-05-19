@@ -2,11 +2,11 @@
  * Rule: drafting chapter N requires chapter N-1 to be explicitly approved by
  * the human user in the workbench.
  *
- * Trigger: beforeToolCall + interceptToolCall save_draft, where the file_path
+ * Trigger: beforeToolCall + interceptToolCall save_script, where the file_path
  *          basename matches /^ch(\d+)$/i.
  * Block:   when chapter_status_ch{N-1}.json is missing OR user_decision !== approved.
  *
- * The rule emits a tip for UI visibility AND blocks the actual save_draft —
+ * The rule emits a tip for UI visibility AND blocks the actual save_script —
  * the agent receives a "[BLOCKED] ..." message as the tool result and is
  * expected to ask the user for a pre/post-review decision before retrying.
  *
@@ -75,7 +75,7 @@ function checkPrevChapter(ctx: RuleContext, args: any): PrevCheck | null {
 export function reviewPrevChapter(ctx: RuleContext): ToolHooks {
   return {
     beforeToolCall(name, args) {
-      if (name !== 'save_draft') return
+      if (name !== 'save_script') return
       const check = checkPrevChapter(ctx, args)
       if (!check) return
       // Human approval is the only way to advance to the next chapter.
@@ -101,7 +101,7 @@ export function reviewPrevChapter(ctx: RuleContext): ToolHooks {
       })
     },
     interceptToolCall(name, args): BlockedToolCall | undefined {
-      if (name !== 'save_draft') return
+      if (name !== 'save_script') return
       const check = checkPrevChapter(ctx, args)
       if (!check) return
       // Human approval is the only way to advance to the next chapter.

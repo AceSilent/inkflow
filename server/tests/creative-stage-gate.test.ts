@@ -20,7 +20,7 @@ function makeCtx(overrides: Partial<RuleContext> = {}): RuleContext {
 describe('creativeStageGate', () => {
   it('blocks drafting before staged preconditions are ready', () => {
     const ctx = makeCtx()
-    const result = creativeStageGate(ctx).interceptToolCall?.('save_draft', { file_path: 'ch01.md' }, { dataDir: ctx.dataDir, bookId: ctx.bookId })
+    const result = creativeStageGate(ctx).interceptToolCall?.('save_script', { file_path: 'ch01.md' }, { dataDir: ctx.dataDir, bookId: ctx.bookId })
     expect(result).toMatchObject({ block: true })
     expect(result?.message).toContain('正文阶段条件不足')
   })

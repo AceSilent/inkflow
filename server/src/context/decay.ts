@@ -27,7 +27,7 @@ export const LARGE_RESULT_TOOLS: Record<string, DecayRule> = {
 
 export const PRESERVE_ALWAYS = new Set<string>([
   'submit_to_editorial',
-  'save_draft',
+  'save_script',
   'save_outline',
   'save_lore',
   'confirm_path',

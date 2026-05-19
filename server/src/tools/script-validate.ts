@@ -15,7 +15,12 @@ export const scriptValidateTool: ToolDefinition = {
   permissionLevel: 'read',
   category: '读取',
   execute: async (args: { package_id: string }, ctx: ToolContext) => {
-    const yamlPath = path.join(ctx.dataDir, ctx.bookId, '03_Scripts', `${args.package_id}.yaml`)
+    const bookDir = path.join(ctx.dataDir, ctx.bookId)
+    const yamlPath = path.resolve(bookDir, '03_Scripts', `${args.package_id}.yaml`)
+
+    if (!yamlPath.startsWith(path.resolve(bookDir))) {
+      return 'Error: Access denied — path outside book directory.'
+    }
 
     if (!fs.existsSync(yamlPath)) {
       return `Error: Script file not found: 03_Scripts/${args.package_id}.yaml`

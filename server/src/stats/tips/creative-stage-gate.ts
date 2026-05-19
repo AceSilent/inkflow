@@ -51,7 +51,7 @@ export function creativeStageGate(ctx: RuleContext): ToolHooks {
         return block('本轮新增剧情边过多。请先停止扩图，总结关键因果链和未回收伏笔，再进入下一阶段或等待确认。')
       }
 
-      if (name === 'save_draft') {
+      if (name === 'save_script') {
         const stage = getCreativeStage(currentBookDir(ctx))
         const isReadyForDraft = stage === 'script_draft' || stage === 'self_check' || stage === 'review' || stage === 'export'
         if (isReadyForDraft) return undefined
@@ -70,9 +70,9 @@ export function creativeStageGate(ctx: RuleContext): ToolHooks {
         fireOnce(ctx, 'creative_stage_before_review', {
           severity: 'warning',
           title: '送审前缺少草稿',
-          message: `当前还没有可送审的 ${chapterId} 草稿。请先完成正文并 save_draft。`,
+          message: `当前还没有可送审的 ${chapterId} 草稿。请先完成正文并 save_script。`,
         })
-        return block(`当前还没有 ${chapterId} 草稿，不能送审。请先完成正文并 save_draft。`)
+        return block(`当前还没有 ${chapterId} 草稿，不能送审。请先完成正文并 save_script。`)
       }
 
       return undefined
