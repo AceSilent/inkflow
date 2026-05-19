@@ -49,5 +49,7 @@ describe('exportHtml', () => {
     expect(html).toContain('<!DOCTYPE html>')
     expect(html).toContain('Test Story')
     expect(html).toContain('Hello')
+    expect(html).toContain('function showStage')
+    expect(html).toContain('id="stage-start"')
   })
 })
