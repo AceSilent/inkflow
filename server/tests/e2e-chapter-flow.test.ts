@@ -103,16 +103,14 @@ describe('Full chapter flow: lore → outline → draft → editorial', () => {
     )
     expect(outlineResult).toContain('Outline saved')
 
-    // 4. save_draft (must clear the editorial review minimum).
+    // 4. Write the draft file directly (save_draft removed; editorial requires
+    //    the file to exist and be ≥ MIN_REVIEW_DRAFT_CHARS).
     const draftBody = '# 第一章 重生归来\n\n' +
       '林辰睁开眼，看着熟悉的茅屋顶。'.repeat(180)
     expect(draftBody.length).toBeGreaterThan(2500)
-    const draftResult = await registry.execute(
-      'save_draft',
-      { file_path: 'ch01.md', content: draftBody },
-      ctx,
-    )
-    expect(draftResult).toContain('saved')
+    const draftsDir = path.join(tmpDir, bookId, '04_Drafts')
+    fs.mkdirSync(draftsDir, { recursive: true })
+    fs.writeFileSync(path.join(draftsDir, 'ch01.md'), draftBody, 'utf-8')
     expect(fs.existsSync(path.join(tmpDir, bookId, '04_Drafts', 'ch01.md'))).toBe(true)
 
     // 5. submit_to_editorial — this triggers the default machine reviewers
@@ -174,7 +172,9 @@ describe('Full chapter flow: lore → outline → draft → editorial', () => {
     }, ctx)
 
     const draft = '正文'.repeat(1300)
-    await registry.execute('save_draft', { file_path: 'ch02.md', content: draft }, ctx)
+    const draftsDir2 = path.join(tmpDir, bookId, '04_Drafts')
+    fs.mkdirSync(draftsDir2, { recursive: true })
+    fs.writeFileSync(path.join(draftsDir2, 'ch02.md'), draft, 'utf-8')
     await registry.execute('submit_to_editorial', {
       draft_text: draft,
       chapter_id: 'ch02',
@@ -224,7 +224,9 @@ describe('Full chapter flow: lore → outline → draft → editorial', () => {
       }),
     }, ctx)
     const draft = '正文'.repeat(1300)
-    await registry.execute('save_draft', { file_path: 'ch01.md', content: draft }, ctx)
+    const draftsDir3 = path.join(tmpDir, bookId, '04_Drafts')
+    fs.mkdirSync(draftsDir3, { recursive: true })
+    fs.writeFileSync(path.join(draftsDir3, 'ch01.md'), draft, 'utf-8')
 
     // Three consecutive submissions — same canned reviewer issue → persistent
     // by round 3. The mock returns the same Tiny_Nit issue each call.

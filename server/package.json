@@ -15,6 +15,7 @@
     "@larksuiteoapi/node-sdk": "^1.60.0",
     "ai": "^6.0.142",
     "fastify": "^5.8.4",
+    "yaml": "^2.9.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {

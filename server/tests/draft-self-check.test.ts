@@ -49,27 +49,16 @@ describe('draft self-check', () => {
     expect(result.issues.some(issue => issue.type === 'Analytical_Exposition')).toBe(true)
   })
 
-  it('save_draft returns self-check warnings while preserving the draft', async () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'draft-self-check-'))
-    try {
-      fs.mkdirSync(path.join(tmpDir, 'book1'), { recursive: true })
-      const registry = createAllTools()
-      const content = [
-        '陆辞醒来的时候，半边脸贴在潮湿的泥地上。',
-        '他撑起身体，低头看手机，抬头看树，环顾四周，又盯着木屋。',
-        '他停下脚步，深吸一口气，意识到事情不对。',
-        '正文推进。'.repeat(900),
-      ].join('\n')
-      const result = await registry.execute('save_draft', {
-        file_path: 'ch01.md',
-        content,
-      }, { bookId: 'book1', dataDir: tmpDir })
-      expect(result).toContain('Draft saved')
-      expect(result).toContain('Self-check failed')
-      expect(fs.existsSync(path.join(tmpDir, 'book1', '04_Drafts', 'ch01.md'))).toBe(true)
-    } finally {
-      fs.rmSync(tmpDir, { recursive: true, force: true })
-    }
+  it('runDraftSelfCheck returns self-check issues for camera chain violations', () => {
+    const content = [
+      '陆辞醒来的时候，半边脸贴在潮湿的泥地上。',
+      '他撑起身体，低头看手机，抬头看树，环顾四周，又盯着木屋。',
+      '他停下脚步，深吸一口气，意识到事情不对。',
+      '正文推进。'.repeat(900),
+    ].join('\n')
+    const result = runDraftSelfCheck(content, { minReviewChars: 2500 })
+    expect(result.issues.length).toBeGreaterThan(0)
+    expect(result.blockEditorial).toBe(true)
   })
 
   it('submit_to_editorial blocks severe self-check failures before slow review', async () => {

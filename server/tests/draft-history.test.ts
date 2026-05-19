@@ -92,25 +92,21 @@ describe('archivePriorDraft', () => {
   })
 })
 
-describe('save_draft integration', () => {
-  it('archives the prior draft when save_draft overwrites an existing chapter', async () => {
-    const { createAllTools } = await import('../src/tools/index.js')
-    const registry = createAllTools()
+describe('archivePriorDraft integration', () => {
+  it('archives a draft on first write and preserves history across multiple overwrites', () => {
+    const draftsDir = path.join(bookDir(), '04_Drafts')
+    fs.mkdirSync(draftsDir, { recursive: true })
+    const target = path.join(draftsDir, 'ch01.md')
 
     const longBody = (tag: string) => `# 第一章 ${tag}\n` + '正文内容。'.repeat(200)
 
-    // First save: no archive, file did not previously exist.
-    await registry.execute('save_draft',
-      { file_path: 'ch01.md', content: longBody('v1') },
-      { bookId, dataDir: tmpDir },
-    )
+    // First write: no archive, file did not previously exist.
+    fs.writeFileSync(target, longBody('v1'), 'utf-8')
     expect(listDraftHistory(bookDir(), 'ch01')).toHaveLength(0)
 
-    // Second save: prior version should be archived before being overwritten.
-    await registry.execute('save_draft',
-      { file_path: 'ch01.md', content: longBody('v2') },
-      { bookId, dataDir: tmpDir },
-    )
+    // Second write: archive prior version before overwriting.
+    archivePriorDraft(bookDir(), target)
+    fs.writeFileSync(target, longBody('v2'), 'utf-8')
     const history = listDraftHistory(bookDir(), 'ch01')
     expect(history).toHaveLength(1)
 
@@ -121,6 +117,6 @@ describe('save_draft integration', () => {
     expect(archivedContent).toContain('v1')
 
     // Live file holds the new version.
-    expect(fs.readFileSync(path.join(bookDir(), '04_Drafts', 'ch01.md'), 'utf-8')).toContain('v2')
+    expect(fs.readFileSync(target, 'utf-8')).toContain('v2')
   })
 })

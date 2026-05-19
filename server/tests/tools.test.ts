@@ -9,7 +9,7 @@ describe('Tool Registration', () => {
     const registry = createAllTools()
     expect(registry.listNames().length).toBeGreaterThanOrEqual(13)
     expect(registry.get('read_file')).toBeDefined()
-    expect(registry.get('save_draft')).toBeDefined()
+    expect(registry.get('save_script')).toBeDefined()
     expect(registry.get('read_graph')).toBeDefined()
     expect(registry.get('submit_for_review')).toBeDefined()
     expect(registry.get('present_options')).toBeDefined()
@@ -20,7 +20,7 @@ describe('Tool Registration', () => {
   it('should mark write tools correctly', () => {
     const registry = createAllTools()
     const writeTools = registry.getWriteTools()
-    expect(writeTools).toContain('save_draft')
+    expect(writeTools).toContain('save_script')
     expect(writeTools).toContain('save_lore')
     expect(writeTools).toContain('save_outline')
     expect(writeTools).toContain('submit_for_review')
@@ -36,7 +36,7 @@ describe('Tool Registration', () => {
     expect(registry.isTerminal('present_options')).toBe(true)
     expect(registry.isTerminal('request_guidance')).toBe(true)
     expect(registry.isTerminal('read_file')).toBe(false)
-    expect(registry.isTerminal('save_draft')).toBe(false)
+    expect(registry.isTerminal('save_script')).toBe(false)
   })
 })
 
@@ -167,36 +167,41 @@ describe('Write Tools', () => {
     fs.rmSync(tmpDir, { recursive: true })
   })
 
-  it('save_draft should create file and audit log', async () => {
+  it('save_script should create YAML file and audit log', async () => {
     const registry = createAllTools()
-    const body = '# 第一章\n' + '这是正文。'.repeat(200)
-    const result = await registry.execute('save_draft', {
-      file_path: 'ch01.md',
-      content: body,
+    fs.mkdirSync(path.join(tmpDir, 'test-book', '03_Scripts'), { recursive: true })
+    const script = {
+      id: 'intro',
+      name: 'Intro',
+      author: 'tester',
+      motif: 'rescue',
+      tier: 'short',
+      description: 'intro scene',
+      stages: [{ id: 'start', lines: [{ text: 'Welcome.' }] }],
+    }
+    const result = await registry.execute('save_script', {
+      package_id: 'intro',
+      script_json: JSON.stringify(script),
     }, { bookId: 'test-book', dataDir: tmpDir })
 
     expect(result).toContain('saved')
-    const file = path.join(tmpDir, 'test-book', '04_Drafts', 'ch01.md')
+    const file = path.join(tmpDir, 'test-book', '03_Scripts', 'intro.yaml')
     expect(fs.existsSync(file)).toBe(true)
-    expect(fs.readFileSync(file, 'utf-8')).toContain('第一章')
 
     // Verify audit log
     const log = path.join(tmpDir, 'test-book', 'audit_log.jsonl')
     expect(fs.existsSync(log)).toBe(true)
   })
 
-  it('save_draft should save short work-in-progress content with review warning', async () => {
+  it('save_script should return error on invalid JSON', async () => {
     const registry = createAllTools()
-    const result = await registry.execute('save_draft', {
-      file_path: 'ch01.md',
-      content: '# 第一章\n这是正文。',
+    fs.mkdirSync(path.join(tmpDir, 'test-book', '03_Scripts'), { recursive: true })
+    const result = await registry.execute('save_script', {
+      package_id: 'bad',
+      script_json: 'not-json',
     }, { bookId: 'test-book', dataDir: tmpDir })
 
-    expect(result).toContain('Draft saved')
-    expect(result).toContain('Warning')
-    expect(result).toContain('低于送审最低要求')
-    const file = path.join(tmpDir, 'test-book', '04_Drafts', 'ch01.md')
-    expect(fs.existsSync(file)).toBe(true)
+    expect(result).toContain('Error: Invalid JSON')
   })
 
   it('save_outline should accept a valid chapter tree', async () => {

@@ -1,72 +1,94 @@
 /**
- * Write tools — save_draft, save_outline, save_lore.
+ * Write tools — save_script, save_outline, save_lore.
  * All write tools include safety: backup + audit log + path traversal check.
  */
 import { z } from 'zod'
 import fs from 'fs'
 import path from 'path'
+import { stringify as yamlStringify } from 'yaml'
 import { type ToolDefinition } from './base-tool.js'
 import { createBackup, appendAuditLog, withFileLock } from './safety.js'
-import { archivePriorDraft } from './draft-history.js'
 import { ensureDir, safeReadJson } from '../utils/file-io.js'
-import { formatDraftSelfCheck, runDraftSelfCheck } from './draft-self-check.js'
+import { generateLineIds } from '../services/line-id.js'
+import { StoryPackageSchema } from '../schemas/index.js'
+import { runScriptSelfCheck } from './script-self-check.js'
 
 /**
- * Target lower bound for a reviewable novel chapter. We allow saving shorter
- * drafts as work-in-progress, but editorial submission must clear this floor.
+ * Minimum character count for a draft to qualify for editorial review.
+ * Kept here so editorial.ts and workbench.ts can import it without a new module.
  */
 export const MIN_REVIEW_DRAFT_CHARS = 2500
 
-export const saveDraftTool: ToolDefinition = {
-  name: 'save_draft',
-  description: `保存章节草稿到 04_Drafts/{ch{N}.md}。文件名必须是 ch{N}.md 形式（如 ch01.md），UI 才能把草稿对应到 outline 中相同 id 的 chapter 节点。允许保存低于 ${MIN_REVIEW_DRAFT_CHARS} 字的半成品，但送审会被 submit_to_editorial 硬拦；保存后若低于门槛，请继续扩写。`,
+function formatScriptSelfCheck(issues: { type: string; severity: number; message: string; stageId?: string }[]): string {
+  return issues.map(i => `[sev${i.severity}] ${i.type}: ${i.message}`).join('\n')
+}
+
+export const saveScriptTool: ToolDefinition = {
+  name: 'save_script',
+  description: '保存故事剧本为 YAML 文件到 03_Scripts/{package_id}.yaml。自动为每个 stage 的 lines 生成行 ID，校验 StoryPackage schema，并运行自检规则报告潜在问题。',
   parameters: z.object({
-    file_path: z.string()
-      .regex(/^ch\d{1,4}\.md$/, "file_path 必须是 'ch{N}.md' 形式（如 ch01.md, ch02.md, ch137.md）。N 是阿拉伯数字章节序号，1-4 位，建议 2-3 位零填充以方便排序。")
-      .describe("章节文件名，必须是 'ch{N}.md' 形式（如 ch01.md, ch02.md）。N 用零填充到 2-3 位。会自动放进 04_Drafts/。"),
-    content: z.string().describe('要保存的章节正文'),
+    package_id: z.string().describe('故事包 ID，用作文件名（不含扩展名）'),
+    script_json: z.string().describe('StoryPackage JSON 字符串'),
   }),
   permissionLevel: 'write',
   category: '写入',
-  execute: async ({ file_path, content }, ctx) => {
+  execute: async ({ package_id, script_json }, ctx) => {
+    let rawScript: unknown
+    try {
+      rawScript = JSON.parse(script_json)
+    } catch (e) {
+      return `Error: Invalid JSON — ${e}`
+    }
+
+    // Assign line IDs before schema validation so the schema sees complete data.
+    const scriptWithIds = assignLineIds(package_id, rawScript)
+
+    const parseResult = StoryPackageSchema.safeParse(scriptWithIds)
+    if (!parseResult.success) {
+      const errorLines = parseResult.error.issues.map(i => `- ${i.path.join('.')}: ${i.message}`)
+      return `Error: Schema validation failed:\n${errorLines.join('\n')}`
+    }
+
+    const pkg = parseResult.data
     const bookDir = path.join(ctx.dataDir, ctx.bookId)
-    // Always relocate into 04_Drafts/ — strip any path prefix the agent put in,
-    // keep just the leaf filename. This is the difference between drafts the
-    // sidebar can find and orphan files at the book root nobody sees.
-    const baseName = path.basename(file_path)
-    const target = path.resolve(bookDir, '04_Drafts', baseName)
+    const scriptsDir = ensureDir(path.join(bookDir, '03_Scripts'))
+    const target = path.resolve(scriptsDir, `${package_id}.yaml`)
 
     if (!target.startsWith(path.resolve(bookDir))) {
       return 'Error: Access denied — path outside book directory.'
     }
 
-    ensureDir(path.dirname(target))
+    const selfCheck = runScriptSelfCheck(pkg)
+    const selfCheckSection = selfCheck.issues.length > 0
+      ? `\n\n${selfCheck.blockReview ? 'BLOCKED' : 'WARNINGS'}:\n${formatScriptSelfCheck(selfCheck.issues)}`
+      : ''
 
-    // Serialize concurrent writes targeting the SAME draft file. Different
-    // chapters still run fully in parallel (lock keyed on absolute path).
-    return withFileLock(target, () => {
-      // Archive the prior version into .draft_history/{chapter}/ before the
-      // single .bak gets clobbered. .bak handles "oops, my last write was bad";
-      // .draft_history/ handles "I rewrote ch01 five times, give me version 3
-      // back." Both cheap, both worth keeping.
-      archivePriorDraft(bookDir, target)
+    return withFileLock(target, async () => {
       createBackup(target)
-      fs.writeFileSync(target, content, 'utf-8')
+      fs.writeFileSync(target, yamlStringify(pkg), 'utf-8')
 
       const logFile = path.join(bookDir, 'audit_log.jsonl')
-      const relPath = path.posix.join('04_Drafts', baseName)
-      appendAuditLog(logFile, 'save_draft', { file_path: relPath }, `saved ${content.length} chars`, true)
+      appendAuditLog(logFile, 'save_script', { package_id }, `saved ${package_id}.yaml`, true)
 
-      const warning = content.length < MIN_REVIEW_DRAFT_CHARS
-        ? `\nWarning: 当前草稿 ${content.length} 字，低于送审最低要求 ${MIN_REVIEW_DRAFT_CHARS} 字。可以作为半成品保存，但必须扩写到达标后再调用 submit_to_editorial。`
-        : ''
-      const selfCheck = runDraftSelfCheck(content, { minReviewChars: MIN_REVIEW_DRAFT_CHARS, bookDir })
-      const selfCheckMessage = selfCheck.issues.length > 0
-        ? `\n\n${formatDraftSelfCheck(selfCheck)}`
-        : ''
-      return `Draft saved to ${relPath} (${content.length} chars)${warning}${selfCheckMessage}`
+      return `Script saved to 03_Scripts/${package_id}.yaml${selfCheckSection}`
     })
   },
+}
+
+function assignLineIds(packageId: string, raw: unknown): unknown {
+  if (typeof raw !== 'object' || raw === null || !Array.isArray((raw as any).stages)) {
+    return raw
+  }
+  const pkg = raw as { stages: unknown[] }
+  return {
+    ...pkg,
+    stages: pkg.stages.map((stage: unknown) => {
+      if (typeof stage !== 'object' || stage === null) return stage
+      const s = stage as { id?: string; lines?: unknown[] }
+      if (!s.id || !Array.isArray(s.lines)) return stage
+      return { ...s, lines: generateLineIds(packageId, s.id, s.lines as any) }
+    }),
+  }
 }
 
 export const saveOutlineTool: ToolDefinition = {
