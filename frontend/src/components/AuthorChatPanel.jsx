@@ -17,6 +17,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
   const [streamingMsg, setStreamingMsg] = useState(null) // {thinking, segments[], thinkingDone, phase}
   const [snapshots, setSnapshots] = useState([])
   const [snapsOpen, setSnapsOpen] = useState(false)
+  const [snapshotRestoreTarget, setSnapshotRestoreTarget] = useState(null)
   const [recentRuns, setRecentRuns] = useState([])
   const [currentRun, setCurrentRun] = useState(null)
   const [stageRefreshKey, setStageRefreshKey] = useState(0)
@@ -24,6 +25,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
   const inputRef = useRef(null)
   const fileInputRef = useRef(null)
   const abortRef = useRef(null)
+  const composingRef = useRef(false)
   // Up/Down arrow history navigation. histIdx is the offset back from the
   // newest sent message; null means "currently editing fresh input".
   const sentHistory = useRef([])  // newest last
@@ -31,6 +33,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
   const draftBeforeNav = useRef('')
 
   const bookId = currentBook?.book_id
+  const draftStorageKey = bookId ? `inkflow.authorChatDraft:${bookId}` : null
   const refreshAfterTool = useCallback((toolName) => {
     if (DATA_MUTATING_TOOLS.has(toolName)) {
       onLoreUpdated?.()
@@ -54,6 +57,21 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
 
   useEffect(() => { loadChatHistory() }, [loadChatHistory])
 
+  useEffect(() => {
+    if (!draftStorageKey) {
+      setInput('')
+      return
+    }
+    setInput(window.localStorage.getItem(draftStorageKey) || '')
+  }, [draftStorageKey])
+
+  const updateInput = useCallback((value) => {
+    setInput(value)
+    if (!draftStorageKey) return
+    if (value) window.localStorage.setItem(draftStorageKey, value)
+    else window.localStorage.removeItem(draftStorageKey)
+  }, [draftStorageKey])
+
   const fetchRecentRuns = useCallback(() => {
     if (!bookId) return
     fetch(`/api/v1/books/${bookId}/runs/recent?limit=5`)
@@ -75,14 +93,18 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
       .catch(() => setSnapshots([]))
   }, [bookId])
 
-  const handleRestoreSnapshot = async (snapId, label) => {
+  const handleRestoreSnapshot = async (snapshot) => {
     if (!bookId) return
-    if (!window.confirm(`回滚到该快照？将覆盖当前所有内容（含对话、大纲、设定、草稿）。\n\n快照：${label}`)) return
+    const snapId = snapshot.id
+    const label = snapshot.label
     try {
       const resp = await fetch(`/api/v1/books/${bookId}/snapshots/${snapId}/restore`, { method: 'POST' })
       if (!resp.ok) throw new Error('restore failed')
       addToast?.('已回滚到快照', 'success')
       setSnapsOpen(false)
+      setSnapshotRestoreTarget(null)
+      updateInput(label || '')
+      fetchSnapshots()
       loadChatHistory()
       onLoreUpdated?.()  // bump dataVersion → other panels (outline / lore / plot tree) refresh
       setStageRefreshKey(k => k + 1)
@@ -149,7 +171,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
       } catch (e) {
         addToast?.(e.message, 'error')
       }
-      if (!fromOverride) setInput('')
+      if (!fromOverride) updateInput('')
       return
     }
 
@@ -163,7 +185,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
     if (baseInput) sentHistory.current.push(baseInput)
     setHistIdx(null)
     draftBeforeNav.current = ''
-    if (!fromOverride) setInput('')
+    if (!fromOverride) updateInput('')
     if (useAttachments) setAttachments([])
     setMessages(prev => [...prev, {
       role: 'user', content: userMsg,
@@ -369,10 +391,17 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
     if (!bookId) return
     await fetch(`/api/v1/author-chat/${bookId}/history`, { method: 'DELETE' })
     setMessages([])
+    setCurrentRun(null)
+    setRecentRuns([])
+    setHistIdx(null)
+    sentHistory.current = []
+    draftBeforeNav.current = ''
+    updateInput('')
   }
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
+      if (e.nativeEvent?.isComposing || composingRef.current) return
       e.preventDefault()
       handleSend()
       return
@@ -387,7 +416,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
       const next = histIdx === null ? hist.length - 1 : Math.max(0, histIdx - 1)
       if (histIdx === null) draftBeforeNav.current = input
       setHistIdx(next)
-      setInput(hist[next])
+      updateInput(hist[next])
       return
     }
     if ((e.key === 'ArrowDown') && navigating) {
@@ -395,10 +424,10 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
       const next = histIdx + 1
       if (next >= hist.length) {
         setHistIdx(null)
-        setInput(draftBeforeNav.current)
+        updateInput(draftBeforeNav.current)
       } else {
         setHistIdx(next)
-        setInput(hist[next])
+        updateInput(hist[next])
       }
       return
     }
@@ -429,7 +458,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, position: 'relative' }}>
           <button
-            onClick={() => { fetchSnapshots(); setSnapsOpen(s => !s) }}
+            onClick={() => { fetchSnapshots(); setSnapshotRestoreTarget(null); setSnapsOpen(s => !s) }}
             title="快照 / 回滚到任意一条历史消息发送之前的状态"
             style={{
               background: snapsOpen ? 'var(--bg-elevated)' : 'none',
@@ -456,31 +485,77 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
                   暂无快照（每次发消息前会自动创建）
                 </div>
               )}
-              {snapshots.map(s => (
-                <button
-                  key={s.id}
-                  onClick={() => handleRestoreSnapshot(s.id, s.label)}
-                  style={{
-                    display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
-                    width: '100%', textAlign: 'left', padding: '6px 8px', marginBottom: 2,
-                    border: '1px solid transparent', borderRadius: 6, background: 'transparent',
-                    cursor: 'pointer', color: 'var(--ink)', gap: 2,
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(59,130,246,0.08)'; e.currentTarget.style.borderColor = 'rgba(59,130,246,0.30)' }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'transparent' }}
-                >
-                  <div style={{ fontSize: 10, color: 'var(--ink-muted)' }}>
-                    {new Date(s.created_at).toLocaleString()}
+              {snapshots.map(s => {
+                const selected = snapshotRestoreTarget?.id === s.id
+                return (
+                  <div key={s.id} style={{ marginBottom: 2 }}>
+                    <button
+                      onClick={() => setSnapshotRestoreTarget(s)}
+                      style={{
+                        display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
+                        width: '100%', textAlign: 'left', padding: '6px 8px',
+                        border: selected ? '1px solid rgba(185,82,59,0.45)' : '1px solid transparent',
+                        borderRadius: 6,
+                        background: selected ? 'rgba(185,82,59,0.08)' : 'transparent',
+                        cursor: 'pointer', color: 'var(--ink)', gap: 2,
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = selected ? 'rgba(185,82,59,0.08)' : 'rgba(59,130,246,0.08)'
+                        e.currentTarget.style.borderColor = selected ? 'rgba(185,82,59,0.45)' : 'rgba(59,130,246,0.30)'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = selected ? 'rgba(185,82,59,0.08)' : 'transparent'
+                        e.currentTarget.style.borderColor = selected ? 'rgba(185,82,59,0.45)' : 'transparent'
+                      }}
+                    >
+                      <div style={{ fontSize: 10, color: 'var(--ink-muted)' }}>
+                        {new Date(s.created_at).toLocaleString()}
+                      </div>
+                      <div style={{
+                        fontSize: 12, lineHeight: 1.4, color: 'var(--ink)',
+                        overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box',
+                        WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+                      }}>
+                        {s.label || '(无内容)'}
+                      </div>
+                    </button>
+                    {selected && (
+                      <div style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                        margin: '4px 0 6px', padding: '7px 8px',
+                        border: '1px solid var(--border-subtle)', borderRadius: 6,
+                        background: 'var(--bg)',
+                      }}>
+                        <span style={{ fontSize: 11, color: 'var(--ink-muted)', lineHeight: 1.4 }}>
+                          回滚会覆盖当前书籍内容，并删除此快照之后的快照。
+                        </span>
+                        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                          <button
+                            onClick={() => setSnapshotRestoreTarget(null)}
+                            style={{
+                              border: '1px solid var(--border-subtle)', background: 'transparent',
+                              color: 'var(--ink-secondary)', borderRadius: 4, padding: '4px 7px',
+                              fontSize: 11, cursor: 'pointer',
+                            }}
+                          >
+                            取消
+                          </button>
+                          <button
+                            onClick={() => handleRestoreSnapshot(s)}
+                            style={{
+                              border: '1px solid rgba(185,82,59,0.45)', background: 'rgba(185,82,59,0.12)',
+                              color: 'var(--accent)', borderRadius: 4, padding: '4px 7px',
+                              fontSize: 11, cursor: 'pointer',
+                            }}
+                          >
+                            确认回滚
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <div style={{
-                    fontSize: 12, lineHeight: 1.4, color: 'var(--ink)',
-                    overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box',
-                    WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
-                  }}>
-                    {s.label || '(无内容)'}
-                  </div>
-                </button>
-              ))}
+                )
+              })}
             </div>
           )}
           <button onClick={handleClear} title="清空对话"
@@ -635,7 +710,13 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
           }}>
           <Paperclip size={16} />
         </button>
-        <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKeyDown}
+        <textarea
+          ref={inputRef}
+          value={input}
+          onChange={e => updateInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onCompositionStart={() => { composingRef.current = true }}
+          onCompositionEnd={() => { composingRef.current = false }}
           placeholder={t('authorChat.placeholder')} rows={1}
           style={{
             flex: 1, resize: 'none', padding: '8px 12px', borderRadius: 8,

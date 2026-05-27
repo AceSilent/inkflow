@@ -23,7 +23,7 @@ import { createSessionState, updateSessionStateAfterToolCall } from '../context/
 import { loadBreakerState, resetBreaker } from '../context/circuit-breaker.js'
 import { getModelContextWindow, evaluateBudgetTier } from '../context/model-window.js'
 import { appendRunEvent, createRunId, loadRecentRuns, type RunTimelineEvent, type RunEventStatus } from '../runs/run-timeline.js'
-import { loadAuthorChatConfig, persistUsageBestEffort, previewValue } from './author-chat-support.js'
+import { clearAuthorChatSession, loadAuthorChatConfig, persistUsageBestEffort, previewValue } from './author-chat-support.js'
 import { ReasoningSegmentAccumulator, type AssistantSegment } from './stream-segments.js'
 
 const loadConfig = loadAuthorChatConfig
@@ -71,7 +71,7 @@ export async function authorChatRoutes(app: FastifyInstance) {
       try {
         const bookId = sanitizePathSegment(request.params.bookId, 'bookId')
         const { dataDir } = loadConfig()
-        saveHistory(dataDir, bookId, [])
+        clearAuthorChatSession(dataDir, bookId)
         return { status: 'ok' }
       } catch (err: any) {
         reply.code(400)

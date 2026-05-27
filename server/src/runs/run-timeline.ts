@@ -103,6 +103,12 @@ export function loadRecentRuns(dataDir: string, bookId: string, limit = 5): RunT
     .filter((run): run is RunTimelineSummary => Boolean(run))
 }
 
+export function clearRunTimeline(dataDir: string, bookId: string): void {
+  const dir = runsDir(dataDir, bookId)
+  if (!fs.existsSync(dir)) return
+  fs.rmSync(dir, { recursive: true, force: true })
+}
+
 export function markRunInterruptedIfOpen(
   dataDir: string,
   bookId: string,

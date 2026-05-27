@@ -10,6 +10,8 @@ import path from 'path'
 import { sanitizePathSegment } from '../src/utils/path-sanitizer.js'
 import { sendChatBody } from '../src/routes/schemas.js'
 import { persistUsageBestEffort } from '../src/routes/author-chat.js'
+import { clearAuthorChatSession } from '../src/routes/author-chat-support.js'
+import { appendRunEvent } from '../src/runs/run-timeline.js'
 import { ReasoningSegmentAccumulator, type StreamSegmentEvent } from '../src/routes/stream-segments.js'
 import { REASONING_CLOSE, REASONING_OPEN } from '../src/llm/provider.js'
 
@@ -208,6 +210,35 @@ describe('Author Chat Usage Persistence', () => {
     expect(result).toBe('timeout')
     expect(Date.now() - started).toBeLessThan(500)
     expect(fs.existsSync(usageFile)).toBe(false)
+  })
+})
+
+describe('Author Chat Session Clear', () => {
+  it('clears history, timeline runs, usage, and context diagnostics', () => {
+    const bookId = 'book-clear'
+    const bookDir = path.join(TEST_DIR, bookId)
+    fs.mkdirSync(bookDir, { recursive: true })
+    saveHistory(TEST_DIR, bookId, [
+      { role: 'user', content: 'test' },
+      { role: 'assistant', content: 'reply' },
+    ])
+    appendRunEvent(TEST_DIR, bookId, {
+      runId: 'run_20260425T120000_clear',
+      seq: 1,
+      ts: '2026-04-25T12:00:00.000Z',
+      type: 'run_start',
+      status: 'running',
+      label: '开始',
+    })
+    fs.writeFileSync(path.join(bookDir, 'last_usage.json'), '{"total_tokens":123}', 'utf8')
+    fs.writeFileSync(path.join(bookDir, 'context_log.jsonl'), '{"tier":"green"}\n', 'utf8')
+
+    clearAuthorChatSession(TEST_DIR, bookId)
+
+    expect(loadHistory(TEST_DIR, bookId)).toEqual([])
+    expect(fs.existsSync(path.join(bookDir, 'runs'))).toBe(false)
+    expect(fs.existsSync(path.join(bookDir, 'last_usage.json'))).toBe(false)
+    expect(fs.existsSync(path.join(bookDir, 'context_log.jsonl'))).toBe(false)
   })
 })
 

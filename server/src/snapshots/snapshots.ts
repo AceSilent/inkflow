@@ -99,8 +99,8 @@ export function listSnapshots(dataDir: string, bookId: string): SnapshotMeta[] {
 /**
  * Restore a snapshot in-place. Wipes current book content (except .snapshots
  * and excluded-from-snapshot files) before copying the snap content back.
- * The .snapshots directory itself is preserved so the user keeps their other
- * checkpoints; only the working copy is rewound.
+ * Newer snapshots are dropped after restore so the checkpoint list stays a
+ * linear history from the restored point.
  */
 export function restoreSnapshot(dataDir: string, bookId: string, snapId: string): void {
   const src = snapPath(dataDir, bookId, snapId)
@@ -119,6 +119,8 @@ export function restoreSnapshot(dataDir: string, bookId: string, snapId: string)
     recursive: true,
     filter: (s) => path.basename(s) !== META_FILE,
   })
+
+  deleteSnapshotsNewerThan(dataDir, bookId, snapId)
 }
 
 /** Delete a snapshot. */
@@ -134,5 +136,14 @@ function pruneOldSnapshots(dataDir: string, bookId: string): void {
   // listSnapshots is newest-first; drop the tail
   for (const old of all.slice(MAX_SNAPSHOTS)) {
     deleteSnapshot(dataDir, bookId, old.id)
+  }
+}
+
+function deleteSnapshotsNewerThan(dataDir: string, bookId: string, snapId: string): void {
+  const all = listSnapshots(dataDir, bookId)
+  const restoredIndex = all.findIndex(s => s.id === snapId)
+  if (restoredIndex <= 0) return
+  for (const newer of all.slice(0, restoredIndex)) {
+    deleteSnapshot(dataDir, bookId, newer.id)
   }
 }

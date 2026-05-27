@@ -1,5 +1,8 @@
 import fs from 'fs'
+import path from 'path'
 import { type LLMConfig } from '../llm/provider.js'
+import { clearRunTimeline } from '../runs/run-timeline.js'
+import { saveHistory } from './chat-history.js'
 import { getSettings } from './settings.js'
 
 export const USAGE_PERSIST_TIMEOUT_MS = 2000
@@ -39,6 +42,15 @@ export function loadAuthorChatConfig(): { llmConfig: LLMConfig; dataDir: string 
 export function previewValue(value: unknown, max = 320): string {
   const text = typeof value === 'string' ? value : JSON.stringify(value)
   return (text ?? '').replace(/\s+/g, ' ').slice(0, max)
+}
+
+export function clearAuthorChatSession(dataDir: string, bookId: string): void {
+  const bookDir = path.join(dataDir, bookId)
+  saveHistory(dataDir, bookId, [])
+  clearRunTimeline(dataDir, bookId)
+  for (const file of ['last_usage.json', 'context_log.jsonl']) {
+    fs.rmSync(path.join(bookDir, file), { force: true })
+  }
 }
 
 export async function persistUsageBestEffort(

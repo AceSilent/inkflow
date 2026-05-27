@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import fs from 'fs'
 import path from 'path'
-import { createSnapshot, listSnapshots } from '../src/snapshots/snapshots.js'
+import { createSnapshot, listSnapshots, restoreSnapshot } from '../src/snapshots/snapshots.js'
 
 const TEST_DIR = path.join(process.cwd(), '__test_snapshots__')
 const BOOK_ID = 'book-1'
@@ -39,5 +39,23 @@ describe('snapshots', () => {
     expect(fs.existsSync(path.join(snapDir, 'audit_log.jsonl'))).toBe(false)
     expect(fs.existsSync(path.join(snapDir, 'chapter.md.bak'))).toBe(false)
     expect(listSnapshots(TEST_DIR, BOOK_ID)[0].id).toBe(meta.id)
+  })
+
+  it('drops snapshots newer than the restored checkpoint', async () => {
+    const outlinePath = path.join(TEST_DIR, BOOK_ID, '02_Outlines', 'outline.json')
+    const first = createSnapshot(TEST_DIR, BOOK_ID, 'first prompt')
+
+    await new Promise(resolve => setTimeout(resolve, 2))
+    fs.writeFileSync(outlinePath, '{"ok":false}', 'utf8')
+    const second = createSnapshot(TEST_DIR, BOOK_ID, 'second prompt')
+
+    expect(listSnapshots(TEST_DIR, BOOK_ID).map(s => s.id)).toContain(second.id)
+
+    restoreSnapshot(TEST_DIR, BOOK_ID, first.id)
+
+    const remaining = listSnapshots(TEST_DIR, BOOK_ID).map(s => s.id)
+    expect(remaining).toContain(first.id)
+    expect(remaining).not.toContain(second.id)
+    expect(fs.readFileSync(outlinePath, 'utf8')).toBe('{"ok":true}')
   })
 })
