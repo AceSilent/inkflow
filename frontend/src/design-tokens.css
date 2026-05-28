@@ -74,13 +74,17 @@
   --accent-soft: oklch(30% 0.06 250);
   --accent-strong: oklch(78% 0.14 250);
 
-  --reviewer-lore: #d4823c;
-  --reviewer-pacing: #70a0d0;
-  --reviewer-ai-tone: #a080d0;
-  --reviewer-character: #80b080;
-  --reviewer-causality: #d09050;
-  --reviewer-user: #6a9670;
-  --gold: #d4a444;
+  --thinking: oklch(73% 0.12 285);
+
+  --reviewer-lore: oklch(73% 0.12 285);
+  --reviewer-pacing: oklch(74% 0.1 220);
+  --reviewer-tone: oklch(78% 0.12 75);
+  --reviewer-character: oklch(72% 0.11 145);
+  --reviewer-causality: oklch(70% 0.14 28);
+
+  --reviewer-ai-tone: var(--reviewer-tone);
+  --reviewer-user: oklch(72% 0.11 145);
+  --gold: oklch(78% 0.12 75);
 }
 
 body {
