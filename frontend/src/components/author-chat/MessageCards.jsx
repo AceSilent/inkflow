@@ -58,7 +58,8 @@ export function ThinkingCard({ segment, t }) {
       >
         {expanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
         <Brain size={11} />
-        执行分析已折叠 ({len} {t('authorChat.chars')}){live ? ' · 分析中…' : ''}
+        执行分析已折叠 ({len} {t('authorChat.chars')})
+        {live && <span className="agent-shimmer"> · thinking</span>}
       </button>
       {expanded && (
         <div style={{

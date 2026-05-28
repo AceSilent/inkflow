@@ -17,6 +17,53 @@
   animation: agent-breathe-border 2.4s ease-in-out infinite;
 }
 
+.agent-state-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.agent-state-dot {
+  position: relative;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--thinking);
+  box-shadow: 0 0 0 3px oklch(62% 0.16 285 / 0.12);
+  flex: 0 0 auto;
+}
+
+.agent-state-dot::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border-radius: inherit;
+  border: 1px solid oklch(62% 0.16 285 / 0.28);
+  animation: agent-state-pulse 1.7s ease-out infinite;
+}
+
+.agent-state-copy {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.agent-state-token {
+  font-family: var(--font-label);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.agent-state-label {
+  color: var(--ink-muted);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 @keyframes agent-shimmer-sweep {
   0% { background-position: 120% 0; }
   100% { background-position: -120% 0; }
@@ -27,9 +74,21 @@
   50% { box-shadow: 0 0 0 3px oklch(62% 0.16 285 / 0.18); }
 }
 
+@keyframes agent-state-pulse {
+  0% {
+    opacity: 0.65;
+    transform: scale(0.7);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.6);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .agent-shimmer,
-  .agent-breathe {
+  .agent-breathe,
+  .agent-state-dot::after {
     animation: none;
   }
 }

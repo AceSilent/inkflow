@@ -188,7 +188,7 @@ export function AgentRunTimeline({ currentRun, recentRuns = [], loading }) {
       >
         {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         <span style={{ color: statusColor[summary.status] || 'var(--accent)', display: 'flex', alignItems: 'center' }}>{statusIcon(summary.status)}</span>
-        <strong style={{ fontSize: 12 }}>{title}</strong>
+        <strong className={isRunning ? 'agent-shimmer' : undefined} style={{ fontSize: 12 }}>{title}</strong>
         <span style={{ color: 'var(--ink-muted)', fontSize: 11, marginLeft: 'auto' }}>
           {displayEvents.length} 步 · {lastLabel}
         </span>

@@ -15,6 +15,7 @@ import {
   truncateMessagesBeforeCheckpoint,
 } from './author-chat/messageUtils'
 import { parseSlashCommand } from './author-chat/slashCommands'
+import { agentLifecycleState } from './author-chat/agentState'
 
 function CheckpointEditComposer({ value, onChange, onCancel, onSubmit, disabled }) {
   const submit = () => {
@@ -105,6 +106,19 @@ function CheckpointEditComposer({ value, onChange, onCancel, onSubmit, disabled 
         </button>
       </div>
     </div>
+  )
+}
+
+function AgentStateBadge({ phase }) {
+  const state = agentLifecycleState(phase)
+  return (
+    <span className="agent-state-badge">
+      <span className="agent-state-dot" />
+      <span className="agent-state-copy">
+        <span className="agent-state-token agent-shimmer">{state.token}</span>
+        <span className="agent-state-label">{state.label}</span>
+      </span>
+    </span>
   )
 }
 
@@ -735,9 +749,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
                 fontSize: 13, color: 'var(--ink-muted)', borderBottomLeftRadius: 4,
                 display: 'flex', alignItems: 'center', gap: 6
               }}>
-                <Loader size={12} style={{ animation: 'spin 1.5s linear infinite' }} />
-                {streamingMsg.phase === 'agent_loop' && t('authorChat.thinking')}
-                {!streamingMsg.phase && t('authorChat.processing')}
+                <AgentStateBadge phase={streamingMsg.phase} />
               </div>
             )}
           </div>
