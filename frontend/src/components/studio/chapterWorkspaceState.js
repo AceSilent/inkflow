@@ -33,6 +33,10 @@ export function shouldApplyChapterResult(requestKey, currentKey) {
   return Boolean(requestKey) && requestKey === currentKey
 }
 
+export function shouldClearLoadErrorOnLoadStart(previousKey, requestKey) {
+  return Boolean(requestKey) && previousKey !== requestKey
+}
+
 export function shouldReplaceDraftAfterSave(savedContent, currentDraft) {
   return normalizeChapterContent(savedContent) === normalizeChapterContent(currentDraft)
 }

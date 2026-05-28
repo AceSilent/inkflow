@@ -6,6 +6,7 @@ import {
   isDraftDirty,
   normalizeChapterContent,
   shouldApplyChapterResult,
+  shouldClearLoadErrorOnLoadStart,
   shouldPreserveDirtyDraft,
   shouldReplaceDraftAfterSave,
 } from './chapterWorkspaceState'
@@ -38,6 +39,14 @@ describe('chapter workspace state', () => {
 
     expect(shouldApplyChapterResult(chapterKey, chapterKey)).toBe(true)
     expect(shouldApplyChapterResult(chapterKey, chapterWorkspaceKey('book-a', 'ch-2'))).toBe(false)
+  })
+
+  it('keeps refresh failure state during same-chapter retries', () => {
+    const chapterKey = chapterWorkspaceKey('book-a', 'ch-1')
+
+    expect(shouldClearLoadErrorOnLoadStart('', chapterKey)).toBe(true)
+    expect(shouldClearLoadErrorOnLoadStart(chapterKey, chapterKey)).toBe(false)
+    expect(shouldClearLoadErrorOnLoadStart(chapterKey, chapterWorkspaceKey('book-a', 'ch-2'))).toBe(true)
   })
 
   it('does not replace draft after save when user typed newer content', () => {

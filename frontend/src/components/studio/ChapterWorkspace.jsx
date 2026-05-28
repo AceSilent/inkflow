@@ -7,6 +7,7 @@ import {
   isDraftDirty,
   normalizeChapterContent,
   shouldApplyChapterResult,
+  shouldClearLoadErrorOnLoadStart,
   shouldPreserveDirtyDraft,
   shouldReplaceDraftAfterSave,
 } from './chapterWorkspaceState'
@@ -53,7 +54,7 @@ export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast }) {
     const sameChapter = previousKey === requestKey
 
     setLoading(true)
-    setLoadError(false)
+    if (shouldClearLoadErrorOnLoadStart(previousKey, requestKey)) setLoadError(false)
 
     if (!sameChapter) {
       stateKeyRef.current = requestKey
@@ -155,7 +156,7 @@ export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast }) {
     )
   }
 
-  if (!stateBelongsToCurrentChapter || (loading && !hasLoadedCurrent)) {
+  if (!stateBelongsToCurrentChapter) {
     return (
       <div className="chapter-workspace-empty">
         <Loader size={18} className="anim-spin" />
@@ -168,6 +169,15 @@ export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast }) {
     return (
       <div className="chapter-workspace-empty">
         章节读取失败，请稍后重试
+      </div>
+    )
+  }
+
+  if (loading && !hasLoadedCurrent) {
+    return (
+      <div className="chapter-workspace-empty">
+        <Loader size={18} className="anim-spin" />
+        正在读取章节
       </div>
     )
   }
