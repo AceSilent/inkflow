@@ -111,32 +111,18 @@ export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast }) {
     <div className="chapter-workspace">
       <header className="chapter-workspace-head">
         <div>
-          <div className="chapter-workspace-kicker">章节正文</div>
+          <div className="chapter-workspace-kicker">当前章节</div>
           <h2>{chapterTitle}</h2>
         </div>
         <div className="chapter-workspace-actions">
-          <span className="chapter-workspace-stat">{wordCount} 字</span>
+          <span className="chapter-workspace-stat">{wordCount} 字/词</span>
           {mode === 'preview' ? (
-            <>
-              <span className="chapter-workspace-save-state">
-                <Check size={14} />
-                已保存
-              </span>
-              <button className="btn btn-secondary btn-sm" type="button" onClick={() => setMode('edit')}>
-                <Edit3 size={14} />
-                编辑
-              </button>
-            </>
+            <button className="btn btn-secondary btn-sm" type="button" onClick={() => setMode('edit')}>
+              <Edit3 size={14} />
+              编辑
+            </button>
           ) : (
             <>
-              <span className="chapter-workspace-save-state">
-                {dirty ? '有未保存修改' : (
-                  <>
-                    <Check size={14} />
-                    已保存
-                  </>
-                )}
-              </span>
               <button className="btn btn-ghost btn-sm" type="button" onClick={handleCancel} disabled={saving}>
                 <X size={14} />
                 取消
@@ -167,6 +153,16 @@ export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast }) {
             <p className="muted">暂无正文</p>
           )}
         </article>
+      )}
+
+      {mode === 'edit' && dirty && (
+        <div className="chapter-workspace-save-state">有未保存修改</div>
+      )}
+      {mode === 'preview' && !dirty && (
+        <div className="chapter-workspace-save-state">
+          <Check size={12} />
+          已保存
+        </div>
       )}
     </div>
   )
