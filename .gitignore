@@ -1,5 +1,6 @@
 # Brainstorming / visual companion (local only)
 .superpowers/
+.worktrees/
 /.agents/
 /AGENTS.md
 /CLAUDE.md
