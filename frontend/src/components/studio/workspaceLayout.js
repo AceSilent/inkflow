@@ -26,14 +26,14 @@ function writeStore(store, key, value) {
   else store.setItem(key, value)
 }
 
-export function loadWorkspaceLayout(bookId, store = window.localStorage) {
+export function loadWorkspaceLayout(bookId, store = window.localStorage, viewportWidth = 1440) {
   try {
     const raw = readStore(store, storageKeyForBook(bookId))
     if (!raw) return defaultWorkspaceLayout
     const parsed = JSON.parse(raw)
     return {
       collapsed: Boolean(parsed.collapsed),
-      width: clampWorkspaceWidth(parsed.width),
+      width: clampWorkspaceWidth(parsed.width, viewportWidth),
       activeTab: ['chapter', 'outline', 'plot'].includes(parsed.activeTab)
         ? parsed.activeTab
         : defaultWorkspaceLayout.activeTab,
@@ -43,10 +43,10 @@ export function loadWorkspaceLayout(bookId, store = window.localStorage) {
   }
 }
 
-export function saveWorkspaceLayout(bookId, layout, store = window.localStorage) {
+export function saveWorkspaceLayout(bookId, layout, store = window.localStorage, viewportWidth = 1440) {
   const normalized = {
     collapsed: Boolean(layout.collapsed),
-    width: clampWorkspaceWidth(layout.width),
+    width: clampWorkspaceWidth(layout.width, viewportWidth),
     activeTab: ['chapter', 'outline', 'plot'].includes(layout.activeTab)
       ? layout.activeTab
       : defaultWorkspaceLayout.activeTab,

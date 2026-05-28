@@ -35,4 +35,12 @@ describe('workspace layout helpers', () => {
       activeTab: 'plot',
     })
   })
+
+  it('can save and load widths against the current viewport cap', () => {
+    const store = new Map<string, string>()
+    saveWorkspaceLayout('book-one', { collapsed: false, width: 960, activeTab: 'chapter' }, store, 1920)
+
+    expect(loadWorkspaceLayout('book-one', store, 1920).width).toBe(960)
+    expect(loadWorkspaceLayout('book-one', store, 800).width).toBe(400)
+  })
 })

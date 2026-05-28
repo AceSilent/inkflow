@@ -1,8 +1,35 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { BookOpen, Brain, Library, Search, Settings } from 'lucide-react'
 import { WorkspacePane } from './WorkspacePane'
 import { WorkspaceTabs } from './WorkspaceTabs'
-import { clampWorkspaceWidth, loadWorkspaceLayout, saveWorkspaceLayout } from './workspaceLayout'
+import { WORKSPACE_MIN_WIDTH, clampWorkspaceWidth, loadWorkspaceLayout, saveWorkspaceLayout } from './workspaceLayout'
+
+function workspaceMaxWidth(viewportWidth) {
+  return Math.max(WORKSPACE_MIN_WIDTH, Math.floor(viewportWidth * 0.5))
+}
+
+function currentViewportWidth() {
+  return window.innerWidth
+}
+
+function normalizeLayoutForViewport(layout, viewportWidth) {
+  return {
+    ...layout,
+    width: clampWorkspaceWidth(layout.width, viewportWidth),
+  }
+}
+
+function loadNormalizedWorkspaceLayout(bookId) {
+  const viewportWidth = currentViewportWidth()
+  const layout = loadWorkspaceLayout(bookId, undefined, Number.MAX_SAFE_INTEGER)
+  const normalized = normalizeLayoutForViewport(layout, viewportWidth)
+
+  if (normalized.width !== layout.width) {
+    return saveWorkspaceLayout(bookId, normalized, undefined, viewportWidth)
+  }
+
+  return normalized
+}
 
 export function StudioShell({
   theme,
@@ -17,14 +44,38 @@ export function StudioShell({
   statusbar,
 }) {
   const bookId = currentBook?.book_id
-  const [layout, setLayout] = useState(() => loadWorkspaceLayout(bookId))
+  const resizeCleanupRef = useRef(null)
+  const [viewportWidth, setViewportWidth] = useState(() => currentViewportWidth())
+  const [layout, setLayout] = useState(() => loadNormalizedWorkspaceLayout(bookId))
 
   useEffect(() => {
-    setLayout(loadWorkspaceLayout(bookId))
+    setLayout(loadNormalizedWorkspaceLayout(bookId))
   }, [bookId])
 
-  const persistLayout = useCallback((patch) => {
-    setLayout(prev => saveWorkspaceLayout(bookId, { ...prev, ...patch }))
+  const persistLayout = useCallback((patch, viewportWidth = currentViewportWidth()) => {
+    setLayout(prev => saveWorkspaceLayout(bookId, { ...prev, ...patch }, undefined, viewportWidth))
+  }, [bookId])
+
+  const clearResizeListeners = useCallback(() => {
+    resizeCleanupRef.current?.()
+    resizeCleanupRef.current = null
+  }, [])
+
+  useEffect(() => clearResizeListeners, [clearResizeListeners])
+
+  useEffect(() => {
+    const handleWindowResize = () => {
+      const nextViewportWidth = currentViewportWidth()
+      setViewportWidth(nextViewportWidth)
+      setLayout(prev => {
+        const normalized = normalizeLayoutForViewport(prev, nextViewportWidth)
+        if (normalized.width === prev.width) return prev
+        return saveWorkspaceLayout(bookId, normalized, undefined, nextViewportWidth)
+      })
+    }
+
+    window.addEventListener('resize', handleWindowResize)
+    return () => window.removeEventListener('resize', handleWindowResize)
   }, [bookId])
 
   const railItems = useMemo(() => [
@@ -42,28 +93,74 @@ export function StudioShell({
     persistLayout({ activeTab: tabId })
   }, [persistLayout])
 
+  const visualWidth = useMemo(() => {
+    return clampWorkspaceWidth(layout.width, viewportWidth)
+  }, [layout.width, viewportWidth])
+
+  const visualMaxWidth = useMemo(() => {
+    return workspaceMaxWidth(viewportWidth)
+  }, [viewportWidth])
+
   const handleResizeStart = useCallback((event) => {
     if (event.button !== 0) return
 
     event.preventDefault()
+    clearResizeListeners()
 
     const startX = event.clientX
-    const startWidth = layout.width
+    const startWidth = clampWorkspaceWidth(visualWidth, currentViewportWidth())
 
     const handlePointerMove = (moveEvent) => {
       const delta = startX - moveEvent.clientX
+      const viewportWidth = currentViewportWidth()
       persistLayout({
         collapsed: false,
-        width: clampWorkspaceWidth(startWidth + delta, window.innerWidth),
-      })
+        width: clampWorkspaceWidth(startWidth + delta, viewportWidth),
+      }, viewportWidth)
     }
 
-    const handlePointerUp = () => {
+    const cleanup = () => {
       window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('pointerup', handleResizeEnd)
+      window.removeEventListener('pointercancel', handleResizeEnd)
+      window.removeEventListener('blur', handleResizeEnd)
+      resizeCleanupRef.current = null
+    }
+
+    const handleResizeEnd = () => {
+      cleanup()
     }
 
     window.addEventListener('pointermove', handlePointerMove)
-    window.addEventListener('pointerup', handlePointerUp, { once: true })
+    window.addEventListener('pointerup', handleResizeEnd)
+    window.addEventListener('pointercancel', handleResizeEnd)
+    window.addEventListener('blur', handleResizeEnd)
+    resizeCleanupRef.current = cleanup
+  }, [clearResizeListeners, persistLayout, visualWidth])
+
+  const handleWorkspaceKeyDown = useCallback((event) => {
+    const step = 24
+    const viewportWidth = currentViewportWidth()
+    const currentWidth = clampWorkspaceWidth(layout.width, viewportWidth)
+    let nextWidth
+
+    if (event.key === 'ArrowLeft') {
+      nextWidth = currentWidth + step
+    } else if (event.key === 'ArrowRight') {
+      nextWidth = currentWidth - step
+    } else if (event.key === 'Home') {
+      nextWidth = WORKSPACE_MIN_WIDTH
+    } else if (event.key === 'End') {
+      nextWidth = workspaceMaxWidth(viewportWidth)
+    } else {
+      return
+    }
+
+    event.preventDefault()
+    persistLayout({
+      collapsed: false,
+      width: clampWorkspaceWidth(nextWidth, viewportWidth),
+    }, viewportWidth)
   }, [layout.width, persistLayout])
 
   return (
@@ -110,11 +207,12 @@ export function StudioShell({
         </section>
         <WorkspacePane
           collapsed={layout.collapsed}
-          width={layout.width}
+          width={visualWidth}
+          maxWidth={visualMaxWidth}
           activeTab={layout.activeTab}
           onToggle={handleToggleWorkspace}
           onResizeStart={handleResizeStart}
-          onTabChange={handleTabChange}
+          onKeyDown={handleWorkspaceKeyDown}
         >
           <WorkspaceTabs
             activeTab={layout.activeTab}
