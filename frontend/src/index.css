@@ -1,5 +1,7 @@
+@import "tailwindcss";
 @import "./design-tokens.css";
 @import "./typography.css";
+@import "./styles/agent-motion.css";
 
 :root {
   /* Layout dimensions (not color-related) */

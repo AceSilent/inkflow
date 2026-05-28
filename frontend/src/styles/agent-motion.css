@@ -1,0 +1,35 @@
+.agent-shimmer {
+  background: linear-gradient(
+    110deg,
+    var(--ink-muted) 0%,
+    var(--thinking) 28%,
+    var(--accent) 44%,
+    var(--ink-muted) 62%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: agent-shimmer-sweep 1.8s ease-in-out infinite;
+}
+
+.agent-breathe {
+  animation: agent-breathe-border 2.4s ease-in-out infinite;
+}
+
+@keyframes agent-shimmer-sweep {
+  0% { background-position: 120% 0; }
+  100% { background-position: -120% 0; }
+}
+
+@keyframes agent-breathe-border {
+  0%, 100% { box-shadow: 0 0 0 0 oklch(62% 0.16 285 / 0.12); }
+  50% { box-shadow: 0 0 0 3px oklch(62% 0.16 285 / 0.18); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-shimmer,
+  .agent-breathe {
+    animation: none;
+  }
+}
