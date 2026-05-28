@@ -13,7 +13,7 @@ import { createAllTools } from '../tools/index.js'
 import { sanitizePathSegment } from '../utils/path-sanitizer.js'
 import { sendChatBody } from './schemas.js'
 import { getSettings } from './settings.js'
-import { createMessageId, loadHistoryFull, saveHistory } from './chat-history.js'
+import { createMessageId, loadHistoryFull, type ChatHistoryMessage } from './chat-history.js'
 import { createStatsHooks } from '../stats/tool-stats.js'
 import { createTipHooks } from '../stats/tips/index.js'
 import { composeHooks, type ToolHooks } from '../tools/base-tool.js'
@@ -24,7 +24,8 @@ import { loadBreakerState, resetBreaker } from '../context/circuit-breaker.js'
 import { getModelContextWindow, evaluateBudgetTier } from '../context/model-window.js'
 import { appendRunEvent, createRunId, loadRecentRuns, type RunTimelineEvent, type RunEventStatus } from '../runs/run-timeline.js'
 import { clearAuthorChatSession, loadAuthorChatConfig, persistUsageBestEffort, previewValue } from './author-chat-support.js'
-import { ReasoningSegmentAccumulator, type AssistantSegment } from './stream-segments.js'
+import { ReasoningSegmentAccumulator } from './stream-segments.js'
+import { persistAuthorChatTurn, type AuthorChatTurnStatus } from './author-chat-persistence.js'
 
 const loadConfig = loadAuthorChatConfig
 export { persistUsageBestEffort }
@@ -216,9 +217,10 @@ export async function authorChatRoutes(app: FastifyInstance) {
       }
       request.socket.on('close', onSocketClose)
       let heartbeat: NodeJS.Timeout | null = null
-      // Persistence closure — set inside try after accumulators are wired up,
-      // invoked from finally so partial state survives errors / cancellations.
-      let persistAssistant: ((status?: 'incomplete' | 'aborted') => void) | null = null
+      // Persistence closure — set as soon as history is available, then
+      // replaced once stream accumulators exist. Invoked from finally so
+      // partial state survives early errors / cancellations.
+      let persistAssistant: ((status?: AuthorChatTurnStatus) => void) | null = null
       let streamSucceeded = false
       const userMessageId = createMessageId()
       let checkpointId: string | undefined
@@ -253,6 +255,17 @@ export async function authorChatRoutes(app: FastifyInstance) {
             }
             return rest as ModelMessage
           })
+        persistAssistant = (status: AuthorChatTurnStatus = 'incomplete') => {
+          persistAuthorChatTurn({
+            dataDir,
+            bookId,
+            history: history as ChatHistoryMessage[],
+            message,
+            messageId: userMessageId,
+            checkpointId,
+            status,
+          })
+        }
 
         // ── Context manager: evaluate budget tier + decay/compact as needed ──
         // Uses last turn's total_tokens (persisted on clean stream end below) to
@@ -418,31 +431,27 @@ export async function authorChatRoutes(app: FastifyInstance) {
         //         'incomplete' → stream errored mid-way
         //         'aborted'    → user / client cancelled
         // 'incomplete' / 'aborted' pairs are kept for UI but excluded from LLM context.
-        persistAssistant = (status?: 'incomplete' | 'aborted') => {
+        persistAssistant = (status?: AuthorChatTurnStatus) => {
           accumulator.finalize()
           const hasAnything = accumulator.hasAnything()
           // On clean success with no output (shouldn't happen, but) skip.
           // On failure/abort, ALWAYS save so the user's message is preserved
           // in the UI even if the agent produced nothing before being cut off.
           if (!hasAnything && !status) return
-          const userMsg: ModelMessage & { id?: string; checkpoint_id?: string; status?: string } = {
-            role: 'user',
-            content: message,
-            id: userMessageId,
-            checkpoint_id: checkpointId,
-          }
-          const assistantMsg: ModelMessage & { thinking?: string; segments?: AssistantSegment[]; status?: string } = {
-            role: 'assistant',
-            content: accumulator.fullText || '(Author Agent 没有生成回复)',
-          }
-          if (accumulator.fullThinking) assistantMsg.thinking = accumulator.fullThinking
-          if (accumulator.segments.length > 0) assistantMsg.segments = accumulator.segments
-          if (status) {
-            userMsg.status = status
-            assistantMsg.status = status
-          }
-          const updatedHistory: ModelMessage[] = [...history, userMsg, assistantMsg]
-          saveHistory(dataDir, bookId, updatedHistory)
+          persistAuthorChatTurn({
+            dataDir,
+            bookId,
+            history: history as ChatHistoryMessage[],
+            message,
+            messageId: userMessageId,
+            checkpointId,
+            status,
+            assistant: {
+              content: accumulator.fullText,
+              thinking: accumulator.fullThinking,
+              segments: accumulator.segments,
+            },
+          })
         }
 
         let streamError: unknown = null

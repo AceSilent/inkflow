@@ -22,7 +22,7 @@ function compactTimestamp(date: Date): string {
 }
 
 export function createMessageId(date = new Date()): string {
-  return `msg_${compactTimestamp(date)}_${randomUUID().slice(0, 8)}`
+  return `msg_${compactTimestamp(date)}_${randomUUID()}`
 }
 
 export function loadHistoryFull(dataDir: string, bookId: string): ChatHistoryMessage[] {
@@ -53,11 +53,12 @@ export function truncateHistoryAtMessage(
 ): ChatHistoryMessage[] {
   const index = messages.findIndex(message => message.id === messageId)
   if (index < 0) return messages
+  const target = messages[index]
+  if (target.role !== 'user') throw new Error(`Message '${messageId}' is not a user message`)
+
   const truncated = messages.slice(0, index + 1)
   if (replacementContent === undefined) return truncated
 
-  const target = truncated[index]
-  if (target.role !== 'user') throw new Error(`Message '${messageId}' is not a user message`)
   return [
     ...truncated.slice(0, -1),
     { ...target, content: replacementContent },

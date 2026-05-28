@@ -1,0 +1,57 @@
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import fs from 'fs'
+import os from 'os'
+import path from 'path'
+import { persistAuthorChatTurn } from '../src/routes/author-chat-persistence.js'
+import { loadHistoryFull } from '../src/routes/chat-history.js'
+
+let tmpDir: string
+
+beforeEach(() => {
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'author-chat-persist-'))
+})
+
+afterEach(() => {
+  fs.rmSync(tmpDir, { recursive: true, force: true })
+})
+
+describe('author chat persistence', () => {
+  it('persists an incomplete turn with the user message id and checkpoint id even without assistant output', () => {
+    persistAuthorChatTurn({
+      dataDir: tmpDir,
+      bookId: 'book-1',
+      history: [{ role: 'system', content: 'compacted summary' }],
+      message: '写下一段',
+      messageId: 'm1',
+      checkpointId: 'snap_1',
+      status: 'incomplete',
+    })
+
+    expect(loadHistoryFull(tmpDir, 'book-1')).toEqual([
+      { role: 'system', content: 'compacted summary' },
+      { role: 'user', content: '写下一段', id: 'm1', checkpoint_id: 'snap_1', status: 'incomplete' },
+      { role: 'assistant', content: '(Author Agent 没有生成回复)', status: 'incomplete' },
+    ])
+  })
+
+  it('persists assistant thinking and segments on normal completion', () => {
+    persistAuthorChatTurn({
+      dataDir: tmpDir,
+      bookId: 'book-1',
+      history: [],
+      message: '继续',
+      messageId: 'm2',
+      checkpointId: 'snap_2',
+      assistant: {
+        content: '正文',
+        thinking: '思考',
+        segments: [{ type: 'content', text: '正文' }],
+      },
+    })
+
+    expect(loadHistoryFull(tmpDir, 'book-1')).toEqual([
+      { role: 'user', content: '继续', id: 'm2', checkpoint_id: 'snap_2' },
+      { role: 'assistant', content: '正文', thinking: '思考', segments: [{ type: 'content', text: '正文' }] },
+    ])
+  })
+})

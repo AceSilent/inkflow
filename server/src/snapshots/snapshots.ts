@@ -27,6 +27,10 @@ export interface SnapshotOptions {
   messageId?: string
 }
 
+export interface RestoreSnapshotOptions {
+  pruneNewer?: boolean
+}
+
 function bookDir(dataDir: string, bookId: string): string {
   return path.join(dataDir, bookId)
 }
@@ -107,13 +111,23 @@ export function listSnapshots(dataDir: string, bookId: string): SnapshotMeta[] {
   return out
 }
 
+/** Read one snapshot metadata file without restoring or pruning anything. */
+export function getSnapshotMeta(dataDir: string, bookId: string, snapId: string): SnapshotMeta | null {
+  return safeReadJson<SnapshotMeta>(path.join(snapPath(dataDir, bookId, snapId), META_FILE))
+}
+
 /**
  * Restore a snapshot in-place. Wipes current book content (except .snapshots
  * and excluded-from-snapshot files) before copying the snap content back.
  * Newer snapshots are dropped after restore so the checkpoint list stays a
  * linear history from the restored point.
  */
-export function restoreSnapshot(dataDir: string, bookId: string, snapId: string): void {
+export function restoreSnapshot(
+  dataDir: string,
+  bookId: string,
+  snapId: string,
+  options: RestoreSnapshotOptions = {},
+): void {
   const src = snapPath(dataDir, bookId, snapId)
   const root = bookDir(dataDir, bookId)
   if (!fs.existsSync(src)) throw new Error(`Snapshot '${snapId}' not found`)
@@ -131,7 +145,9 @@ export function restoreSnapshot(dataDir: string, bookId: string, snapId: string)
     filter: (s) => path.basename(s) !== META_FILE,
   })
 
-  deleteSnapshotsNewerThan(dataDir, bookId, snapId)
+  if (options.pruneNewer !== false) {
+    deleteSnapshotsNewerThan(dataDir, bookId, snapId)
+  }
 }
 
 /** Delete a snapshot. */
@@ -150,7 +166,7 @@ function pruneOldSnapshots(dataDir: string, bookId: string): void {
   }
 }
 
-function deleteSnapshotsNewerThan(dataDir: string, bookId: string, snapId: string): void {
+export function deleteSnapshotsNewerThan(dataDir: string, bookId: string, snapId: string): void {
   const all = listSnapshots(dataDir, bookId)
   const restoredIndex = all.findIndex(s => s.id === snapId)
   if (restoredIndex <= 0) return

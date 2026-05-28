@@ -48,4 +48,13 @@ describe('chat-history', () => {
 
     expect(truncated).toBe(messages)
   })
+
+  it('truncateHistoryAtMessage rejects non-user target messages even without replacement text', () => {
+    const messages = [
+      { role: 'user' as const, content: 'first', id: 'm1' },
+      { role: 'assistant' as const, content: 'reply', id: 'a1' },
+    ]
+
+    expect(() => truncateHistoryAtMessage(messages, 'a1')).toThrow('not a user message')
+  })
 })
