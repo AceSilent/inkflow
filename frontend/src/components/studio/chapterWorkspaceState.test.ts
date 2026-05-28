@@ -5,7 +5,7 @@ import {
   countCjkAwareWords,
   isDraftDirty,
   normalizeChapterContent,
-  shouldApplySaveResult,
+  shouldApplyChapterResult,
   shouldPreserveDirtyDraft,
   shouldReplaceDraftAfterSave,
 } from './chapterWorkspaceState'
@@ -33,11 +33,11 @@ describe('chapter workspace state', () => {
     expect(shouldPreserveDirtyDraft(chapterKey, chapterKey, 'clean draft', 'clean draft')).toBe(false)
   })
 
-  it('rejects stale save results for another chapter key', () => {
+  it('rejects stale chapter results for another chapter key', () => {
     const chapterKey = chapterWorkspaceKey('book-a', 'ch-1')
 
-    expect(shouldApplySaveResult(chapterKey, chapterKey)).toBe(true)
-    expect(shouldApplySaveResult(chapterKey, chapterWorkspaceKey('book-a', 'ch-2'))).toBe(false)
+    expect(shouldApplyChapterResult(chapterKey, chapterKey)).toBe(true)
+    expect(shouldApplyChapterResult(chapterKey, chapterWorkspaceKey('book-a', 'ch-2'))).toBe(false)
   })
 
   it('does not replace draft after save when user typed newer content', () => {
@@ -45,10 +45,10 @@ describe('chapter workspace state', () => {
     expect(shouldReplaceDraftAfterSave('sent content', 'sent content plus more')).toBe(false)
   })
 
-  it('blocks editing when loaded content is unknown after failure', () => {
+  it('blocks editing when loaded content is unknown or refresh failed', () => {
     expect(canEditLoadedChapter(false, true)).toBe(false)
     expect(canEditLoadedChapter(false, false)).toBe(false)
-    expect(canEditLoadedChapter(true, true)).toBe(true)
+    expect(canEditLoadedChapter(true, true)).toBe(false)
     expect(canEditLoadedChapter(true, false)).toBe(true)
   })
 })

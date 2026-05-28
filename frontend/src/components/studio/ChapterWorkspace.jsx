@@ -6,7 +6,7 @@ import {
   countCjkAwareWords,
   isDraftDirty,
   normalizeChapterContent,
-  shouldApplySaveResult,
+  shouldApplyChapterResult,
   shouldPreserveDirtyDraft,
   shouldReplaceDraftAfterSave,
 } from './chapterWorkspaceState'
@@ -69,7 +69,7 @@ export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast }) {
         const response = await fetch(`/api/v1/books/${bookId}/chapters/${chapterId}`)
         if (!response.ok) throw new Error('chapter load failed')
         const data = await response.json()
-        if (cancelled || !shouldApplySaveResult(requestKey, currentKeyRef.current)) return
+        if (cancelled || !shouldApplyChapterResult(requestKey, currentKeyRef.current)) return
 
         const content = normalizeChapterContent(data?.content)
         const preserveDirtyDraft = shouldPreserveDirtyDraft(
@@ -89,9 +89,9 @@ export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast }) {
           setMode('preview')
         }
       } catch {
-        if (!cancelled && shouldApplySaveResult(requestKey, currentKeyRef.current)) setLoadError(true)
+        if (!cancelled && shouldApplyChapterResult(requestKey, currentKeyRef.current)) setLoadError(true)
       } finally {
-        if (!cancelled && shouldApplySaveResult(requestKey, currentKeyRef.current)) setLoading(false)
+        if (!cancelled && shouldApplyChapterResult(requestKey, currentKeyRef.current)) setLoading(false)
       }
     }
 
@@ -132,7 +132,7 @@ export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast }) {
         body: JSON.stringify({ content }),
       })
       if (!response.ok) throw new Error('draft save failed')
-      if (!shouldApplySaveResult(requestKey, currentKeyRef.current)) return
+      if (!shouldApplyChapterResult(requestKey, currentKeyRef.current)) return
 
       setOriginal(content)
       if (shouldReplaceDraftAfterSave(content, latestDraftRef.current)) {
@@ -141,9 +141,9 @@ export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast }) {
       }
       addToast?.('已保存', 'success')
     } catch {
-      if (shouldApplySaveResult(requestKey, currentKeyRef.current)) addToast?.('保存失败', 'error')
+      if (shouldApplyChapterResult(requestKey, currentKeyRef.current)) addToast?.('保存失败', 'error')
     } finally {
-      if (shouldApplySaveResult(requestKey, currentKeyRef.current)) setSaving(false)
+      if (shouldApplyChapterResult(requestKey, currentKeyRef.current)) setSaving(false)
     }
   }, [addToast, bookId, canEdit, chapterId, currentKey, dirty, draft, saving])
 
@@ -164,7 +164,7 @@ export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast }) {
     )
   }
 
-  if (loadError && !canEdit) {
+  if (loadError && !hasLoadedCurrent) {
     return (
       <div className="chapter-workspace-empty">
         章节读取失败，请稍后重试
@@ -221,10 +221,13 @@ export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast }) {
         </article>
       )}
 
-      {mode === 'edit' && dirty && (
+      {loadError && hasLoadedCurrent && (
+        <div className="chapter-workspace-save-state">章节刷新失败，请稍后重试</div>
+      )}
+      {!loadError && mode === 'edit' && dirty && (
         <div className="chapter-workspace-save-state">有未保存修改</div>
       )}
-      {mode === 'preview' && !dirty && canEdit && (
+      {!loadError && mode === 'preview' && !dirty && canEdit && (
         <div className="chapter-workspace-save-state">
           <Check size={12} />
           已保存

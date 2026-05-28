@@ -29,7 +29,7 @@ export function shouldPreserveDirtyDraft(previousKey, nextKey, original, draft) 
   return Boolean(previousKey) && previousKey === nextKey && isDraftDirty(original, draft)
 }
 
-export function shouldApplySaveResult(requestKey, currentKey) {
+export function shouldApplyChapterResult(requestKey, currentKey) {
   return Boolean(requestKey) && requestKey === currentKey
 }
 
@@ -38,5 +38,5 @@ export function shouldReplaceDraftAfterSave(savedContent, currentDraft) {
 }
 
 export function canEditLoadedChapter(hasLoaded, loadError) {
-  return Boolean(hasLoaded)
+  return Boolean(hasLoaded) && !loadError
 }
