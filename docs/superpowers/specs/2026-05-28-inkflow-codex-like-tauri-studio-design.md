@@ -1,7 +1,7 @@
 # InkFlow Codex-like Tauri Studio Design
 
 Date: 2026-05-28
-Status: draft for user review
+Status: approved for implementation planning
 
 ## Summary
 
