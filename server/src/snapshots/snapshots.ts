@@ -20,6 +20,11 @@ export interface SnapshotMeta {
   id: string
   created_at: string
   label: string
+  message_id?: string
+}
+
+export interface SnapshotOptions {
+  messageId?: string
 }
 
 function bookDir(dataDir: string, bookId: string): string {
@@ -51,7 +56,12 @@ function isExcluded(absPath: string): boolean {
  * Prunes oldest snapshots if the count exceeds MAX_SNAPSHOTS.
  * The label is a short preview shown in the UI (typically the user's prompt).
  */
-export function createSnapshot(dataDir: string, bookId: string, label: string): SnapshotMeta {
+export function createSnapshot(
+  dataDir: string,
+  bookId: string,
+  label: string,
+  options: SnapshotOptions = {},
+): SnapshotMeta {
   const root = bookDir(dataDir, bookId)
   if (!fs.existsSync(root)) throw new Error(`Book '${bookId}' not found`)
 
@@ -75,6 +85,7 @@ export function createSnapshot(dataDir: string, bookId: string, label: string): 
     id,
     created_at: new Date().toISOString(),
     label: label.slice(0, 200),
+    message_id: options.messageId,
   }
   writeJson(path.join(dest, META_FILE), meta)
 

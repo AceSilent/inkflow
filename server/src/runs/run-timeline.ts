@@ -109,6 +109,10 @@ export function clearRunTimeline(dataDir: string, bookId: string): void {
   fs.rmSync(dir, { recursive: true, force: true })
 }
 
+export function clearRunsAfterCheckpointRestore(dataDir: string, bookId: string): void {
+  clearRunTimeline(dataDir, bookId)
+}
+
 export function markRunInterruptedIfOpen(
   dataDir: string,
   bookId: string,

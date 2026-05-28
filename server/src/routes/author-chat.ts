@@ -13,7 +13,7 @@ import { createAllTools } from '../tools/index.js'
 import { sanitizePathSegment } from '../utils/path-sanitizer.js'
 import { sendChatBody } from './schemas.js'
 import { getSettings } from './settings.js'
-import { loadHistoryFull, saveHistory } from './chat-history.js'
+import { createMessageId, loadHistoryFull, saveHistory } from './chat-history.js'
 import { createStatsHooks } from '../stats/tool-stats.js'
 import { createTipHooks } from '../stats/tips/index.js'
 import { composeHooks, type ToolHooks } from '../tools/base-tool.js'
@@ -220,6 +220,8 @@ export async function authorChatRoutes(app: FastifyInstance) {
       // invoked from finally so partial state survives errors / cancellations.
       let persistAssistant: ((status?: 'incomplete' | 'aborted') => void) | null = null
       let streamSucceeded = false
+      const userMessageId = createMessageId()
+      let checkpointId: string | undefined
 
       try {
         // Checkpoint the book state BEFORE this turn touches anything, so the
@@ -227,7 +229,8 @@ export async function authorChatRoutes(app: FastifyInstance) {
         // never blocking — snapshot failure shouldn't kill the actual chat.
         try {
           timeline('snapshot_start', '创建发送前快照', 'running')
-          createSnapshot(dataDir, bookId, message)
+          const snap = createSnapshot(dataDir, bookId, message, { messageId: userMessageId })
+          checkpointId = snap.id
           timeline('snapshot_done', '快照已创建', 'done')
         } catch (snapErr) {
           app.log.warn({ err: snapErr, bookId }, '[author-chat] snapshot failed; continuing without checkpoint')
@@ -422,7 +425,12 @@ export async function authorChatRoutes(app: FastifyInstance) {
           // On failure/abort, ALWAYS save so the user's message is preserved
           // in the UI even if the agent produced nothing before being cut off.
           if (!hasAnything && !status) return
-          const userMsg: ModelMessage & { status?: string } = { role: 'user', content: message }
+          const userMsg: ModelMessage & { id?: string; checkpoint_id?: string; status?: string } = {
+            role: 'user',
+            content: message,
+            id: userMessageId,
+            checkpoint_id: checkpointId,
+          }
           const assistantMsg: ModelMessage & { thinking?: string; segments?: AssistantSegment[]; status?: string } = {
             role: 'assistant',
             content: accumulator.fullText || '(Author Agent 没有生成回复)',

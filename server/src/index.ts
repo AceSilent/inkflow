@@ -8,6 +8,7 @@ import { booksRoutes } from './routes/books.js'
 import { dataRoutes } from './routes/data.js'
 import { settingsRoutes } from './routes/settings.js'
 import { snapshotRoutes } from './routes/snapshots.js'
+import { checkpointRoutes } from './routes/checkpoints.js'
 import { workbenchRoutes } from './routes/workbench.js'
 import { outlineRoutes } from './routes/outline.js'
 import { plotGraphRoutes } from './routes/plot-graph.js'
@@ -24,6 +25,7 @@ await app.register(booksRoutes)
 await app.register(dataRoutes)
 await app.register(settingsRoutes)
 await app.register(snapshotRoutes)
+await app.register(checkpointRoutes, { prefix: '/api/v1', dataDir })
 await app.register(workbenchRoutes, { prefix: '/api/v1', dataDir })
 await app.register(outlineRoutes, { prefix: '/api/v1', dataDir })
 await app.register(plotGraphRoutes, { prefix: '/api/v1', dataDir })

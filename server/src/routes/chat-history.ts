@@ -3,14 +3,29 @@
  * Persists to books/{bookId}/author_chat_history.json (max 50 messages).
  */
 import path from 'path'
+import { randomUUID } from 'crypto'
 import { type ModelMessage } from 'ai'
 import { safeReadJson, ensureDir, writeJson } from '../utils/file-io.js'
+
+export type ChatHistoryMessage = ModelMessage & {
+  id?: string
+  checkpoint_id?: string
+  status?: string
+}
 
 export function historyPath(dataDir: string, bookId: string): string {
   return path.join(ensureDir(path.join(dataDir, bookId)), 'author_chat_history.json')
 }
 
-export function loadHistoryFull(dataDir: string, bookId: string): ModelMessage[] {
+function compactTimestamp(date: Date): string {
+  return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, '')
+}
+
+export function createMessageId(date = new Date()): string {
+  return `msg_${compactTimestamp(date)}_${randomUUID().slice(0, 8)}`
+}
+
+export function loadHistoryFull(dataDir: string, bookId: string): ChatHistoryMessage[] {
   const raw = safeReadJson<Array<{ role: string }>>(historyPath(dataDir, bookId))
   if (!raw) return []
   // Preserve every field on each message — UI metadata (thinking, segments,
@@ -21,12 +36,30 @@ export function loadHistoryFull(dataDir: string, bookId: string): ModelMessage[]
   // No slice here: full history is returned and the ContextManager (token-
   // based zones) is responsible for trimming. saveHistory still caps at 50
   // for disk bloat protection.
-  return raw.filter(m => m.role === 'system' || m.role === 'user' || m.role === 'assistant') as ModelMessage[]
+  return raw.filter(m => m.role === 'system' || m.role === 'user' || m.role === 'assistant') as ChatHistoryMessage[]
 }
 
 // Legacy alias — delete callers progressively
 export const loadHistory = loadHistoryFull
 
-export function saveHistory(dataDir: string, bookId: string, messages: ModelMessage[]): void {
+export function saveHistory(dataDir: string, bookId: string, messages: ChatHistoryMessage[]): void {
   writeJson(historyPath(dataDir, bookId), messages.slice(-50))
+}
+
+export function truncateHistoryAtMessage(
+  messages: ChatHistoryMessage[],
+  messageId: string,
+  replacementContent?: string,
+): ChatHistoryMessage[] {
+  const index = messages.findIndex(message => message.id === messageId)
+  if (index < 0) throw new Error(`Message '${messageId}' not found`)
+  const truncated = messages.slice(0, index + 1)
+  if (replacementContent === undefined) return truncated
+
+  const target = truncated[index]
+  if (target.role !== 'user') throw new Error(`Message '${messageId}' is not a user message`)
+  return [
+    ...truncated.slice(0, -1),
+    { ...target, content: replacementContent },
+  ]
 }
