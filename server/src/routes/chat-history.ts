@@ -52,7 +52,7 @@ export function truncateHistoryAtMessage(
   replacementContent?: string,
 ): ChatHistoryMessage[] {
   const index = messages.findIndex(message => message.id === messageId)
-  if (index < 0) throw new Error(`Message '${messageId}' not found`)
+  if (index < 0) return messages
   const truncated = messages.slice(0, index + 1)
   if (replacementContent === undefined) return truncated
 

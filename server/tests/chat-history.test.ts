@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
-import { loadHistoryFull, saveHistory } from '../src/routes/chat-history.js'
+import { loadHistoryFull, saveHistory, truncateHistoryAtMessage } from '../src/routes/chat-history.js'
 
 let tmpDir: string
 
@@ -35,5 +35,17 @@ describe('chat-history', () => {
     const loaded = loadHistoryFull(tmpDir, 'book1')
     expect(loaded.map(m => m.role)).toEqual(['system', 'user', 'assistant'])
     expect(loaded[0].content).toBe('compacted summary')
+  })
+
+  it('truncateHistoryAtMessage returns original messages unchanged when the id is missing', () => {
+    const messages = [
+      { role: 'system' as const, content: 'summary' },
+      { role: 'user' as const, content: 'first', id: 'm1' },
+      { role: 'assistant' as const, content: 'reply' },
+    ]
+
+    const truncated = truncateHistoryAtMessage(messages, 'missing', 'edited')
+
+    expect(truncated).toBe(messages)
   })
 })

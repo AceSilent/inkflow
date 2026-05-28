@@ -36,13 +36,12 @@ export const checkpointRoutes: FastifyPluginAsync<CheckpointRoutesOptions> = asy
         const checkpointId = sanitizePathSegment(request.params.checkpointId, 'checkpointId')
         const dir = dataDir()
         const history = loadHistoryFull(dir, bookId) as ChatHistoryMessage[]
+        restoreSnapshot(dir, bookId, checkpointId)
         const truncated = truncateHistoryAtMessage(
           history,
           parsed.data.message_id,
           parsed.data.replacement_message,
         )
-
-        restoreSnapshot(dir, bookId, checkpointId)
         saveHistory(dir, bookId, truncated)
         clearRunsAfterCheckpointRestore(dir, bookId)
 
