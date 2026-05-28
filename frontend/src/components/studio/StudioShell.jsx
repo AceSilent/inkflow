@@ -68,12 +68,12 @@ export function StudioShell({
 
   return (
     <div className="studio-shell" data-theme={theme}>
-      <header className="studio-titlebar">
-        <div className="studio-titlebar-brand">
+      <header className="studio-titlebar" data-tauri-drag-region>
+        <div className="studio-titlebar-brand" data-tauri-drag-region>
           <BookOpen size={16} />
           <span>InkFlow Studio</span>
         </div>
-        <div className="studio-titlebar-context">
+        <div className="studio-titlebar-context" data-tauri-drag-region>
           {currentBook?.title || currentBook?.book_id || '未选择作品'}
         </div>
       </header>
@@ -126,9 +126,7 @@ export function StudioShell({
         </WorkspacePane>
       </main>
 
-      <footer className="statusbar">
-        {statusbar}
-      </footer>
+      {statusbar}
     </div>
   )
 }
