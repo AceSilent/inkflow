@@ -1,47 +1,97 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Check, Edit3, Loader, Save, X } from 'lucide-react'
-import { countCjkAwareWords, isDraftDirty, normalizeChapterContent } from './chapterWorkspaceState'
+import {
+  canEditLoadedChapter,
+  chapterWorkspaceKey,
+  countCjkAwareWords,
+  isDraftDirty,
+  normalizeChapterContent,
+  shouldApplySaveResult,
+  shouldPreserveDirtyDraft,
+  shouldReplaceDraftAfterSave,
+} from './chapterWorkspaceState'
 
 export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast }) {
   const chapterId = chapter?.id ?? chapter?.chapter_id ?? chapter?.chapterId
   const chapterTitle = chapter?.label ?? chapter?.title ?? chapter?.name ?? '未命名章节'
+  const currentKey = useMemo(
+    () => (bookId && chapterId ? chapterWorkspaceKey(bookId, chapterId) : ''),
+    [bookId, chapterId]
+  )
   const [loading, setLoading] = useState(false)
   const [mode, setMode] = useState('preview')
   const [original, setOriginal] = useState('')
   const [draft, setDraft] = useState('')
   const [saving, setSaving] = useState(false)
+  const [hasLoaded, setHasLoaded] = useState(false)
+  const [loadError, setLoadError] = useState(false)
+  const currentKeyRef = useRef(currentKey)
+  const stateKeyRef = useRef('')
+  const latestOriginalRef = useRef(original)
+  const latestDraftRef = useRef(draft)
+
+  currentKeyRef.current = currentKey
+  latestOriginalRef.current = original
+  latestDraftRef.current = draft
 
   useEffect(() => {
-    if (!bookId || !chapterId) {
+    if (!bookId || !chapterId || !currentKey) {
+      stateKeyRef.current = ''
       setLoading(false)
       setMode('preview')
       setOriginal('')
       setDraft('')
+      setSaving(false)
+      setHasLoaded(false)
+      setLoadError(false)
       return
     }
 
     let cancelled = false
+    const requestKey = currentKey
+    const previousKey = stateKeyRef.current
+    const sameChapter = previousKey === requestKey
+
+    setLoading(true)
+    setLoadError(false)
+
+    if (!sameChapter) {
+      stateKeyRef.current = requestKey
+      setMode('preview')
+      setOriginal('')
+      setDraft('')
+      setSaving(false)
+      setHasLoaded(false)
+    }
 
     async function loadChapter() {
-      setLoading(true)
       try {
         const response = await fetch(`/api/v1/books/${bookId}/chapters/${chapterId}`)
         if (!response.ok) throw new Error('chapter load failed')
         const data = await response.json()
-        if (cancelled) return
+        if (cancelled || !shouldApplySaveResult(requestKey, currentKeyRef.current)) return
 
         const content = normalizeChapterContent(data?.content)
+        const preserveDirtyDraft = shouldPreserveDirtyDraft(
+          previousKey,
+          requestKey,
+          latestOriginalRef.current,
+          latestDraftRef.current
+        )
+
+        stateKeyRef.current = requestKey
         setOriginal(content)
-        setDraft(content)
-        setMode('preview')
-      } catch {
-        if (!cancelled) {
-          setOriginal('')
-          setDraft('')
+        setHasLoaded(true)
+        setLoadError(false)
+
+        if (!preserveDirtyDraft) {
+          setDraft(content)
           setMode('preview')
         }
+      } catch {
+        if (!cancelled && shouldApplySaveResult(requestKey, currentKeyRef.current)) setLoadError(true)
       } finally {
-        if (!cancelled) setLoading(false)
+        if (!cancelled && shouldApplySaveResult(requestKey, currentKeyRef.current)) setLoading(false)
       }
     }
 
@@ -50,7 +100,7 @@ export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast }) {
     return () => {
       cancelled = true
     }
-  }, [bookId, chapterId, dataVersion])
+  }, [bookId, chapterId, currentKey, dataVersion])
 
   const dirty = useMemo(() => isDraftDirty(original, draft), [original, draft])
   const wordCount = useMemo(() => countCjkAwareWords(draft), [draft])
@@ -60,6 +110,9 @@ export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast }) {
       .map(paragraph => paragraph.trim())
       .filter(Boolean)
   ), [draft])
+  const stateBelongsToCurrentChapter = stateKeyRef.current === currentKey
+  const hasLoadedCurrent = stateBelongsToCurrentChapter && hasLoaded
+  const canEdit = canEditLoadedChapter(hasLoadedCurrent, loadError)
 
   const handleCancel = useCallback(() => {
     setDraft(original)
@@ -67,9 +120,10 @@ export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast }) {
   }, [original])
 
   const handleSave = useCallback(async () => {
-    if (!bookId || !chapterId || !dirty || saving) return
+    if (!bookId || !chapterId || !currentKey || !dirty || saving || !canEdit) return
 
     const content = normalizeChapterContent(draft)
+    const requestKey = currentKey
     setSaving(true)
     try {
       const response = await fetch(`/api/v1/books/${bookId}/chapters/${chapterId}/draft`, {
@@ -78,17 +132,20 @@ export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast }) {
         body: JSON.stringify({ content }),
       })
       if (!response.ok) throw new Error('draft save failed')
+      if (!shouldApplySaveResult(requestKey, currentKeyRef.current)) return
 
       setOriginal(content)
-      setDraft(content)
-      setMode('preview')
+      if (shouldReplaceDraftAfterSave(content, latestDraftRef.current)) {
+        setDraft(content)
+        setMode('preview')
+      }
       addToast?.('已保存', 'success')
     } catch {
-      addToast?.('保存失败', 'error')
+      if (shouldApplySaveResult(requestKey, currentKeyRef.current)) addToast?.('保存失败', 'error')
     } finally {
-      setSaving(false)
+      if (shouldApplySaveResult(requestKey, currentKeyRef.current)) setSaving(false)
     }
-  }, [addToast, bookId, chapterId, dirty, draft, saving])
+  }, [addToast, bookId, canEdit, chapterId, currentKey, dirty, draft, saving])
 
   if (!bookId || !chapterId) {
     return (
@@ -98,11 +155,19 @@ export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast }) {
     )
   }
 
-  if (loading) {
+  if (!stateBelongsToCurrentChapter || (loading && !hasLoadedCurrent)) {
     return (
       <div className="chapter-workspace-empty">
         <Loader size={18} className="anim-spin" />
         正在读取章节
+      </div>
+    )
+  }
+
+  if (loadError && !canEdit) {
+    return (
+      <div className="chapter-workspace-empty">
+        章节读取失败，请稍后重试
       </div>
     )
   }
@@ -117,7 +182,7 @@ export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast }) {
         <div className="chapter-workspace-actions">
           <span className="chapter-workspace-stat">{wordCount} 字/词</span>
           {mode === 'preview' ? (
-            <button className="btn btn-secondary btn-sm" type="button" onClick={() => setMode('edit')}>
+            <button className="btn btn-secondary btn-sm" type="button" onClick={() => setMode('edit')} disabled={!canEdit}>
               <Edit3 size={14} />
               编辑
             </button>
@@ -127,7 +192,7 @@ export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast }) {
                 <X size={14} />
                 取消
               </button>
-              <button className="btn btn-primary btn-sm" type="button" onClick={handleSave} disabled={!dirty || saving}>
+              <button className="btn btn-primary btn-sm" type="button" onClick={handleSave} disabled={!dirty || saving || !canEdit}>
                 {saving ? <Loader size={14} className="anim-spin" /> : <Save size={14} />}
                 保存
               </button>
@@ -141,6 +206,7 @@ export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast }) {
           className="chapter-workspace-editor"
           value={draft}
           onChange={event => setDraft(event.target.value)}
+          disabled={!canEdit}
           aria-label={`${chapterTitle} 正文`}
         />
       ) : (
@@ -158,7 +224,7 @@ export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast }) {
       {mode === 'edit' && dirty && (
         <div className="chapter-workspace-save-state">有未保存修改</div>
       )}
-      {mode === 'preview' && !dirty && (
+      {mode === 'preview' && !dirty && canEdit && (
         <div className="chapter-workspace-save-state">
           <Check size={12} />
           已保存
