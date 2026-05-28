@@ -7,10 +7,12 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import fs from 'fs'
 import path from 'path'
+import Fastify from 'fastify'
 import { sanitizePathSegment } from '../src/utils/path-sanitizer.js'
 import { sendChatBody } from '../src/routes/schemas.js'
-import { persistUsageBestEffort } from '../src/routes/author-chat.js'
+import { authorChatRoutes, persistUsageBestEffort } from '../src/routes/author-chat.js'
 import { clearAuthorChatSession } from '../src/routes/author-chat-support.js'
+import { loadHistoryFull as loadSharedHistoryFull, saveHistory as saveSharedHistory } from '../src/routes/chat-history.js'
 import { appendRunEvent } from '../src/runs/run-timeline.js'
 import { ReasoningSegmentAccumulator, type StreamSegmentEvent } from '../src/routes/stream-segments.js'
 import { REASONING_CLOSE, REASONING_OPEN } from '../src/llm/provider.js'
@@ -80,19 +82,39 @@ describe('Author Chat History', () => {
     expect(loaded[3]).toEqual({ role: 'assistant', content: '好的，我来写...' })
   })
 
-  it('should filter to only user/assistant messages', () => {
+  it('should preserve system summaries while filtering unsupported tool messages for model history', () => {
     const messages = [
       { role: 'system', content: 'system prompt' },
       { role: 'user', content: 'hello' },
       { role: 'tool', content: 'tool result' },
       { role: 'assistant', content: 'response' },
     ]
-    saveHistory(TEST_DIR, 'book-2', messages)
+    saveSharedHistory(TEST_DIR, 'book-2', messages as any)
 
-    const loaded = loadHistory(TEST_DIR, 'book-2')
-    expect(loaded).toHaveLength(2)
-    expect(loaded[0].role).toBe('user')
-    expect(loaded[1].role).toBe('assistant')
+    const loaded = loadSharedHistoryFull(TEST_DIR, 'book-2')
+    expect(loaded.map(m => m.role)).toEqual(['system', 'user', 'assistant'])
+  })
+
+  it('GET history displays only user and assistant messages', async () => {
+    const previousDataDir = process.env.AUTONOVEL_DATA_DIR
+    process.env.AUTONOVEL_DATA_DIR = TEST_DIR
+    try {
+      saveSharedHistory(TEST_DIR, 'book-display', [
+        { role: 'system', content: 'compacted summary' } as any,
+        { role: 'user', content: 'hello' },
+        { role: 'assistant', content: 'response' },
+      ])
+      const app = Fastify()
+      await app.register(authorChatRoutes)
+      const response = await app.inject({ method: 'GET', url: '/api/v1/author-chat/book-display/history' })
+      await app.close()
+
+      expect(response.statusCode).toBe(200)
+      expect(JSON.parse(response.body).messages.map((m: any) => m.role)).toEqual(['user', 'assistant'])
+    } finally {
+      if (previousDataDir === undefined) delete process.env.AUTONOVEL_DATA_DIR
+      else process.env.AUTONOVEL_DATA_DIR = previousDataDir
+    }
   })
 
   it('should trim to last 20 messages on load', () => {

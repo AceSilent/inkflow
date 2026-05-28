@@ -39,7 +39,7 @@ export async function sessionRoutes(app: FastifyInstance, opts: SessionRoutesOpt
         }
       }
 
-      const { llmConfig } = loadAuthorChatConfig()
+      const { llmConfig } = loadAuthorChatConfig(dataDir)
       const bookDir = path.join(dataDir, bookId)
       const windowSize = getModelContextWindow(llmConfig.model)
       const processed = await processContext({
@@ -69,6 +69,9 @@ export async function sessionRoutes(app: FastifyInstance, opts: SessionRoutesOpt
         compactedCount: processed.decision.compactedCount,
         decayedCount: processed.decision.decayedCount,
         tier: processed.decision.tier,
+        action: processed.decision.action,
+        breakerTripped: processed.decision.breakerTripped,
+        ...(processed.decision.compactedCount === 0 ? { message: 'No cold history to compact' } : {}),
       }
     } catch (e) {
       return reply.code(400).send({ error: String((e as Error).message) })

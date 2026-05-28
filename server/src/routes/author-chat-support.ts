@@ -8,8 +8,8 @@ import { getSettings } from './settings.js'
 export const USAGE_PERSIST_TIMEOUT_MS = 2000
 const usagePersistTimedOut = Symbol('usagePersistTimedOut')
 
-export function loadAuthorChatConfig(): { llmConfig: LLMConfig; dataDir: string } {
-  const dataDir = process.env.AUTONOVEL_DATA_DIR || 'books'
+export function loadAuthorChatConfig(dataDirOverride?: string): { llmConfig: LLMConfig; dataDir: string } {
+  const dataDir = dataDirOverride || process.env.AUTONOVEL_DATA_DIR || 'books'
   const settings = getSettings(dataDir)
   const modelSelector = settings.authorModel || ''
 
@@ -51,6 +51,8 @@ export function clearAuthorChatSession(dataDir: string, bookId: string): void {
   for (const file of ['last_usage.json', 'context_log.jsonl']) {
     fs.rmSync(path.join(bookDir, file), { force: true })
   }
+  fs.rmSync(path.join(bookDir, 'session_summaries'), { recursive: true, force: true })
+  fs.rmSync(path.join(bookDir, 'compact_breaker.json'), { force: true })
 }
 
 export async function persistUsageBestEffort(

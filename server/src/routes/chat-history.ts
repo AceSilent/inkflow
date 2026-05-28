@@ -21,7 +21,7 @@ export function loadHistoryFull(dataDir: string, bookId: string): ModelMessage[]
   // No slice here: full history is returned and the ContextManager (token-
   // based zones) is responsible for trimming. saveHistory still caps at 50
   // for disk bloat protection.
-  return raw.filter(m => m.role === 'user' || m.role === 'assistant') as ModelMessage[]
+  return raw.filter(m => m.role === 'system' || m.role === 'user' || m.role === 'assistant') as ModelMessage[]
 }
 
 // Legacy alias — delete callers progressively
