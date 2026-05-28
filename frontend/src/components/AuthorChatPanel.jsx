@@ -156,8 +156,10 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
     const useAttachments = !fromOverride && attachments.length > 0
     if ((!baseInput && !useAttachments) || loading || !bookId) return
 
-    const slash = parseSlashCommand(baseInput)
+    const slash = fromOverride ? null : parseSlashCommand(baseInput)
     if (slash) {
+      updateInput('')
+      setAttachments([])
       if (slash.type === 'remember') {
         try {
           const r = await fetch('/api/v1/memory/remember', {
@@ -170,17 +172,14 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
         } catch (e) {
           addToast?.(e.message, 'error')
         }
-        if (!fromOverride) updateInput('')
         return
       }
       if (slash.type === 'compact') {
         await handleCompact()
-        if (!fromOverride) updateInput('')
         return
       }
       if (slash.type === 'clear') {
-        await handleClear()
-        if (!fromOverride) updateInput('')
+        await handleClear({ clearInput: false })
         return
       }
     }
@@ -402,28 +401,41 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
     try {
       const r = await fetch(`/api/v1/books/${bookId}/session/compact`, { method: 'POST' })
       const data = await r.json().catch(() => ({}))
-      if (!r.ok) throw new Error(data.error || 'compact failed')
+      if (!r.ok) throw new Error(data.error || data.message || 'compact failed')
+      const hasCount = data.compactedCount !== undefined && data.compactedCount !== null
+      const notice = hasCount
+        ? `已手动压缩上下文：${data.compactedCount} 条消息${data.message ? `（${data.message}）` : ''}`
+        : (data.message || '已手动压缩上下文：0 条消息')
       setMessages(prev => [...prev, {
         id: `manual_compact_${Date.now()}`,
         role: 'system_notice',
-        content: `已手动压缩上下文：${data.compactedCount ?? 0} 条消息`,
+        content: notice,
       }])
-      addToast?.('上下文已压缩', 'success')
+      addToast?.(data.message || '上下文已压缩', 'success')
     } catch (e) {
       addToast?.(`压缩失败：${e.message}`, 'error')
     }
   }
 
-  const handleClear = async () => {
-    if (!bookId) return
-    await fetch(`/api/v1/author-chat/${bookId}/history`, { method: 'DELETE' })
-    setMessages([])
-    setCurrentRun(null)
-    setRecentRuns([])
-    setHistIdx(null)
-    sentHistory.current = []
-    draftBeforeNav.current = ''
-    updateInput('')
+  const handleClear = async (options = {}) => {
+    if (!bookId) return false
+    const clearInput = options?.clearInput !== false
+    try {
+      const r = await fetch(`/api/v1/author-chat/${bookId}/history`, { method: 'DELETE' })
+      const data = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(data.error || data.message || 'clear failed')
+      setMessages([])
+      setCurrentRun(null)
+      setRecentRuns([])
+      setHistIdx(null)
+      sentHistory.current = []
+      draftBeforeNav.current = ''
+      if (clearInput) updateInput('')
+      return true
+    } catch (e) {
+      addToast?.(`清空失败：${e.message}`, 'error')
+      return false
+    }
   }
 
   const handleKeyDown = (e) => {
