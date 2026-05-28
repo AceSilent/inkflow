@@ -22,11 +22,11 @@ export default function App() {
   const [theme, toggleTheme] = useTheme()
   const { t, lang, switchLang } = useI18n()
   const [activePanel, setActivePanel] = useState('explorer')
-  const [, setTabs] = useState([{ id: 'brainstorm', label: 'tab.brainstorm' }])
   const [activeTab, setActiveTab] = useState('brainstorm')
   const [currentBook, setCurrentBook] = useState(null)
   const [activeChapter, setActiveChapter] = useState(null)
   const [workspaceChapter, setWorkspaceChapter] = useState(null)
+  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState(null)
   const [showNewBook, setShowNewBook] = useState(false)
   const [dataVersion, setDataVersion] = useState(0)
   const [authorModel, setAuthorModel] = useState('')
@@ -49,39 +49,32 @@ export default function App() {
     setDataVersion(prev => prev + 1)
   }, [])
 
-  const openTab = useCallback((id, labelKey) => {
-    setTabs(prev => { if (prev.find(t => t.id === id)) return prev; return [...prev, { id, label: labelKey }]; });
-    setActiveTab(id);
+  const handleBookSelect = useCallback((book) => {
+    setCurrentBook(book)
+    setActiveChapter(null)
+    setWorkspaceChapter(null)
+    setActiveWorkspaceTab('chapter')
   }, [])
 
   const handleActivityClick = useCallback((panel) => {
-    setActivePanel(panel);
-    const tabMap = {
-      brainstorm: ['brainstorm', 'tab.brainstorm'],
-      'author-chat': ['author-chat', 'tab.authorChat'],
-      outline: ['outline', 'tab.outline'],
-      'plot-graph': ['plot-graph', 'tab.plotGraph'],
-      'memory-library': ['memory-library', 'tab.memoryLibrary'],
-      settings: ['settings', 'tab.settings'],
-    };
-    if (tabMap[panel]) openTab(tabMap[panel][0], tabMap[panel][1]);
-  }, [openTab])
+    setActivePanel(panel)
+  }, [])
 
   const handleSceneSelect = useCallback((sceneInfo) => {
     if (sceneInfo.type === 'chapter') {
       const tabId = `chapter-${sceneInfo.id}`
-      openTab(tabId, sceneInfo.label)
       setActiveTab(tabId)
       setActiveChapter(sceneInfo)
       setWorkspaceChapter(sceneInfo)
+      setActiveWorkspaceTab('chapter')
       return
     }
     if (sceneInfo.type === 'volume') {
-      openTab('outline', 'tab.outline')
       setActiveTab('outline')
+      setActiveWorkspaceTab('outline')
       return
     }
-  }, [openTab])
+  }, [])
 
   // Kept for legacy non-chat tab surfaces until they move into StudioShell.
   // eslint-disable-next-line no-unused-vars
@@ -113,7 +106,14 @@ export default function App() {
     }
   }
 
-  const chatSurface = (
+  const chatSurface = activePanel === 'settings' ? (
+    <SettingsPanel
+      addToast={addToast}
+      theme={theme}
+      toggleTheme={toggleTheme}
+      currentBook={currentBook}
+    />
+  ) : (
     <AuthorChatPanel
       currentBook={currentBook}
       addToast={addToast}
@@ -126,7 +126,7 @@ export default function App() {
       activePanel={activePanel}
       addToast={addToast}
       onSelect={handleSceneSelect}
-      onBookSelect={(book) => setCurrentBook(book)}
+      onBookSelect={handleBookSelect}
       onNewBook={() => setShowNewBook(true)}
       dataVersion={dataVersion}
     />
@@ -158,6 +158,8 @@ export default function App() {
         currentBook={currentBook}
         activePanel={activePanel}
         onActivityClick={handleActivityClick}
+        activeWorkspaceTab={activeWorkspaceTab}
+        onWorkspaceTabChange={setActiveWorkspaceTab}
         sidebar={sidebarSurface}
         chat={chatSurface}
         chapter={
@@ -191,9 +193,9 @@ export default function App() {
           onClose={() => setShowNewBook(false)}
           onCreated={(book) => {
             setShowNewBook(false)
-            setCurrentBook(book)
+            handleBookSelect(book)
             setDataVersion(v => v + 1)
-            handleActivityClick('brainstorm')
+            handleActivityClick('explorer')
           }}
           addToast={addToast}
         />

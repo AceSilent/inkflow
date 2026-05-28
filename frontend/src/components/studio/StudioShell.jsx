@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { BookOpen, Brain, Library, Search, Settings } from 'lucide-react'
 import { WorkspacePane } from './WorkspacePane'
 import { WorkspaceTabs } from './WorkspaceTabs'
-import { WORKSPACE_MIN_WIDTH, clampWorkspaceWidth, loadWorkspaceLayout, saveWorkspaceLayout } from './workspaceLayout'
+import { WORKSPACE_MIN_WIDTH, clampWorkspaceWidth, isWorkspaceTab, loadWorkspaceLayout, saveWorkspaceLayout } from './workspaceLayout'
 
 function workspaceMaxWidth(viewportWidth) {
   return Math.max(WORKSPACE_MIN_WIDTH, Math.floor(viewportWidth * 0.5))
@@ -42,6 +42,8 @@ export function StudioShell({
   outline,
   plot,
   statusbar,
+  activeWorkspaceTab,
+  onWorkspaceTabChange,
 }) {
   const bookId = currentBook?.book_id
   const resizeCleanupRef = useRef(null)
@@ -55,6 +57,21 @@ export function StudioShell({
   const persistLayout = useCallback((patch, viewportWidth = currentViewportWidth()) => {
     setLayout(prev => saveWorkspaceLayout(bookId, { ...prev, ...patch }, undefined, viewportWidth))
   }, [bookId])
+
+  useEffect(() => {
+    if (!isWorkspaceTab(activeWorkspaceTab)) return
+
+    setLayout(prev => {
+      if (prev.activeTab === activeWorkspaceTab) return prev
+
+      return saveWorkspaceLayout(
+        bookId,
+        { ...prev, activeTab: activeWorkspaceTab },
+        undefined,
+        currentViewportWidth()
+      )
+    })
+  }, [activeWorkspaceTab, bookId])
 
   const clearResizeListeners = useCallback(() => {
     resizeCleanupRef.current?.()
@@ -91,7 +108,8 @@ export function StudioShell({
 
   const handleTabChange = useCallback((tabId) => {
     persistLayout({ activeTab: tabId })
-  }, [persistLayout])
+    onWorkspaceTabChange?.(tabId)
+  }, [onWorkspaceTabChange, persistLayout])
 
   const visualWidth = useMemo(() => {
     return clampWorkspaceWidth(layout.width, viewportWidth)

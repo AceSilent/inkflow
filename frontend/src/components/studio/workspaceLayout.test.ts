@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   clampWorkspaceWidth,
   defaultWorkspaceLayout,
+  isWorkspaceTab,
   loadWorkspaceLayout,
   saveWorkspaceLayout,
   storageKeyForBook,
@@ -17,6 +18,14 @@ describe('workspace layout helpers', () => {
     expect(clampWorkspaceWidth(120, 1440)).toBe(320)
     expect(clampWorkspaceWidth(900, 1440)).toBe(720)
     expect(clampWorkspaceWidth(480, 1440)).toBe(480)
+  })
+
+  it('recognizes supported workspace tabs', () => {
+    expect(isWorkspaceTab('chapter')).toBe(true)
+    expect(isWorkspaceTab('outline')).toBe(true)
+    expect(isWorkspaceTab('plot')).toBe(true)
+    expect(isWorkspaceTab('settings')).toBe(false)
+    expect(isWorkspaceTab(undefined)).toBe(false)
   })
 
   it('loads defaults when storage is empty or invalid', () => {

@@ -1,10 +1,15 @@
 export const WORKSPACE_MIN_WIDTH = 320
 export const WORKSPACE_DEFAULT_WIDTH = 460
+export const WORKSPACE_TAB_IDS = ['chapter', 'outline', 'plot']
 
 export const defaultWorkspaceLayout = {
   collapsed: false,
   width: WORKSPACE_DEFAULT_WIDTH,
   activeTab: 'chapter',
+}
+
+export function isWorkspaceTab(value) {
+  return WORKSPACE_TAB_IDS.includes(value)
 }
 
 export function storageKeyForBook(bookId) {
@@ -34,7 +39,7 @@ export function loadWorkspaceLayout(bookId, store = window.localStorage, viewpor
     return {
       collapsed: Boolean(parsed.collapsed),
       width: clampWorkspaceWidth(parsed.width, viewportWidth),
-      activeTab: ['chapter', 'outline', 'plot'].includes(parsed.activeTab)
+      activeTab: isWorkspaceTab(parsed.activeTab)
         ? parsed.activeTab
         : defaultWorkspaceLayout.activeTab,
     }
@@ -47,7 +52,7 @@ export function saveWorkspaceLayout(bookId, layout, store = window.localStorage,
   const normalized = {
     collapsed: Boolean(layout.collapsed),
     width: clampWorkspaceWidth(layout.width, viewportWidth),
-    activeTab: ['chapter', 'outline', 'plot'].includes(layout.activeTab)
+    activeTab: isWorkspaceTab(layout.activeTab)
       ? layout.activeTab
       : defaultWorkspaceLayout.activeTab,
   }
