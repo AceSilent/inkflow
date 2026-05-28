@@ -125,6 +125,13 @@ describe('sendChatBody', () => {
     })
   })
 
+  it('accepts checkpoint resend replacement ids', () => {
+    expect(sendChatBody.parse({ message: 'Hello', replace_message_id: 'm1' })).toEqual({
+      message: 'Hello',
+      replace_message_id: 'm1',
+    })
+  })
+
   it('rejects empty message', () => {
     expect(() => sendChatBody.parse({ message: '' })).toThrow()
   })

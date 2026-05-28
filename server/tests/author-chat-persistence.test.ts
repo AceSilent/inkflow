@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { persistAuthorChatTurn } from '../src/routes/author-chat-persistence.js'
+import { persistAuthorChatTurn, prepareHistoryForAuthorChatSend } from '../src/routes/author-chat-persistence.js'
 import { loadHistoryFull } from '../src/routes/chat-history.js'
 
 let tmpDir: string
@@ -53,5 +53,25 @@ describe('author chat persistence', () => {
       { role: 'user', content: '继续', id: 'm2', checkpoint_id: 'snap_2' },
       { role: 'assistant', content: '正文', thinking: '思考', segments: [{ type: 'content', text: '正文' }] },
     ])
+  })
+
+  it('removes the restored user message before resending from an edited checkpoint', () => {
+    const history = [
+      { role: 'system' as const, content: 'compacted summary' },
+      { role: 'user' as const, content: 'original', id: 'm1', checkpoint_id: 'snap_1' },
+    ]
+
+    expect(prepareHistoryForAuthorChatSend(history, 'm1')).toEqual([
+      { role: 'system', content: 'compacted summary' },
+    ])
+  })
+
+  it('rejects resend replacement ids unless the restored user message is last', () => {
+    const history = [
+      { role: 'user' as const, content: 'original', id: 'm1', checkpoint_id: 'snap_1' },
+      { role: 'assistant' as const, content: 'reply' },
+    ]
+
+    expect(() => prepareHistoryForAuthorChatSend(history, 'm1')).toThrow('restored user message')
   })
 })

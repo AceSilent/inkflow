@@ -56,6 +56,19 @@ export function sentHistoryFromMessages(messages) {
       : message.content)
 }
 
+export function editableUserMessageContent(message) {
+  if (!message?.content) return ''
+  return message.hasAttachments
+    ? (message.content.split('\n\n--- 附件:')[0] || '')
+    : message.content
+}
+
+export function truncateMessagesBeforeCheckpoint(messages, messageId) {
+  const index = messages.findIndex(message => message.id === messageId)
+  if (index < 0) return messages
+  return messages.slice(0, index)
+}
+
 export function buildAttachmentMessage(baseInput, attachments, attachmentLabel) {
   const fileParts = attachments.map(attachment =>
     `\n\n--- ${attachmentLabel}: ${attachment.name} (${(attachment.size / 1024).toFixed(1)}KB) ---\n${attachment.content}`

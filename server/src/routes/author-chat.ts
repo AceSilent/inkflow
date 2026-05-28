@@ -25,7 +25,7 @@ import { getModelContextWindow, evaluateBudgetTier } from '../context/model-wind
 import { appendRunEvent, createRunId, loadRecentRuns, type RunTimelineEvent, type RunEventStatus } from '../runs/run-timeline.js'
 import { clearAuthorChatSession, loadAuthorChatConfig, persistUsageBestEffort, previewValue } from './author-chat-support.js'
 import { ReasoningSegmentAccumulator } from './stream-segments.js'
-import { persistAuthorChatTurn, type AuthorChatTurnStatus } from './author-chat-persistence.js'
+import { persistAuthorChatTurn, prepareHistoryForAuthorChatSend, type AuthorChatTurnStatus } from './author-chat-persistence.js'
 
 const loadConfig = loadAuthorChatConfig
 export { persistUsageBestEffort }
@@ -157,12 +157,12 @@ export async function authorChatRoutes(app: FastifyInstance) {
         reply.code(400)
         return { error: err.message }
       }
-      const { message, mode } = request.body
       const parsed = sendChatBody.safeParse(request.body)
       if (!parsed.success) {
         reply.code(400)
         return { error: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ') }
       }
+      const { message, mode, replace_message_id: replaceMessageId } = parsed.data
       const { llmConfig, dataDir } = loadConfig()
 
       reply.raw.writeHead(200, {
@@ -226,21 +226,11 @@ export async function authorChatRoutes(app: FastifyInstance) {
       let checkpointId: string | undefined
 
       try {
-        // Checkpoint the book state BEFORE this turn touches anything, so the
-        // user can rewind to the moment right before they hit send. Logged but
-        // never blocking — snapshot failure shouldn't kill the actual chat.
-        try {
-          timeline('snapshot_start', '创建发送前快照', 'running')
-          const snap = createSnapshot(dataDir, bookId, message, { messageId: userMessageId })
-          checkpointId = snap.id
-          timeline('snapshot_done', '快照已创建', 'done')
-        } catch (snapErr) {
-          app.log.warn({ err: snapErr, bookId }, '[author-chat] snapshot failed; continuing without checkpoint')
-          timeline('snapshot_error', '快照创建失败，继续执行', 'error', { error: String((snapErr as any)?.message ?? snapErr).slice(0, 500) })
-        }
-
         timeline('history_load_start', '读取对话历史', 'running')
-        const rawHistory = loadHistoryFull(dataDir, bookId)
+        const rawHistory = prepareHistoryForAuthorChatSend(
+          loadHistoryFull(dataDir, bookId),
+          replaceMessageId,
+        )
         timeline('history_load_done', '对话历史已读取', 'done', { meta: { messages: rawHistory.length } })
         // For LLM context: drop pairs marked status='incomplete' / 'aborted'
         // (failed or cancelled turns are kept on disk for UI replay but must
@@ -265,6 +255,19 @@ export async function authorChatRoutes(app: FastifyInstance) {
             checkpointId,
             status,
           })
+        }
+
+        // Checkpoint the book state BEFORE this turn touches book content, so
+        // the user can rewind to the moment right before they hit send. Logged
+        // but never blocking — snapshot failure shouldn't kill the chat.
+        try {
+          timeline('snapshot_start', '创建发送前快照', 'running')
+          const snap = createSnapshot(dataDir, bookId, message, { messageId: userMessageId })
+          checkpointId = snap.id
+          timeline('snapshot_done', '快照已创建', 'done')
+        } catch (snapErr) {
+          app.log.warn({ err: snapErr, bookId }, '[author-chat] snapshot failed; continuing without checkpoint')
+          timeline('snapshot_error', '快照创建失败，继续执行', 'error', { error: String((snapErr as any)?.message ?? snapErr).slice(0, 500) })
         }
 
         // ── Context manager: evaluate budget tier + decay/compact as needed ──

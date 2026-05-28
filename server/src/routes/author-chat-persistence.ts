@@ -19,6 +19,18 @@ export interface PersistAuthorChatTurnInput {
   }
 }
 
+export function prepareHistoryForAuthorChatSend(
+  history: ChatHistoryMessage[],
+  replaceMessageId?: string,
+): ChatHistoryMessage[] {
+  if (!replaceMessageId) return history
+  const last = history[history.length - 1]
+  if (!last || last.role !== 'user' || last.id !== replaceMessageId) {
+    throw new Error(`Cannot resend from checkpoint: restored user message '${replaceMessageId}' is not the latest history entry`)
+  }
+  return history.slice(0, -1)
+}
+
 export function persistAuthorChatTurn(input: PersistAuthorChatTurnInput): void {
   const userMsg: ChatHistoryMessage = {
     role: 'user',

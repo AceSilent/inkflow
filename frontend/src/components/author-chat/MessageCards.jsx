@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Wrench, Loader, Check, ChevronDown, ChevronRight, Brain, User, PenTool, FileText } from 'lucide-react'
+import { Wrench, Loader, Check, ChevronDown, ChevronRight, Brain, User, PenTool, FileText, Pencil } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { useI18n } from '../../hooks/useI18n'
 
@@ -168,9 +168,10 @@ function ToolCallCard({ segment }) {
   )
 }
 
-export function MessageBubble({ msg, onOptionSelect, optionsDisabled }) {
+export function MessageBubble({ msg, onOptionSelect, optionsDisabled, onCheckpointEdit, checkpointEditDisabled }) {
   const { t } = useI18n()
   const isUser = msg.role === 'user'
+  const canEditCheckpoint = isUser && msg.id && msg.checkpoint_id && !checkpointEditDisabled
 
   return (
     <div style={{
@@ -179,6 +180,29 @@ export function MessageBubble({ msg, onOptionSelect, optionsDisabled }) {
     }}>
       <div style={{ fontSize: 10, color: 'var(--ink-muted)', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 3 }}>
         {isUser ? <><User size={9} /> {t('authorChat.you')}</> : <><PenTool size={9} /> {t('authorChat.author')}</>}
+        {canEditCheckpoint && (
+          <button
+            type="button"
+            onClick={() => onCheckpointEdit?.(msg)}
+            title="编辑并从这里重新运行"
+            style={{
+              marginLeft: 4,
+              width: 18,
+              height: 18,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: '1px solid var(--border-subtle)',
+              borderRadius: 5,
+              background: 'var(--bg-elevated)',
+              color: 'var(--ink-muted)',
+              cursor: 'pointer',
+              padding: 0,
+            }}
+          >
+            <Pencil size={10} />
+          </button>
+        )}
       </div>
 
       {msg.attachmentNames?.length > 0 && (

@@ -1,13 +1,112 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Trash2, Paperclip, X, FileText, PenTool, Loader, History, Square } from 'lucide-react'
+import { Send, Trash2, Paperclip, X, FileText, PenTool, Loader, Square } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { useI18n } from '../hooks/useI18n'
 import { ContextStatusBar } from './ContextStatusBar'
 import { AgentRunTimeline } from './AgentRunTimeline'
 import { CreativeStageBar } from './CreativeStageBar'
 import { MessageBubble, OptionsCard, StreamingToolCard, ThinkingCard } from './author-chat/MessageCards'
-import { DATA_MUTATING_TOOLS, buildAttachmentMessage, restoreChatMessages, sentHistoryFromMessages } from './author-chat/messageUtils'
+import {
+  DATA_MUTATING_TOOLS,
+  buildAttachmentMessage,
+  editableUserMessageContent,
+  restoreChatMessages,
+  sentHistoryFromMessages,
+  truncateMessagesBeforeCheckpoint,
+} from './author-chat/messageUtils'
 import { parseSlashCommand } from './author-chat/slashCommands'
+
+function CheckpointEditComposer({ value, onChange, onCancel, onSubmit, disabled }) {
+  const submit = () => {
+    if (!disabled && value.trim()) onSubmit()
+  }
+
+  return (
+    <div style={{
+      alignSelf: 'flex-end',
+      width: 'min(520px, 85%)',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 8,
+      padding: 10,
+      borderRadius: 10,
+      border: '1px solid color-mix(in oklch, var(--accent) 35%, transparent)',
+      background: 'color-mix(in oklch, var(--accent) 9%, var(--bg-elevated))',
+    }}>
+      <textarea
+        value={value}
+        disabled={disabled}
+        onChange={event => onChange(event.target.value)}
+        onKeyDown={event => {
+          if (event.key === 'Enter' && !event.shiftKey) {
+            event.preventDefault()
+            submit()
+          }
+        }}
+        rows={3}
+        autoFocus
+        style={{
+          width: '100%',
+          resize: 'vertical',
+          minHeight: 74,
+          maxHeight: 180,
+          border: '1px solid var(--border-subtle)',
+          borderRadius: 8,
+          background: 'var(--bg)',
+          color: 'var(--ink)',
+          font: 'inherit',
+          fontSize: 13,
+          lineHeight: 1.55,
+          padding: '8px 10px',
+          outline: 'none',
+        }}
+      />
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={disabled}
+          title="取消编辑"
+          style={{
+            border: '1px solid var(--border-subtle)',
+            background: 'transparent',
+            color: 'var(--ink-secondary)',
+            borderRadius: 7,
+            padding: '6px 9px',
+            cursor: disabled ? 'default' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            fontSize: 12,
+          }}
+        >
+          <X size={13} /> 取消
+        </button>
+        <button
+          type="button"
+          onClick={submit}
+          disabled={disabled || !value.trim()}
+          title="从这里重新运行"
+          style={{
+            border: 'none',
+            background: value.trim() ? 'var(--accent)' : 'var(--bg-elevated)',
+            color: value.trim() ? 'white' : 'var(--ink-muted)',
+            borderRadius: 7,
+            padding: '6px 10px',
+            cursor: disabled || !value.trim() ? 'default' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 5,
+            fontSize: 12,
+            fontWeight: 600,
+          }}
+        >
+          <Send size={13} /> 重发
+        </button>
+      </div>
+    </div>
+  )
+}
 
 export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
   const { t } = useI18n()
@@ -16,9 +115,8 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
   const [loading, setLoading] = useState(false)
   const [attachments, setAttachments] = useState([])
   const [streamingMsg, setStreamingMsg] = useState(null) // {thinking, segments[], thinkingDone, phase}
-  const [snapshots, setSnapshots] = useState([])
-  const [snapsOpen, setSnapsOpen] = useState(false)
-  const [snapshotRestoreTarget, setSnapshotRestoreTarget] = useState(null)
+  const [checkpointEditor, setCheckpointEditor] = useState(null)
+  const [checkpointResending, setCheckpointResending] = useState(false)
   const [recentRuns, setRecentRuns] = useState([])
   const [currentRun, setCurrentRun] = useState(null)
   const [stageRefreshKey, setStageRefreshKey] = useState(0)
@@ -59,6 +157,10 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
   useEffect(() => { loadChatHistory() }, [loadChatHistory])
 
   useEffect(() => {
+    setCheckpointEditor(null)
+  }, [bookId])
+
+  useEffect(() => {
     if (!draftStorageKey) {
       setInput('')
       return
@@ -85,34 +187,6 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
     setCurrentRun(null)
     fetchRecentRuns()
   }, [fetchRecentRuns])
-
-  const fetchSnapshots = useCallback(() => {
-    if (!bookId) return
-    fetch(`/api/v1/books/${bookId}/snapshots`)
-      .then(r => r.ok ? r.json() : { snapshots: [] })
-      .then(data => setSnapshots(data.snapshots || []))
-      .catch(() => setSnapshots([]))
-  }, [bookId])
-
-  const handleRestoreSnapshot = async (snapshot) => {
-    if (!bookId) return
-    const snapId = snapshot.id
-    const label = snapshot.label
-    try {
-      const resp = await fetch(`/api/v1/books/${bookId}/snapshots/${snapId}/restore`, { method: 'POST' })
-      if (!resp.ok) throw new Error('restore failed')
-      addToast?.('已回滚到快照', 'success')
-      setSnapsOpen(false)
-      setSnapshotRestoreTarget(null)
-      updateInput(label || '')
-      fetchSnapshots()
-      loadChatHistory()
-      onLoreUpdated?.()  // bump dataVersion → other panels (outline / lore / plot tree) refresh
-      setStageRefreshKey(k => k + 1)
-    } catch (e) {
-      addToast?.('回滚失败：' + e.message, 'error')
-    }
-  }
 
   // Auto-scroll
   useEffect(() => {
@@ -150,10 +224,11 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
     setAttachments(prev => prev.filter((_, i) => i !== idx))
   }
 
-  const handleSend = async (overrideMsg) => {
+  const handleSend = async (overrideMsg, options = {}) => {
     const fromOverride = typeof overrideMsg === 'string' && overrideMsg.length > 0
     const baseInput = fromOverride ? overrideMsg : input.trim()
     const useAttachments = !fromOverride && attachments.length > 0
+    const replaceMessageId = options?.replaceMessageId
     if ((!baseInput && !useAttachments) || loading || !bookId) return
 
     const slash = fromOverride ? null : parseSlashCommand(baseInput)
@@ -209,7 +284,10 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
       const resp = await fetch(`/api/v1/author-chat/${bookId}/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMsg }),
+        body: JSON.stringify({
+          message: userMsg,
+          ...(replaceMessageId ? { replace_message_id: replaceMessageId } : {}),
+        }),
         signal: abortRef.current.signal,
       })
 
@@ -392,6 +470,50 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
     }
   }
 
+  const openCheckpointEditor = (msg) => {
+    if (loading || checkpointResending || !msg?.id || !msg?.checkpoint_id) return
+    setCheckpointEditor({
+      messageId: msg.id,
+      checkpointId: msg.checkpoint_id,
+      draft: editableUserMessageContent(msg),
+    })
+  }
+
+  const updateCheckpointDraft = (draft) => {
+    setCheckpointEditor(prev => prev ? { ...prev, draft } : prev)
+  }
+
+  const handleCheckpointResend = async () => {
+    if (!bookId || loading || checkpointResending || !checkpointEditor) return
+    const replacement = checkpointEditor.draft.trim()
+    if (!replacement) return
+    try {
+      setCheckpointResending(true)
+      const resp = await fetch(`/api/v1/books/${bookId}/checkpoints/${checkpointEditor.checkpointId}/restore`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message_id: checkpointEditor.messageId,
+          replacement_message: replacement,
+        }),
+      })
+      const data = await resp.json().catch(() => ({}))
+      if (!resp.ok) throw new Error(data.error || data.message || 'restore failed')
+
+      setMessages(prev => truncateMessagesBeforeCheckpoint(prev, checkpointEditor.messageId))
+      setCheckpointEditor(null)
+      setCurrentRun(null)
+      setRecentRuns([])
+      onLoreUpdated?.()
+      setStageRefreshKey(k => k + 1)
+      await handleSend(replacement, { replaceMessageId: checkpointEditor.messageId })
+    } catch (e) {
+      addToast?.(`重发失败：${e.message}`, 'error')
+    } finally {
+      setCheckpointResending(false)
+    }
+  }
+
   const handleStop = () => {
     abortRef.current?.abort()
   }
@@ -428,6 +550,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
       setCurrentRun(null)
       setRecentRuns([])
       setHistIdx(null)
+      setCheckpointEditor(null)
       sentHistory.current = []
       draftBeforeNav.current = ''
       if (clearInput) updateInput('')
@@ -496,107 +619,6 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, position: 'relative' }}>
-          <button
-            onClick={() => { fetchSnapshots(); setSnapshotRestoreTarget(null); setSnapsOpen(s => !s) }}
-            title="快照 / 回滚到任意一条历史消息发送之前的状态"
-            style={{
-              background: snapsOpen ? 'var(--bg-elevated)' : 'none',
-              border: '1px solid var(--border-subtle)',
-              cursor: 'pointer', color: 'var(--ink-secondary)',
-              padding: '3px 8px', borderRadius: 6,
-              display: 'flex', alignItems: 'center', gap: 4, fontSize: 11,
-            }}
-          >
-            <History size={12} /> 快照
-          </button>
-          {snapsOpen && (
-            <div style={{
-              position: 'absolute', top: '100%', right: 0, marginTop: 4, zIndex: 10,
-              minWidth: 320, maxWidth: 420, maxHeight: 360, overflowY: 'auto',
-              background: 'var(--bg-elevated)', border: '1px solid var(--border-subtle)',
-              borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.18)', padding: 6,
-            }}>
-              <div style={{ fontSize: 10, color: 'var(--ink-muted)', padding: '4px 8px 6px' }}>
-                快照（最近 {snapshots.length} 个，最多保留 10 个）
-              </div>
-              {snapshots.length === 0 && (
-                <div style={{ padding: '12px 8px', fontSize: 11, color: 'var(--ink-muted)', textAlign: 'center' }}>
-                  暂无快照（每次发消息前会自动创建）
-                </div>
-              )}
-              {snapshots.map(s => {
-                const selected = snapshotRestoreTarget?.id === s.id
-                return (
-                  <div key={s.id} style={{ marginBottom: 2 }}>
-                    <button
-                      onClick={() => setSnapshotRestoreTarget(s)}
-                      style={{
-                        display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
-                        width: '100%', textAlign: 'left', padding: '6px 8px',
-                        border: selected ? '1px solid rgba(185,82,59,0.45)' : '1px solid transparent',
-                        borderRadius: 6,
-                        background: selected ? 'rgba(185,82,59,0.08)' : 'transparent',
-                        cursor: 'pointer', color: 'var(--ink)', gap: 2,
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = selected ? 'rgba(185,82,59,0.08)' : 'rgba(59,130,246,0.08)'
-                        e.currentTarget.style.borderColor = selected ? 'rgba(185,82,59,0.45)' : 'rgba(59,130,246,0.30)'
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = selected ? 'rgba(185,82,59,0.08)' : 'transparent'
-                        e.currentTarget.style.borderColor = selected ? 'rgba(185,82,59,0.45)' : 'transparent'
-                      }}
-                    >
-                      <div style={{ fontSize: 10, color: 'var(--ink-muted)' }}>
-                        {new Date(s.created_at).toLocaleString()}
-                      </div>
-                      <div style={{
-                        fontSize: 12, lineHeight: 1.4, color: 'var(--ink)',
-                        overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box',
-                        WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
-                      }}>
-                        {s.label || '(无内容)'}
-                      </div>
-                    </button>
-                    {selected && (
-                      <div style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-                        margin: '4px 0 6px', padding: '7px 8px',
-                        border: '1px solid var(--border-subtle)', borderRadius: 6,
-                        background: 'var(--bg)',
-                      }}>
-                        <span style={{ fontSize: 11, color: 'var(--ink-muted)', lineHeight: 1.4 }}>
-                          回滚会覆盖当前书籍内容，并删除此快照之后的快照。
-                        </span>
-                        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                          <button
-                            onClick={() => setSnapshotRestoreTarget(null)}
-                            style={{
-                              border: '1px solid var(--border-subtle)', background: 'transparent',
-                              color: 'var(--ink-secondary)', borderRadius: 4, padding: '4px 7px',
-                              fontSize: 11, cursor: 'pointer',
-                            }}
-                          >
-                            取消
-                          </button>
-                          <button
-                            onClick={() => handleRestoreSnapshot(s)}
-                            style={{
-                              border: '1px solid rgba(185,82,59,0.45)', background: 'rgba(185,82,59,0.12)',
-                              color: 'var(--accent)', borderRadius: 4, padding: '4px 7px',
-                              fontSize: 11, cursor: 'pointer',
-                            }}
-                          >
-                            确认回滚
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          )}
           <button onClick={handleClear} title="清空对话"
             style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-muted)', padding: 4, borderRadius: 4 }}>
             <Trash2 size={14} />
@@ -625,13 +647,26 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
           if (msg.role === 'system_notice') {
             return <div key={msg.id || i} className="context-notice">{msg.content}</div>
           }
+          const isEditingCheckpoint = checkpointEditor?.messageId === msg.id
           return (
-            <MessageBubble
-              key={msg.id || i}
-              msg={msg}
-              onOptionSelect={(opt) => handleSend(opt)}
-              optionsDisabled={loading}
-            />
+            <div key={msg.id || i} style={{ display: 'contents' }}>
+              <MessageBubble
+                msg={msg}
+                onOptionSelect={(opt) => handleSend(opt)}
+                optionsDisabled={loading}
+                onCheckpointEdit={openCheckpointEditor}
+                checkpointEditDisabled={loading || checkpointResending || Boolean(streamingMsg)}
+              />
+              {isEditingCheckpoint && (
+                <CheckpointEditComposer
+                  value={checkpointEditor.draft}
+                  onChange={updateCheckpointDraft}
+                  onCancel={() => setCheckpointEditor(null)}
+                  onSubmit={handleCheckpointResend}
+                  disabled={loading || checkpointResending}
+                />
+              )}
+            </div>
           )
         })}
 
