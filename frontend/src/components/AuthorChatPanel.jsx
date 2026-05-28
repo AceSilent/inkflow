@@ -7,6 +7,7 @@ import { AgentRunTimeline } from './AgentRunTimeline'
 import { CreativeStageBar } from './CreativeStageBar'
 import { MessageBubble, OptionsCard, StreamingToolCard, ThinkingCard } from './author-chat/MessageCards'
 import { DATA_MUTATING_TOOLS, buildAttachmentMessage, restoreChatMessages, sentHistoryFromMessages } from './author-chat/messageUtils'
+import { parseSlashCommand } from './author-chat/slashCommands'
 
 export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
   const { t } = useI18n()
@@ -155,24 +156,33 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
     const useAttachments = !fromOverride && attachments.length > 0
     if ((!baseInput && !useAttachments) || loading || !bookId) return
 
-    // /remember slash command — write to memory, don't send to Agent.
-    // Treated as a settings action: no history entry, no snapshot, no stream.
-    if (baseInput.startsWith('/remember ')) {
-      const text = baseInput.slice('/remember '.length).trim()
-      if (!text) return
-      try {
-        const r = await fetch('/api/v1/memory/remember', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text, scope: 'user', type: 'preference', tags: [] }),
-        })
-        if (r.ok) addToast?.('已记住', 'success')
-        else addToast?.('保存失败', 'error')
-      } catch (e) {
-        addToast?.(e.message, 'error')
+    const slash = parseSlashCommand(baseInput)
+    if (slash) {
+      if (slash.type === 'remember') {
+        try {
+          const r = await fetch('/api/v1/memory/remember', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: slash.text, scope: 'user', type: 'preference', tags: [] }),
+          })
+          if (r.ok) addToast?.('已记住', 'success')
+          else addToast?.('保存失败', 'error')
+        } catch (e) {
+          addToast?.(e.message, 'error')
+        }
+        if (!fromOverride) updateInput('')
+        return
       }
-      if (!fromOverride) updateInput('')
-      return
+      if (slash.type === 'compact') {
+        await handleCompact()
+        if (!fromOverride) updateInput('')
+        return
+      }
+      if (slash.type === 'clear') {
+        await handleClear()
+        if (!fromOverride) updateInput('')
+        return
+      }
     }
 
     let userMsg = baseInput
@@ -385,6 +395,23 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
 
   const handleStop = () => {
     abortRef.current?.abort()
+  }
+
+  const handleCompact = async () => {
+    if (!bookId || loading) return
+    try {
+      const r = await fetch(`/api/v1/books/${bookId}/session/compact`, { method: 'POST' })
+      const data = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(data.error || 'compact failed')
+      setMessages(prev => [...prev, {
+        id: `manual_compact_${Date.now()}`,
+        role: 'system_notice',
+        content: `已手动压缩上下文：${data.compactedCount ?? 0} 条消息`,
+      }])
+      addToast?.('上下文已压缩', 'success')
+    } catch (e) {
+      addToast?.(`压缩失败：${e.message}`, 'error')
+    }
   }
 
   const handleClear = async () => {
