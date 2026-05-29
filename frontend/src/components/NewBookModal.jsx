@@ -2,32 +2,11 @@ import { useState } from 'react'
 import { BookOpen, X, Sparkles } from 'lucide-react'
 import { useI18n } from '../hooks/useI18n'
 
-const genreOptions = [
-  { value: 'xianxia', zh: '仙侠', en: 'Xianxia' },
-  { value: 'fantasy', zh: '玄幻', en: 'Fantasy' },
-  { value: 'urban', zh: '都市', en: 'Urban' },
-  { value: 'scifi', zh: '科幻', en: 'Sci-Fi' },
-  { value: 'mystery', zh: '悬疑', en: 'Mystery' },
-  { value: 'romance', zh: '言情', en: 'Romance' },
-  { value: 'history', zh: '历史', en: 'Historical' },
-  { value: 'game', zh: '游戏', en: 'Game-Lit' },
-]
-
-const toneOptions = [
-  { value: 'dark_revenge', zh: '黑暗复仇', en: 'Dark Revenge' },
-  { value: 'hot_blood', zh: '热血燃向', en: 'Hot-Blooded' },
-  { value: 'comedy', zh: '轻松搞笑', en: 'Comedy' },
-  { value: 'suspense', zh: '烧脑悬疑', en: 'Suspense' },
-  { value: 'heartwarming', zh: '温馨治愈', en: 'Heartwarming' },
-  { value: 'political', zh: '权谋宫斗', en: 'Political' },
-]
-
-export function NewBookModal({ onClose, onCreated, addToast }) {
-  const { t, lang } = useI18n()
+export function NewBookModal({ onClose, onCreated, addToast, initialDraft }) {
+  const { t } = useI18n()
   const [form, setForm] = useState({
-    title: '',
-    genre: 'xianxia',
-    tone: 'dark_revenge',
+    title: initialDraft?.title || '',
+    concept: initialDraft?.concept || '',
     targetWords: 500000,
   })
   const [creating, setCreating] = useState(false)
@@ -55,8 +34,9 @@ export function NewBookModal({ onClose, onCreated, addToast }) {
         body: JSON.stringify({
           book_id: bookId,
           title: form.title,
-          genre: form.genre,
-          tone: form.tone,
+          genre: 'unspecified',
+          tone: 'unspecified',
+          concept: form.concept.trim(),
           target_words: form.targetWords,
         })
       })
@@ -76,16 +56,15 @@ export function NewBookModal({ onClose, onCreated, addToast }) {
       onCreated?.({
         book_id: bookId,
         title: form.title,
-        genre: form.genre,
-        tone: form.tone,
+        genre: 'unspecified',
+        tone: 'unspecified',
+        concept: form.concept.trim(),
       })
       onClose?.()
     }
 
     setCreating(false)
   }
-
-  const gl = (opt) => lang === 'zh' ? opt.zh : opt.en
 
   return (
     <div className="director-overlay" onClick={onClose}>
@@ -113,20 +92,15 @@ export function NewBookModal({ onClose, onCreated, addToast }) {
             />
           </div>
 
-          {/* Genre + Tone row */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
-            <div className="field">
-              <label className="field-label">{t('newBook.genre')}</label>
-              <select className="select" value={form.genre} onChange={e => set('genre', e.target.value)}>
-                {genreOptions.map(g => <option key={g.value} value={g.value}>{gl(g)}</option>)}
-              </select>
-            </div>
-            <div className="field">
-              <label className="field-label">{t('newBook.tone')}</label>
-              <select className="select" value={form.tone} onChange={e => set('tone', e.target.value)}>
-                {toneOptions.map(t2 => <option key={t2.value} value={t2.value}>{gl(t2)}</option>)}
-              </select>
-            </div>
+          <div className="field" style={{ marginBottom: 14 }}>
+            <label className="field-label">{t('newBook.concept')}</label>
+            <textarea
+              className="textarea"
+              placeholder={t('newBook.conceptPh')}
+              value={form.concept}
+              onChange={e => set('concept', e.target.value)}
+              rows={5}
+            />
           </div>
 
           {/* Target Words */}

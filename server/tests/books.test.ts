@@ -39,6 +39,7 @@ describe('Books CRUD', () => {
       title: '测试小说',
       genre: '仙侠',
       tone: 'dark',
+      concept: '雾港里的失踪作家留下会改写记忆的地图。',
       target_words: 100000,
     }
 
@@ -63,6 +64,7 @@ describe('Books CRUD', () => {
     expect(written.title).toBe('测试小说')
     expect(written.genre).toBe('仙侠')
     expect(written.tone).toBe('dark')
+    expect(written.concept).toBe('雾港里的失踪作家留下会改写记忆的地图。')
     expect(written.target_words).toBe(100000)
     expect(written.created_at).toBeTruthy()
   })

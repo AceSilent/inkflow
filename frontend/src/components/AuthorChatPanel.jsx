@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Trash2, Paperclip, X, FileText, PenTool, Loader, Square } from 'lucide-react'
+import { Send, Trash2, Paperclip, X, FileText, PenTool, Loader, Square, BookPlus } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { useI18n } from '../hooks/useI18n'
 import { ContextStatusBar } from './ContextStatusBar'
@@ -16,6 +16,7 @@ import {
 } from './author-chat/messageUtils'
 import { parseSlashCommand } from './author-chat/slashCommands'
 import { agentLifecycleState } from './author-chat/agentState'
+import { deriveNewBookDraftFromPrompt } from './author-chat/newBookDraft'
 
 function CheckpointEditComposer({ value, onChange, onCancel, onSubmit, disabled }) {
   const submit = () => {
@@ -122,7 +123,48 @@ function AgentStateBadge({ phase }) {
   )
 }
 
-export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
+function NoBookChatStarter({ onCreateBookRequest }) {
+  const { t } = useI18n()
+  const [draft, setDraft] = useState('')
+
+  const submit = () => {
+    const text = draft.trim()
+    if (!text) return
+    onCreateBookRequest?.(deriveNewBookDraftFromPrompt(text))
+    setDraft('')
+  }
+
+  return (
+    <div className="author-chat no-book-chat">
+      <div className="chat-scroll">
+        <div className="no-book-chat-card">
+          <span className="no-book-kicker">{t('authorChat.noBookKicker')}</span>
+          <h2>{t('authorChat.noBookTitle')}</h2>
+          <p>{t('authorChat.noBookBody')}</p>
+        </div>
+      </div>
+      <div className="chat-composer">
+        <textarea
+          value={draft}
+          onChange={event => setDraft(event.target.value)}
+          onKeyDown={event => {
+            if (event.key === 'Enter' && !event.shiftKey) {
+              event.preventDefault()
+              submit()
+            }
+          }}
+          placeholder={t('authorChat.noBookPlaceholder')}
+          rows={1}
+        />
+        <button type="button" className="chat-send-button" disabled={!draft.trim()} onClick={submit} title={t('authorChat.createBook')}>
+          <BookPlus size={15} />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated, onCreateBookRequest }) {
   const { t } = useI18n()
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
@@ -610,15 +652,11 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
   }
 
   if (!bookId) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--ink-muted)', fontSize: 14 }}>
-        {t('authorChat.noBook')}
-      </div>
-    )
+    return <NoBookChatStarter onCreateBookRequest={onCreateBookRequest} />
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div className="author-chat">
       <ContextStatusBar bookId={currentBook?.book_id} />
       {/* Header */}
       <div style={{
@@ -783,17 +821,10 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
       )}
 
       {/* Input */}
-      <div style={{
-        padding: '12px 16px', borderTop: '1px solid var(--border-subtle)',
-        display: 'flex', gap: 8, alignItems: 'flex-end', flexShrink: 0
-      }}>
+      <div className="chat-composer author-chat-composer">
         <input ref={fileInputRef} type="file" multiple accept=".txt,.md,.json,.csv,.py,.js,.jsx"
           onChange={handleFileSelect} style={{ display: 'none' }} />
-        <button onClick={() => fileInputRef.current?.click()} title={t('authorChat.attachFile')}
-          style={{
-            background: 'none', border: '1px solid var(--border-subtle)', cursor: 'pointer',
-            color: 'var(--ink-muted)', padding: '6px 8px', borderRadius: 8, display: 'flex', alignItems: 'center'
-          }}>
+        <button className="btn-icon chat-tool-button" onClick={() => fileInputRef.current?.click()} title={t('authorChat.attachFile')}>
           <Paperclip size={16} />
         </button>
         <textarea
@@ -804,32 +835,18 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
           onCompositionStart={() => { composingRef.current = true }}
           onCompositionEnd={() => { composingRef.current = false }}
           placeholder={t('authorChat.placeholder')} rows={1}
-          style={{
-            flex: 1, resize: 'none', padding: '8px 12px', borderRadius: 8,
-            border: '1px solid var(--border-subtle)', background: 'var(--bg-elevated)',
-            color: 'var(--ink)', fontSize: 13, outline: 'none', fontFamily: 'inherit', lineHeight: 1.5,
-          }}
         />
         {loading ? (
-          <button onClick={handleStop}
+          <button className="chat-send-button chat-stop-button" onClick={handleStop}
             title="停止生成（已生成的内容会保存）"
-            style={{
-              padding: '8px 16px', borderRadius: 8, border: 'none', cursor: 'pointer',
-              background: '#ef4444', color: 'white',
-              display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 600,
-            }}>
-            <Square size={12} fill="white" /> 停止
+          >
+            <Square size={12} fill="white" />
           </button>
         ) : (
-          <button onClick={handleSend}
+          <button className="chat-send-button" onClick={handleSend}
             disabled={!input.trim() && attachments.length === 0}
-            style={{
-              padding: '8px 16px', borderRadius: 8, border: 'none', cursor: 'pointer',
-              background: (input.trim() || attachments.length > 0) ? 'var(--accent)' : 'var(--bg-elevated)',
-              color: (input.trim() || attachments.length > 0) ? 'white' : 'var(--ink-muted)',
-              display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, fontWeight: 600, transition: 'all 0.2s'
-            }}>
-            <Send size={14} /> {t('authorChat.send')}
+          >
+            <Send size={14} />
           </button>
         )}
       </div>

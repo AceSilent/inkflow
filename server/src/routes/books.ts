@@ -22,6 +22,7 @@ export interface BookMeta {
   title: string
   genre: string
   tone: string
+  concept?: string
   target_words: number
   created_at?: string
 }

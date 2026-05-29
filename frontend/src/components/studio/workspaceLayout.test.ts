@@ -30,7 +30,11 @@ describe('workspace layout helpers', () => {
 
   it('loads defaults when storage is empty or invalid', () => {
     const store = new Map<string, string>()
-    expect(loadWorkspaceLayout('book-one', store)).toEqual(defaultWorkspaceLayout)
+    expect(loadWorkspaceLayout('book-one', store)).toEqual({
+      collapsed: true,
+      width: 460,
+      activeTab: 'chapter',
+    })
     store.set(storageKeyForBook('book-one'), '{broken json')
     expect(loadWorkspaceLayout('book-one', store)).toEqual(defaultWorkspaceLayout)
   })

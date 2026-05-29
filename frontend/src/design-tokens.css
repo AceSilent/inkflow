@@ -98,18 +98,10 @@ body {
 
 /* Paper texture (Light) */
 body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background-image:
-    radial-gradient(circle at 20% 30%, rgba(138, 46, 26, 0.03) 0%, transparent 40%),
-    radial-gradient(circle at 80% 70%, rgba(26, 20, 17, 0.04) 0%, transparent 40%);
+  content: none;
 }
 
 /* Grain texture (Dark) */
 body[data-theme="dark"]::before {
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence baseFrequency='0.9'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
-  opacity: 0.025;
+  content: none;
 }

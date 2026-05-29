@@ -28,6 +28,7 @@ export default function App() {
   const [workspaceChapter, setWorkspaceChapter] = useState(null)
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState(null)
   const [showNewBook, setShowNewBook] = useState(false)
+  const [newBookDraft, setNewBookDraft] = useState(null)
   const [dataVersion, setDataVersion] = useState(0)
   const [authorModel, setAuthorModel] = useState('')
   const { toasts, addToast, removeToast } = useToast()
@@ -118,6 +119,10 @@ export default function App() {
       currentBook={currentBook}
       addToast={addToast}
       onLoreUpdated={refreshData}
+      onCreateBookRequest={(draft) => {
+        setNewBookDraft(draft)
+        setShowNewBook(true)
+      }}
     />
   )
 
@@ -127,7 +132,10 @@ export default function App() {
       addToast={addToast}
       onSelect={handleSceneSelect}
       onBookSelect={handleBookSelect}
-      onNewBook={() => setShowNewBook(true)}
+      onNewBook={() => {
+        setNewBookDraft(null)
+        setShowNewBook(true)
+      }}
       dataVersion={dataVersion}
     />
   )
@@ -190,9 +198,14 @@ export default function App() {
       />
       {showNewBook && (
         <NewBookModal
-          onClose={() => setShowNewBook(false)}
+          onClose={() => {
+            setShowNewBook(false)
+            setNewBookDraft(null)
+          }}
+          initialDraft={newBookDraft}
           onCreated={(book) => {
             setShowNewBook(false)
+            setNewBookDraft(null)
             handleBookSelect(book)
             setDataVersion(v => v + 1)
             handleActivityClick('explorer')

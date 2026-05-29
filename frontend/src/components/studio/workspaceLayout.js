@@ -3,7 +3,7 @@ export const WORKSPACE_DEFAULT_WIDTH = 460
 export const WORKSPACE_TAB_IDS = ['chapter', 'outline', 'plot']
 
 export const defaultWorkspaceLayout = {
-  collapsed: false,
+  collapsed: true,
   width: WORKSPACE_DEFAULT_WIDTH,
   activeTab: 'chapter',
 }

@@ -14,6 +14,7 @@ export const createBookBody = z.object({
   title: z.string().min(1).max(200),
   genre: z.string().min(1).max(50),
   tone: z.string().min(1).max(50),
+  concept: z.string().max(10000).optional(),
   target_words: z.number().int().positive().max(10000000),
 })
 
