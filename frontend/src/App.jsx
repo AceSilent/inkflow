@@ -1,5 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
-import { Settings, Languages } from 'lucide-react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import { useI18n } from './hooks/useI18n'
 import { Sidebar } from './components/Sidebar'
 import { BrainstormPanel } from './components/BrainstormPanel'
@@ -9,7 +8,6 @@ import { PlotGraphView } from './components/PlotGraphView'
 import { ChapterWorkbench } from './components/ChapterWorkbench'
 import { MemoryLibrary } from './components/MemoryLibrary'
 import { SettingsPanel } from './components/SettingsPanel'
-import { NewBookModal } from './components/NewBookModal'
 import { ToastContainer } from './components/Toast'
 import { useToast } from './hooks/useToast'
 import { useTheme } from './hooks/useTheme'
@@ -17,20 +15,19 @@ import { StudioShell } from './components/studio/StudioShell'
 import { ChapterWorkspace } from './components/studio/ChapterWorkspace'
 import { OutlineWorkspace } from './components/studio/OutlineWorkspace'
 import { PlotGraphWorkspace } from './components/studio/PlotGraphWorkspace'
+import { createBookFromDraft } from './components/books/createBookFromDraft'
 
 export default function App() {
   const [theme, toggleTheme] = useTheme()
-  const { t, lang, switchLang } = useI18n()
+  const { t } = useI18n()
   const [activePanel, setActivePanel] = useState('explorer')
   const [activeTab, setActiveTab] = useState('brainstorm')
   const [currentBook, setCurrentBook] = useState(null)
   const [activeChapter, setActiveChapter] = useState(null)
   const [workspaceChapter, setWorkspaceChapter] = useState(null)
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState(null)
-  const [showNewBook, setShowNewBook] = useState(false)
-  const [newBookDraft, setNewBookDraft] = useState(null)
   const [dataVersion, setDataVersion] = useState(0)
-  const [authorModel, setAuthorModel] = useState('')
+  const [settings, setSettings] = useState(null)
   const { toasts, addToast, removeToast } = useToast()
 
   useEffect(() => {
@@ -38,13 +35,25 @@ export default function App() {
     fetch('/api/v1/settings')
       .then(r => r.ok ? r.json() : null)
       .then(data => {
-        if (!cancelled) setAuthorModel(data?.authorModel || '')
+        if (!cancelled) setSettings(data || null)
       })
       .catch(() => {
-        if (!cancelled) setAuthorModel('')
+        if (!cancelled) setSettings(null)
       })
     return () => { cancelled = true }
   }, [dataVersion])
+
+  const authorModel = settings?.authorModel || ''
+
+  const availableModels = useMemo(() => {
+    return (settings?.providers || []).flatMap(provider =>
+      (provider.models || []).map(model => ({
+        value: `${provider.id}/${model}`,
+        label: model,
+        provider: provider.name,
+      }))
+    )
+  }, [settings])
 
   const refreshData = useCallback(() => {
     setDataVersion(prev => prev + 1)
@@ -60,6 +69,44 @@ export default function App() {
   const handleActivityClick = useCallback((panel) => {
     setActivePanel(panel)
   }, [])
+
+  const handleNewConversation = useCallback(() => {
+    setCurrentBook(null)
+    setActiveChapter(null)
+    setWorkspaceChapter(null)
+    setActiveWorkspaceTab(null)
+    setActivePanel('explorer')
+  }, [])
+
+  const handleCreateBookRequest = useCallback(async (draft) => {
+    try {
+      const book = await createBookFromDraft(draft)
+      addToast?.(t('newBook.created'), 'success')
+      handleBookSelect(book)
+      setActivePanel('explorer')
+      setDataVersion(v => v + 1)
+    } catch (e) {
+      addToast?.(`创建失败：${e.message}`, 'error')
+    }
+  }, [addToast, handleBookSelect, t])
+
+  const handleAuthorModelChange = useCallback(async (model) => {
+    if (!settings) return
+    const nextSettings = { ...settings, authorModel: model }
+    setSettings(nextSettings)
+    try {
+      const resp = await fetch('/api/v1/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(nextSettings),
+      })
+      if (!resp.ok) throw new Error('save failed')
+      addToast?.('作者模型已切换', 'success')
+    } catch {
+      setSettings(settings)
+      addToast?.('模型切换失败', 'error')
+    }
+  }, [addToast, settings])
 
   const handleSceneSelect = useCallback((sceneInfo) => {
     if (sceneInfo.type === 'chapter') {
@@ -119,10 +166,10 @@ export default function App() {
       currentBook={currentBook}
       addToast={addToast}
       onLoreUpdated={refreshData}
-      onCreateBookRequest={(draft) => {
-        setNewBookDraft(draft)
-        setShowNewBook(true)
-      }}
+      onCreateBookRequest={handleCreateBookRequest}
+      authorModel={authorModel}
+      availableModels={availableModels}
+      onAuthorModelChange={handleAuthorModelChange}
     />
   )
 
@@ -132,31 +179,10 @@ export default function App() {
       addToast={addToast}
       onSelect={handleSceneSelect}
       onBookSelect={handleBookSelect}
-      onNewBook={() => {
-        setNewBookDraft(null)
-        setShowNewBook(true)
-      }}
+      onNewConversation={handleNewConversation}
+      onActivityClick={handleActivityClick}
       dataVersion={dataVersion}
     />
-  )
-
-  const statusbarSurface = (
-    <footer className="statusbar">
-      <div className="statusbar-section">
-        <div className="statusbar-item"><span className="status-dot ok" /><span>{t('status.ready')}</span></div>
-        <div className="statusbar-item"><Settings size={11} /><span>TS Backend</span></div>
-      </div>
-      <div className="statusbar-section">
-        <div className="statusbar-item"><span>{t('status.model')}: {authorModel || t('status.demo')}</span></div>
-      </div>
-      <div className="statusbar-section">
-        <div className="statusbar-item"><span>{t('status.scene')}: {workspaceChapter?.label || '--'}</span></div>
-        <div className="statusbar-item" style={{ cursor: 'pointer' }} onClick={switchLang}>
-          <Languages size={11} />
-          <span>{lang === 'zh' ? '中文' : 'EN'}</span>
-        </div>
-      </div>
-    </footer>
   )
 
   return (
@@ -164,8 +190,6 @@ export default function App() {
       <StudioShell
         theme={theme}
         currentBook={currentBook}
-        activePanel={activePanel}
-        onActivityClick={handleActivityClick}
         activeWorkspaceTab={activeWorkspaceTab}
         onWorkspaceTabChange={setActiveWorkspaceTab}
         sidebar={sidebarSurface}
@@ -194,25 +218,7 @@ export default function App() {
             onChapterOpen={(ch) => handleSceneSelect({ type: 'chapter', id: ch.id, label: ch.label })}
           />
         }
-        statusbar={statusbarSurface}
       />
-      {showNewBook && (
-        <NewBookModal
-          onClose={() => {
-            setShowNewBook(false)
-            setNewBookDraft(null)
-          }}
-          initialDraft={newBookDraft}
-          onCreated={(book) => {
-            setShowNewBook(false)
-            setNewBookDraft(null)
-            handleBookSelect(book)
-            setDataVersion(v => v + 1)
-            handleActivityClick('explorer')
-          }}
-          addToast={addToast}
-        />
-      )}
 
       <ToastContainer toasts={toasts} onRemove={removeToast} />
     </div>

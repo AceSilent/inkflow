@@ -1,11 +1,44 @@
 import { useState, useEffect } from 'react'
-import { ChevronRight, FilePlus, RefreshCw, BookOpen, FileText, ScrollText, Folder, Trash2 } from 'lucide-react'
+import { ChevronRight, FileText, Folder, Search, Settings, Smartphone, SquarePen, Trash2 } from 'lucide-react'
 import { useI18n } from '../hooks/useI18n'
+import { bottomSidebarActions, primarySidebarActions } from './studio/sidebarNavigation'
 import { toRoman } from '../utils/roman'
 
-export function Sidebar({ activePanel, addToast, onSelect, onBookSelect, onNewBook, dataVersion }) {
+function matchesTreeQuery(node, query) {
+  const normalized = query.trim().toLowerCase()
+  if (!normalized) return true
+  return `${node.label || ''} ${node.id || ''}`.toLowerCase().includes(normalized)
+}
+
+function filterTree(nodes, query) {
+  const normalized = query.trim()
+  if (!normalized) return nodes
+
+  return nodes
+    .map(node => {
+      const children = node.children ? filterTree(node.children, normalized) : []
+      if (matchesTreeQuery(node, normalized) || children.length > 0) {
+        return { ...node, children }
+      }
+      return null
+    })
+    .filter(Boolean)
+}
+
+const primaryIcons = {
+  'new-chat': SquarePen,
+  search: Search,
+}
+
+const bottomIcons = {
+  settings: Settings,
+  mobile: Smartphone,
+}
+
+export function Sidebar({ activePanel, addToast, onSelect, onBookSelect, onNewConversation, onActivityClick, dataVersion }) {
   const { t } = useI18n()
   const [selectedId, setSelectedId] = useState(null)
+  const [searchQuery, setSearchQuery] = useState('')
 
   const [treeData, setTreeData] = useState([])
   const [loading, setLoading] = useState(true)
@@ -42,13 +75,9 @@ export function Sidebar({ activePanel, addToast, onSelect, onBookSelect, onNewBo
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataVersion])
 
-  const navLabels = {
-    explorer: t('nav.explorer'), brainstorm: t('nav.brainstorm'), write: t('nav.write'),
-    review: t('nav.review'), characters: t('nav.characters'), statistics: t('nav.statistics'), settings: t('nav.settings'),
-  }
-
   const handleNodeSelect = (node, bookId) => {
     setSelectedId(node.id)
+    onActivityClick?.('explorer')
     if (node.type === 'book') {
       localStorage.setItem('autonovel:lastBookId', node.id)
       onBookSelect?.({ book_id: node.id, title: node.label })
@@ -88,30 +117,89 @@ export function Sidebar({ activePanel, addToast, onSelect, onBookSelect, onNewBo
     }
   }
 
+  const handlePrimaryAction = (id) => {
+    if (id === 'new-chat') {
+      setSelectedId(null)
+      setSearchQuery('')
+      onNewConversation?.()
+      return
+    }
+    onActivityClick?.(id)
+  }
+
+  const visibleTree = filterTree(treeData, activePanel === 'search' ? searchQuery : '')
+
   return (
-    <aside className="sidebar">
-      <div className="sidebar-header">
-        <span>{navLabels[activePanel] || t('nav.explorer')}</span>
-        <div className="sidebar-header-actions">
-          <button className="btn-icon" title={t('sidebar.newBook')} onClick={() => onNewBook?.()}>
-            <FilePlus size={14} />
-          </button>
-          <button className="btn-icon" title={t('sidebar.refresh')} onClick={async () => {
-            const bookIds = await fetchTree(true)
-            // If current book no longer exists, clear selection
-            if (bookIds && selectedId && !bookIds.includes(selectedId)) {
-              onBookSelect?.(null)
-              setSelectedId(null)
-            }
-          }}>
-            <RefreshCw size={14} className={loading ? "spin" : ""} />
-          </button>
-        </div>
+    <aside className="sidebar studio-sidebar-panel">
+      <div className="studio-sidebar-actions" aria-label="主导航">
+        {primarySidebarActions().map(action => {
+          const Icon = primaryIcons[action.id]
+          const active = action.id === 'search' && activePanel === 'search'
+          return (
+            <button
+              key={action.id}
+              type="button"
+              className={`studio-sidebar-action ${active ? 'active' : ''}`}
+              onClick={() => handlePrimaryAction(action.id)}
+              aria-current={active ? 'page' : undefined}
+            >
+              <Icon size={18} />
+              <span>{action.label}</span>
+              {action.shortcut && <kbd>{action.shortcut}</kbd>}
+            </button>
+          )
+        })}
       </div>
-      <div className="sidebar-content">
-        {treeData.map((node, idx) => (
+
+      {activePanel === 'search' && (
+        <div className="studio-sidebar-search">
+          <Search size={15} />
+          <input
+            value={searchQuery}
+            onChange={event => setSearchQuery(event.target.value)}
+            placeholder="搜索作品、章节或大纲"
+            autoFocus
+          />
+        </div>
+      )}
+
+      <div className="studio-sidebar-section-label">作品</div>
+
+      <div className="sidebar-content studio-project-list">
+        {visibleTree.map((node, idx) => (
           <TreeNode key={node.id} node={node} index={idx} bookId={node.type === 'book' ? node.id : null} selectedId={selectedId} onSelect={handleNodeSelect} onDeleteBook={handleDeleteBook} pendingDelete={pendingDelete} onCancelDelete={() => setPendingDelete(null)} />
         ))}
+        {!loading && visibleTree.length === 0 && (
+          <div className="studio-sidebar-empty">
+            {activePanel === 'search' && searchQuery.trim() ? '没有匹配结果' : '从新对话开始'}
+          </div>
+        )}
+      </div>
+
+      <div className="studio-sidebar-bottom">
+        {bottomSidebarActions().map(action => {
+          const Icon = bottomIcons[action.id]
+          if (!action.enabled) {
+            return (
+              <span key={action.id} className="studio-sidebar-mobile" title={action.label}>
+                <Icon size={18} />
+              </span>
+            )
+          }
+          const active = action.id === activePanel
+          return (
+            <button
+              key={action.id}
+              type="button"
+              className={`studio-sidebar-action studio-sidebar-settings ${active ? 'active' : ''}`}
+              onClick={() => onActivityClick?.(action.id)}
+              aria-current={active ? 'page' : undefined}
+            >
+              <Icon size={18} />
+              <span>{action.label}</span>
+            </button>
+          )
+        })}
       </div>
     </aside>
   )
@@ -122,7 +210,7 @@ function TreeNode({ node, index = 0, bookId, level = 0, selectedId, onSelect, on
   const [open, setOpen] = useState(level < 2)
   const [hovered, setHovered] = useState(false)
   const hasChildren = node.children?.length > 0
-  const Icon = node.icon || FileText
+  const Icon = typeof node.icon === 'function' ? node.icon : (node.type === 'book' ? Folder : FileText)
   const isBook = node.type === 'book'
   const isConfirming = pendingDelete === node.id
   const effectiveBookId = node.type === 'book' ? node.id : bookId

@@ -12,5 +12,8 @@ const result = spawnSync(process.execPath, [viteBin], {
 })
 
 if (result.status !== 0) {
+  if (result.signal || result.status === 130 || result.status === 143) {
+    process.exit(0)
+  }
   throw new Error(`frontend dev server failed with exit code ${result.status}`)
 }

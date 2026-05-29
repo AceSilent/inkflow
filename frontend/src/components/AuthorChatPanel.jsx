@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Trash2, Paperclip, X, FileText, PenTool, Loader, Square, BookPlus } from 'lucide-react'
+import { Send, Trash2, Plus, X, FileText, PenTool, Loader, Square } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { useI18n } from '../hooks/useI18n'
 import { ContextStatusBar } from './ContextStatusBar'
@@ -123,48 +123,151 @@ function AgentStateBadge({ phase }) {
   )
 }
 
-function NoBookChatStarter({ onCreateBookRequest }) {
+function ComposerModelSwitch({ authorModel, availableModels = [], onAuthorModelChange }) {
+  const hasChoices = availableModels.length > 1
+
+  if (hasChoices) {
+    return (
+      <select
+        className="chat-model-select"
+        value={authorModel}
+        onChange={event => onAuthorModelChange?.(event.target.value)}
+        aria-label="切换作者模型"
+      >
+        {availableModels.map(model => (
+          <option key={model.value} value={model.value}>
+            {model.provider ? `${model.provider} / ${model.label}` : model.label}
+          </option>
+        ))}
+      </select>
+    )
+  }
+
+  return <span className="chat-model-pill">{authorModel || '示例模式'}</span>
+}
+
+export function NoBookChatStarter({
+  onCreateBookRequest,
+  addToast,
+  authorModel,
+  availableModels,
+  onAuthorModelChange,
+}) {
   const { t } = useI18n()
   const [draft, setDraft] = useState('')
+  const [attachments, setAttachments] = useState([])
+  const fileInputRef = useRef(null)
 
   const submit = () => {
     const text = draft.trim()
-    if (!text) return
-    onCreateBookRequest?.(deriveNewBookDraftFromPrompt(text))
+    if (!text && attachments.length === 0) return
+    const concept = attachments.length > 0
+      ? buildAttachmentMessage(text || '根据附件创建作品', attachments, t('authorChat.attachment'))
+      : text
+    onCreateBookRequest?.(deriveNewBookDraftFromPrompt(concept))
     setDraft('')
+    setAttachments([])
+  }
+
+  const handleFileSelect = (event) => {
+    const files = Array.from(event.target.files || [])
+    files.forEach(file => {
+      if (file.size > 512 * 1024) {
+        addToast?.(t('authorChat.fileTooLarge').replace('{name}', file.name), 'error')
+        return
+      }
+      const reader = new FileReader()
+      reader.onload = ev => {
+        setAttachments(prev => [...prev, { name: file.name, content: ev.target.result, size: file.size }])
+      }
+      reader.readAsText(file)
+    })
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  const removeAttachment = (idx) => {
+    setAttachments(prev => prev.filter((_, i) => i !== idx))
   }
 
   return (
     <div className="author-chat no-book-chat">
       <div className="chat-scroll">
         <div className="no-book-chat-card">
-          <span className="no-book-kicker">{t('authorChat.noBookKicker')}</span>
           <h2>{t('authorChat.noBookTitle')}</h2>
-          <p>{t('authorChat.noBookBody')}</p>
         </div>
       </div>
+      {attachments.length > 0 && (
+        <AttachmentPreview attachments={attachments} onRemove={removeAttachment} />
+      )}
       <div className="chat-composer">
-        <textarea
-          value={draft}
-          onChange={event => setDraft(event.target.value)}
-          onKeyDown={event => {
-            if (event.key === 'Enter' && !event.shiftKey) {
-              event.preventDefault()
-              submit()
-            }
-          }}
-          placeholder={t('authorChat.noBookPlaceholder')}
-          rows={1}
-        />
-        <button type="button" className="chat-send-button" disabled={!draft.trim()} onClick={submit} title={t('authorChat.createBook')}>
-          <BookPlus size={15} />
+        <input ref={fileInputRef} type="file" multiple accept=".txt,.md,.json,.csv,.py,.js,.jsx"
+          onChange={handleFileSelect} style={{ display: 'none' }} />
+        <button type="button" className="btn-icon chat-tool-button" onClick={() => fileInputRef.current?.click()} title={t('authorChat.attachFile')}>
+          <Plus size={17} />
+        </button>
+        <div className="chat-composer-body">
+          <textarea
+            value={draft}
+            onChange={event => setDraft(event.target.value)}
+            onKeyDown={event => {
+              if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault()
+                submit()
+              }
+            }}
+            placeholder={t('authorChat.noBookPlaceholder')}
+            rows={1}
+          />
+          <div className="chat-composer-meta">
+            <span className="chat-mode-pill">作者模式</span>
+            <ComposerModelSwitch
+              authorModel={authorModel}
+              availableModels={availableModels}
+              onAuthorModelChange={onAuthorModelChange}
+            />
+          </div>
+        </div>
+        <button
+          type="button"
+          className="chat-send-button"
+          disabled={!draft.trim() && attachments.length === 0}
+          onClick={submit}
+          title={t('authorChat.send')}
+          aria-label={t('authorChat.send')}
+        >
+          <Send size={14} />
         </button>
       </div>
     </div>
   )
 }
 
-export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated, onCreateBookRequest }) {
+function AttachmentPreview({ attachments, onRemove }) {
+  return (
+    <div className="chat-attachment-preview">
+      {attachments.map((a, i) => (
+        <div key={i} className="chat-attachment-chip">
+          <FileText size={11} />
+          <span>{a.name}</span>
+          <small>{(a.size / 1024).toFixed(1)}KB</small>
+          <button type="button" onClick={() => onRemove(i)} aria-label="移除附件">
+            <X size={11} />
+          </button>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+export function AuthorChatPanel({
+  currentBook,
+  addToast,
+  onLoreUpdated,
+  onCreateBookRequest,
+  authorModel,
+  availableModels,
+  onAuthorModelChange,
+}) {
   const { t } = useI18n()
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
@@ -652,7 +755,15 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated, onCreate
   }
 
   if (!bookId) {
-    return <NoBookChatStarter onCreateBookRequest={onCreateBookRequest} />
+    return (
+      <NoBookChatStarter
+        onCreateBookRequest={onCreateBookRequest}
+        addToast={addToast}
+        authorModel={authorModel}
+        availableModels={availableModels}
+        onAuthorModelChange={onAuthorModelChange}
+      />
+    )
   }
 
   return (
@@ -797,54 +908,46 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated, onCreate
       </div>
 
       {/* Attachment Preview */}
-      {attachments.length > 0 && (
-        <div style={{
-          padding: '6px 16px', borderTop: '1px solid var(--border-subtle)',
-          display: 'flex', gap: 6, flexWrap: 'wrap', background: 'var(--bg-elevated)'
-        }}>
-          {attachments.map((a, i) => (
-            <div key={i} style={{
-              display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px',
-              borderRadius: 6, background: 'var(--bg-elevated)', fontSize: 11,
-              border: '1px solid var(--border-subtle)'
-            }}>
-              <FileText size={11} style={{ color: 'var(--accent)' }} />
-              <span style={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</span>
-              <span style={{ color: 'var(--ink-muted)', fontSize: 9 }}>{(a.size / 1024).toFixed(1)}KB</span>
-              <button onClick={() => removeAttachment(i)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--ink-muted)', display: 'flex' }}>
-                <X size={11} />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
+      {attachments.length > 0 && <AttachmentPreview attachments={attachments} onRemove={removeAttachment} />}
 
       {/* Input */}
       <div className="chat-composer author-chat-composer">
         <input ref={fileInputRef} type="file" multiple accept=".txt,.md,.json,.csv,.py,.js,.jsx"
           onChange={handleFileSelect} style={{ display: 'none' }} />
         <button className="btn-icon chat-tool-button" onClick={() => fileInputRef.current?.click()} title={t('authorChat.attachFile')}>
-          <Paperclip size={16} />
+          <Plus size={17} />
         </button>
-        <textarea
-          ref={inputRef}
-          value={input}
-          onChange={e => updateInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onCompositionStart={() => { composingRef.current = true }}
-          onCompositionEnd={() => { composingRef.current = false }}
-          placeholder={t('authorChat.placeholder')} rows={1}
-        />
+        <div className="chat-composer-body">
+          <textarea
+            ref={inputRef}
+            value={input}
+            onChange={e => updateInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onCompositionStart={() => { composingRef.current = true }}
+            onCompositionEnd={() => { composingRef.current = false }}
+            placeholder={t('authorChat.placeholder')} rows={1}
+          />
+          <div className="chat-composer-meta">
+            <span className="chat-mode-pill">作者模式</span>
+            <ComposerModelSwitch
+              authorModel={authorModel}
+              availableModels={availableModels}
+              onAuthorModelChange={onAuthorModelChange}
+            />
+          </div>
+        </div>
         {loading ? (
           <button className="chat-send-button chat-stop-button" onClick={handleStop}
             title="停止生成（已生成的内容会保存）"
+            aria-label="停止生成"
           >
             <Square size={12} fill="white" />
           </button>
         ) : (
           <button className="chat-send-button" onClick={handleSend}
             disabled={!input.trim() && attachments.length === 0}
+            title={t('authorChat.send')}
+            aria-label={t('authorChat.send')}
           >
             <Send size={14} />
           </button>

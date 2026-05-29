@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { BookOpen, Brain, Library, Search, Settings } from 'lucide-react'
 import { WorkspacePane } from './WorkspacePane'
 import { WorkspaceTabs } from './WorkspaceTabs'
+import { studioChromeLayout } from './studioChrome'
 import { WORKSPACE_MIN_WIDTH, clampWorkspaceWidth, isWorkspaceTab, loadWorkspaceLayout, saveWorkspaceLayout } from './workspaceLayout'
 
 function workspaceMaxWidth(viewportWidth) {
@@ -34,14 +34,11 @@ function loadNormalizedWorkspaceLayout(bookId) {
 export function StudioShell({
   theme,
   currentBook,
-  activePanel,
-  onActivityClick,
   sidebar,
   chat,
   chapter,
   outline,
   plot,
-  statusbar,
   activeWorkspaceTab,
   onWorkspaceTabChange,
 }) {
@@ -94,13 +91,6 @@ export function StudioShell({
     window.addEventListener('resize', handleWindowResize)
     return () => window.removeEventListener('resize', handleWindowResize)
   }, [bookId])
-
-  const railItems = useMemo(() => [
-    { id: 'explorer', icon: Library, label: '书籍' },
-    { id: 'author-chat', icon: Brain, label: 'Agent' },
-    { id: 'search', icon: Search, label: '搜索' },
-    { id: 'settings', icon: Settings, label: '设置' },
-  ], [])
 
   const handleToggleWorkspace = useCallback(() => {
     persistLayout({ collapsed: !layout.collapsed })
@@ -182,38 +172,16 @@ export function StudioShell({
   }, [layout.width, persistLayout])
 
   return (
-    <div className="studio-shell" data-theme={theme}>
+    <div
+      className="studio-shell"
+      data-theme={theme}
+      style={{ '--studio-titlebar-left-inset': `${studioChromeLayout.titlebarLeftInset}px` }}
+    >
       <header className="studio-titlebar" data-tauri-drag-region>
-        <div className="studio-titlebar-brand" data-tauri-drag-region>
-          <BookOpen size={16} />
-          <span>InkFlow Studio</span>
-        </div>
         <div className="studio-titlebar-context" data-tauri-drag-region>
-          {currentBook?.title || currentBook?.book_id || '未选择作品'}
+          {currentBook?.title || currentBook?.book_id || ''}
         </div>
       </header>
-
-      <nav className="studio-rail" aria-label="工作区">
-        {railItems.map(item => {
-          const Icon = item.icon
-          const active = activePanel === item.id
-
-          return (
-            <button
-              key={item.id}
-              className={`studio-rail-item ${active ? 'active' : ''}`}
-              type="button"
-              onClick={() => onActivityClick?.(item.id)}
-              title={item.label}
-              aria-label={item.label}
-              aria-current={active ? 'page' : undefined}
-            >
-              <Icon size={18} />
-              <span>{item.label}</span>
-            </button>
-          )
-        })}
-      </nav>
 
       <aside className="studio-library">
         {sidebar}
@@ -241,8 +209,6 @@ export function StudioShell({
           />
         </WorkspacePane>
       </main>
-
-      {statusbar}
     </div>
   )
 }
