@@ -8,7 +8,14 @@
     "dev:server": "npm --prefix server run dev",
     "dev:frontend": "npm --prefix frontend run dev",
     "build": "npm --prefix server run build && npm --prefix frontend run build",
+    "desktop:prepare-sidecar": "node scripts/build-sidecar.mjs",
+    "desktop:dev": "npm run desktop:prepare-sidecar -- --mac-dev && tauri dev",
+    "desktop:build:mac": "npm run desktop:prepare-sidecar -- --mac && tauri build",
     "test": "npm --prefix server test",
     "start": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-dev.ps1"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.2",
+    "@yao-pkg/pkg": "^6.20.0"
   }
 }

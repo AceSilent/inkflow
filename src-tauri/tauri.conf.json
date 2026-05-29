@@ -1,0 +1,37 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "InkFlow",
+  "version": "1.0.1",
+  "identifier": "com.inkflow.studio",
+  "build": {
+    "beforeDevCommand": "npm --prefix frontend run dev",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "npm --prefix frontend run build",
+    "frontendDist": "../frontend/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "InkFlow",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 960,
+        "minHeight": 640,
+        "decorations": false,
+        "transparent": false,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["app", "dmg"],
+    "externalBin": ["binaries/inkflow-server"],
+    "macOS": {
+      "minimumSystemVersion": "12.0"
+    }
+  }
+}
