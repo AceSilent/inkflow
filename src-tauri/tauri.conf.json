@@ -38,6 +38,8 @@
     ],
     "externalBin": ["binaries/inkflow-server"],
     "macOS": {
+      "signingIdentity": "-",
+      "entitlements": "entitlements.plist",
       "minimumSystemVersion": "12.0"
     }
   }

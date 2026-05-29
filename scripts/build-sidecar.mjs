@@ -8,6 +8,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const args = new Set(process.argv.slice(2))
 const binariesDir = path.join(root, 'src-tauri', 'binaries')
 const serverEntry = path.join(root, 'server', 'dist', 'index.js')
+const pkgConfig = path.join(root, 'scripts', 'pkg-sidecar.config.cjs')
 
 const macTargets = [
   { pkg: 'node22-macos-arm64', suffix: 'aarch64-apple-darwin' },
@@ -40,6 +41,7 @@ for (const target of targets) {
   const output = path.join(binariesDir, `inkflow-server-${target.suffix}`)
   run(pkgBin, [
     serverEntry,
+    '--config', pkgConfig,
     '--targets', target.pkg,
     '--output', output,
     '--compress', 'GZip',
