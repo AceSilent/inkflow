@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url'
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const args = new Set(process.argv.slice(2))
 const binariesDir = path.join(root, 'src-tauri', 'binaries')
+const serverDir = path.join(root, 'server')
 const serverEntry = path.join(root, 'server', 'dist', 'index.js')
 const pkgConfig = path.join(root, 'scripts', 'pkg-sidecar.config.cjs')
 
@@ -33,13 +34,16 @@ function run(command, commandArgs, options = {}) {
   }
 }
 
-run('npm', ['--prefix', 'server', 'run', 'build'])
+run(process.execPath, [path.join(serverDir, 'node_modules', 'typescript', 'bin', 'tsc')], {
+  cwd: serverDir,
+})
 fs.mkdirSync(binariesDir, { recursive: true })
 
 const pkgBin = path.join(root, 'node_modules', '.bin', process.platform === 'win32' ? 'pkg.cmd' : 'pkg')
 for (const target of targets) {
   const output = path.join(binariesDir, `inkflow-server-${target.suffix}`)
-  run(pkgBin, [
+  run(process.execPath, [
+    pkgBin,
     serverEntry,
     '--config', pkgConfig,
     '--targets', target.pkg,

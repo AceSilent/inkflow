@@ -9,8 +9,9 @@
     "dev:frontend": "npm --prefix frontend run dev",
     "build": "npm --prefix server run build && npm --prefix frontend run build",
     "desktop:prepare-sidecar": "node scripts/build-sidecar.mjs",
-    "desktop:dev": "npm run desktop:prepare-sidecar -- --mac-dev && tauri dev",
-    "desktop:build:mac": "npm run desktop:prepare-sidecar -- --mac && tauri build",
+    "desktop:dev": "node scripts/build-sidecar.mjs --mac-dev && tauri dev",
+    "desktop:build:mac": "node scripts/build-sidecar.mjs --mac && tauri build",
+    "test:desktop-config": "node --test scripts/desktop-window-config.node-test.mjs",
     "test": "npm --prefix server test",
     "start": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-dev.ps1"
   },

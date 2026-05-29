@@ -4,12 +4,13 @@
   "version": "1.0.1",
   "identifier": "com.inkflow.studio",
   "build": {
-    "beforeDevCommand": "npm --prefix frontend run dev",
+    "beforeDevCommand": "node scripts/dev-frontend.mjs",
     "devUrl": "http://localhost:5173",
-    "beforeBuildCommand": "npm --prefix frontend run build",
+    "beforeBuildCommand": "node scripts/build-frontend.mjs",
     "frontendDist": "../frontend/dist"
   },
   "app": {
+    "macOSPrivateApi": true,
     "windows": [
       {
         "title": "InkFlow",
@@ -17,8 +18,12 @@
         "height": 800,
         "minWidth": 960,
         "minHeight": 640,
-        "decorations": false,
-        "transparent": false,
+        "decorations": true,
+        "transparent": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "trafficLightPosition": { "x": 16, "y": 15 },
+        "shadow": true,
         "resizable": true
       }
     ],

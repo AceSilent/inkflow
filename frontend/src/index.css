@@ -9,7 +9,8 @@
   --sidebar-w: 260px;
   --panel-w: 300px;
   --statusbar-h: 24px;
-  --titlebar-h: 34px;
+  --titlebar-h: 44px;
+  --mac-traffic-light-space: 84px;
   --tabbar-h: 36px;
 
   --radius-sm: 6px;
@@ -35,7 +36,7 @@ html, body, #root {
   height: 100%; overflow: hidden;
   font-family: var(--font-body); font-size: 13px;
   line-height: 1.5; color: var(--ink);
-  background: var(--bg);
+  background: transparent;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -55,6 +56,8 @@ button { font-family: var(--font-body); cursor: pointer; }
   grid-template-columns: var(--activity-bar-w) var(--sidebar-w) 1fr;
   grid-template-rows: var(--titlebar-h) 1fr var(--statusbar-h);
   height: 100vh;
+  color: var(--ink);
+  background: var(--bg);
 }
 .app-shell.sidebar-collapsed {
   grid-template-columns: var(--activity-bar-w) 0px 1fr;
@@ -1169,6 +1172,9 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   color: var(--ink);
   background: oklch(95.8% 0.006 255);
   overflow: hidden;
+  border: 1px solid oklch(88% 0.01 255 / 0.82);
+  border-radius: 14px;
+  isolation: isolate;
 }
 
 .studio-titlebar {
@@ -1178,7 +1184,7 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   justify-content: space-between;
   min-width: 0;
   height: var(--titlebar-h);
-  padding: 0 16px;
+  padding: 0 16px 0 var(--mac-traffic-light-space);
   background: oklch(97.6% 0.005 255 / 0.92);
   border-bottom: 1px solid oklch(88% 0.01 255 / 0.8);
   backdrop-filter: blur(20px);
