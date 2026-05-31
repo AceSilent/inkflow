@@ -1,23 +1,24 @@
-import { ChevronLeft, ChevronRight, GripVertical } from 'lucide-react'
+import { GripVertical } from 'lucide-react'
 import { WORKSPACE_MIN_WIDTH } from './workspaceLayout'
+import { useI18n } from '../../hooks/useI18n'
 
 export function WorkspacePane({
   collapsed,
   width,
   maxWidth,
   activeTab,
-  onToggle,
   onResizeStart,
   onKeyDown,
   children,
 }) {
+  const { t } = useI18n()
   return (
     <>
       <div
         className="workspace-splitter"
         role="separator"
         aria-orientation="vertical"
-        aria-label="Resize workspace"
+        aria-label={t('workspace.resize')}
         aria-valuemin={WORKSPACE_MIN_WIDTH}
         aria-valuemax={maxWidth}
         aria-valuenow={width}
@@ -33,9 +34,6 @@ export function WorkspacePane({
         style={{ width: collapsed ? 0 : width }}
         data-active-tab={activeTab}
       >
-        <button className="workspace-collapse" type="button" onClick={onToggle} title={collapsed ? '展开作品空间' : '收起作品空间'}>
-          {collapsed ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
-        </button>
         {!collapsed && children}
       </aside>
     </>

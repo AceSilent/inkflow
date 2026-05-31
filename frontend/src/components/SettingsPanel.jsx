@@ -1,6 +1,80 @@
 import { useState, useEffect } from 'react'
-import { Moon, Sun, Save, Languages, Plus, Trash2, Key, Globe, Box } from 'lucide-react'
+import { Save, Languages, Plus, Trash2, Key, Globe, Box, Check } from 'lucide-react'
 import { useI18n } from '../hooks/useI18n'
+import { themePalettes } from '../theme/palettes'
+
+function withRecommendedProviders(data) {
+  const providers = data.providers?.length ? data.providers : [
+    {
+      id: 'gemini',
+      name: 'Gemini',
+      kind: 'gemini-openai-compatible',
+      baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+      apiKey: '',
+      models: ['gemini-3.5-flash'],
+    },
+    {
+      id: 'deepseek',
+      name: 'DeepSeek',
+      kind: 'openai-compatible',
+      baseUrl: 'https://api.deepseek.com',
+      apiKey: '',
+      models: ['deepseek-v4-pro', 'deepseek-v4-flash'],
+    },
+  ]
+
+  return {
+    ...data,
+    providers,
+    authorModel: data.authorModel || 'gemini/gemini-3.5-flash',
+    editorModel: data.editorModel || 'deepseek/deepseek-v4-pro',
+    reviewerModels: {
+      editorial_lore: data.reviewerModels?.editorial_lore || 'deepseek/deepseek-v4-pro',
+      editorial_causality: data.reviewerModels?.editorial_causality || 'deepseek/deepseek-v4-pro',
+      ...(data.reviewerModels || {}),
+    },
+  }
+}
+
+export function ThemePaletteOption({ palette, active, onSelect }) {
+  const { t } = useI18n()
+  const preview = palette.preview || {
+    surface: palette.swatches?.[0],
+    sidebar: palette.swatches?.[0],
+    accent: palette.swatches?.[1],
+    ink: palette.swatches?.[2],
+  }
+
+  return (
+    <button
+      type="button"
+      className={`theme-palette-button ${active ? 'active' : ''}`}
+      onClick={onSelect}
+      aria-pressed={active}
+    >
+      <span
+        className="theme-palette-preview-card"
+        style={{
+          '--theme-preview-surface': preview.surface,
+          '--theme-preview-sidebar': preview.sidebar,
+          '--theme-preview-accent': preview.accent,
+          '--theme-preview-ink': preview.ink,
+        }}
+      >
+        <span className="theme-palette-preview-sidebar" />
+        <span className="theme-palette-preview-content">
+          <span className="theme-palette-preview-line strong" />
+          <span className="theme-palette-preview-line" />
+          <span className="theme-palette-preview-accent" />
+        </span>
+      </span>
+      <span className="theme-palette-label">
+        <span>{t(palette.labelKey)}</span>
+        {active && <Check size={12} />}
+      </span>
+    </button>
+  )
+}
 
 export function SettingsPanel({ addToast, theme, toggleTheme, currentBook }) {
   const { t, lang, switchLang } = useI18n()
@@ -13,12 +87,12 @@ export function SettingsPanel({ addToast, theme, toggleTheme, currentBook }) {
       .then(data => {
         if (!data.providers) data.providers = []
         if (!data.reviewerModels) data.reviewerModels = {}
-        setSettings(data)
+        setSettings(withRecommendedProviders(data))
         setLoading(false)
       })
       .catch((e) => {
         console.error(e)
-        addToast?.('Failed to load settings', 'error')
+        addToast?.(t('settings.loadFailed'), 'error')
         setLoading(false)
       })
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -32,12 +106,12 @@ export function SettingsPanel({ addToast, theme, toggleTheme, currentBook }) {
         body: JSON.stringify(settings)
       })
       if (resp.ok) {
-        addToast?.(t('settings.saved') || '设置已保存', 'success')
+        addToast?.(t('settings.saved'), 'success')
       } else {
         throw new Error('Save failed')
       }
     } catch {
-      addToast?.('Save failed', 'error')
+      addToast?.(t('settings.saveFailed'), 'error')
     }
   }
 
@@ -54,7 +128,7 @@ export function SettingsPanel({ addToast, theme, toggleTheme, currentBook }) {
   const addProvider = () => {
     const newProvider = {
       id: `custom_${Date.now()}`,
-      name: 'New Provider',
+      name: t('settings.newProvider'),
       baseUrl: 'https://',
       apiKey: '',
       models: ['default-model']
@@ -68,7 +142,7 @@ export function SettingsPanel({ addToast, theme, toggleTheme, currentBook }) {
   }
 
   if (loading || !settings) {
-    return <div style={{ padding: 40, textAlign: 'center' }}>Loading...</div>
+    return <div style={{ padding: 40, textAlign: 'center' }}>{t('settings.loading')}</div>
   }
 
   return (
@@ -103,15 +177,15 @@ export function SettingsPanel({ addToast, theme, toggleTheme, currentBook }) {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12 }}>
                 <div className="field">
-                  <label className="field-label" style={{ fontSize: 11 }}><Globe size={10}/> Base URL</label>
+                  <label className="field-label" style={{ fontSize: 11 }}><Globe size={10}/> {t('settings.baseUrl')}</label>
                   <input className="input" value={provider.baseUrl} onChange={e => updateProvider(i, 'baseUrl', e.target.value)} />
                 </div>
                 <div className="field">
-                  <label className="field-label" style={{ fontSize: 11 }}><Key size={10}/> API Key</label>
+                  <label className="field-label" style={{ fontSize: 11 }}><Key size={10}/> {t('settings.apiKey')}</label>
                   <input className="input" type="password" placeholder="sk-..." value={provider.apiKey} onChange={e => updateProvider(i, 'apiKey', e.target.value)} />
                 </div>
                 <div className="field">
-                  <label className="field-label" style={{ fontSize: 11 }}><Box size={10}/> Models (comma separated)</label>
+                  <label className="field-label" style={{ fontSize: 11 }}><Box size={10}/> {t('settings.providerModels')}</label>
                   <input className="input" value={provider.models.join(', ')} onChange={e => updateProvider(i, 'models', e.target.value)} />
                 </div>
               </div>
@@ -119,7 +193,7 @@ export function SettingsPanel({ addToast, theme, toggleTheme, currentBook }) {
           ))}
           
           <button className="btn btn-secondary" onClick={addProvider} style={{ display: 'flex', justifyContent: 'center', borderStyle: 'dashed' }}>
-            <Plus size={14} /> Add Provider
+            <Plus size={14} /> {t('settings.addProvider')}
           </button>
         </div>
       </Section>
@@ -139,11 +213,11 @@ export function SettingsPanel({ addToast, theme, toggleTheme, currentBook }) {
           providers={settings.providers}
         />
         <div style={{ marginTop: 8, paddingTop: 12, borderTop: '1px solid var(--border-subtle)' }}>
-          <div className="field-label" style={{ marginBottom: 8 }}>审稿人模型分配</div>
+          <div className="field-label" style={{ marginBottom: 8 }}>{t('settings.reviewerModels')}</div>
           {REVIEWER_MODEL_LABELS.map(item => (
             <ModelSelector
               key={item.id}
-              label={item.label}
+              label={t(item.labelKey)}
               value={settings.reviewerModels?.[item.id] || ''}
               onChange={v => setSettings({
                 ...settings,
@@ -193,18 +267,21 @@ export function SettingsPanel({ addToast, theme, toggleTheme, currentBook }) {
       </Section>
 
       <Section title={t('settings.appearance') || 'Appearance'}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <span className="field-label" style={{ margin: 0 }}>{t('settings.theme')}</span>
-          <button className="btn btn-secondary btn-sm" onClick={toggleTheme}>
-            {theme === 'dark' ? <Moon size={12} /> : <Sun size={12} />}
-            {theme === 'dark' ? t('settings.dark') : t('settings.light')}
-          </button>
+        <div className="theme-palette-grid">
+          {themePalettes.map(palette => (
+            <ThemePaletteOption
+              key={palette.id}
+              palette={palette}
+              active={theme === palette.id}
+              onSelect={() => toggleTheme(palette.id)}
+            />
+          ))}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span className="field-label" style={{ margin: 0 }}>{t('settings.language')}</span>
           <button className="btn btn-secondary btn-sm" onClick={switchLang}>
             <Languages size={12} />
-            {lang === 'zh' ? '中文 → English' : 'English → 中文'}
+            {lang === 'zh' ? t('settings.switchToEnglish') : t('settings.switchToChinese')}
           </button>
         </div>
       </Section>
@@ -217,8 +294,8 @@ export function SettingsPanel({ addToast, theme, toggleTheme, currentBook }) {
 }
 
 const REVIEWER_MODEL_LABELS = [
-  { id: 'editorial_lore', label: '设定考据' },
-  { id: 'editorial_causality', label: '逻辑审核' },
+  { id: 'editorial_lore', labelKey: 'review.reader.lore' },
+  { id: 'editorial_causality', labelKey: 'review.reader.causality' },
 ]
 
 function Section({ title, children }) {
@@ -231,11 +308,12 @@ function Section({ title, children }) {
 }
 
 function ModelSelector({ label, value, onChange, providers, includeDefault = false }) {
+  const { t } = useI18n()
   return (
     <div className="field">
       <label className="field-label">{label}</label>
       <select className="select" value={value} onChange={e => onChange(e.target.value)}>
-        {includeDefault && <option value="">默认编辑模型</option>}
+        {includeDefault && <option value="">{t('settings.defaultEditorModel')}</option>}
         {providers.map(p => (
           <optgroup key={p.id} label={p.name}>
             {p.models.map(m => (

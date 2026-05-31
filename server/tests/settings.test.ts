@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import fs from 'fs'
 import path from 'path'
 import {
+  applyRecommendedProviderDefaults,
   getSettings,
   saveSettings,
   maskApiKey,
@@ -115,5 +116,32 @@ describe('Settings route helpers', () => {
 
     expect(settings.authorModel).toBe('saved/author')
     expect(settings.editorModel).toBe('saved/editor')
+  })
+
+  it('can seed recommended Gemini and DeepSeek provider defaults without overwriting keys', () => {
+    const seeded = applyRecommendedProviderDefaults({
+      providers: [{
+        id: 'gemini',
+        name: 'Gemini',
+        baseUrl: 'https://old.example.com',
+        apiKey: 'existing-key',
+        models: ['gemini-old'],
+      }],
+      authorModel: '',
+      editorModel: '',
+    })
+
+    expect(seeded.providers.find(p => p.id === 'gemini')).toMatchObject({
+      baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+      apiKey: 'existing-key',
+      models: ['gemini-3.5-flash'],
+    })
+    expect(seeded.providers.find(p => p.id === 'deepseek')).toMatchObject({
+      baseUrl: 'https://api.deepseek.com',
+      models: ['deepseek-v4-pro', 'deepseek-v4-flash'],
+    })
+    expect(seeded.authorModel).toBe('gemini/gemini-3.5-flash')
+    expect(seeded.editorModel).toBe('deepseek/deepseek-v4-pro')
+    expect(seeded.reviewerModels?.editorial_lore).toBe('deepseek/deepseek-v4-pro')
   })
 })

@@ -8,6 +8,9 @@ describe('getModelContextWindow', () => {
   it('detects GLM-5 as 1M', () => {
     expect(getModelContextWindow('glm-5.5-flash')).toBe(1_000_000)
   })
+  it('detects Gemini 3.5 Flash as 1M', () => {
+    expect(getModelContextWindow('gemini-3.5-flash')).toBe(1_000_000)
+  })
   it('detects DeepSeek V3 as 200K', () => {
     expect(getModelContextWindow('deepseek-v3.2-chat')).toBe(200_000)
   })

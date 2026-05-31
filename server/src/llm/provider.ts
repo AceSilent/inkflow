@@ -11,20 +11,6 @@ export interface LLMConfig {
 }
 
 /**
- * Detect models that emit `delta.reasoning_content` in streaming mode
- * (ZhipuAI GLM-5.x, DashScope Qwen3.x, etc.). @ai-sdk/openai doesn't parse
- * that field, so we transform it into regular `delta.content` wrapped with
- * markers that the SSE route splits back into thinking vs content events.
- */
-function isReasoningModel(model: string): boolean {
-  const m = model.toLowerCase()
-  return m.includes('glm-5') || m.includes('glm5')
-      || m.startsWith('qwen3') || m.includes('qwen-3')
-      || m.includes('qwen3.6') || m.includes('qwen3-max') || m.includes('qwen3-plus')
-      || isDeepSeekThinkingModel(model)
-}
-
-/**
  * DashScope Qwen3 defaults to non-thinking mode; the API only returns
  * reasoning_content when the request body carries `enable_thinking: true`
  * (equivalent to the Python SDK's `extra_body={"enable_thinking": True}`).
@@ -103,6 +89,93 @@ interface DeepSeekReasoningTurn {
   toolCallIds: string[]
 }
 
+function stripOpenAICompatPrivateFields(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false
+
+  let changed = false
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      if (stripOpenAICompatPrivateFields(item)) changed = true
+    }
+    return changed
+  }
+
+  const record = value as Record<string, unknown>
+  if ('extra_content' in record) {
+    delete record.extra_content
+    changed = true
+  }
+
+  for (const child of Object.values(record)) {
+    if (stripOpenAICompatPrivateFields(child)) changed = true
+  }
+  return changed
+}
+
+function normalizeOpenAICompatToolCallIndexes(chunk: unknown): boolean {
+  if (!chunk || typeof chunk !== 'object') return false
+  const choices = (chunk as any).choices
+  if (!Array.isArray(choices)) return false
+
+  let changed = false
+  for (const choice of choices) {
+    const toolCalls = choice?.delta?.tool_calls
+    if (!Array.isArray(toolCalls)) continue
+    toolCalls.forEach((call: any, index: number) => {
+      if (call && typeof call === 'object' && typeof call.index !== 'number') {
+        call.index = index
+        changed = true
+      }
+    })
+  }
+  return changed
+}
+
+function cloneJson(value: unknown): unknown {
+  return JSON.parse(JSON.stringify(value))
+}
+
+function captureOpenAICompatToolCallExtras(chunk: unknown, extrasByToolCallId: Map<string, unknown>): void {
+  if (!chunk || typeof chunk !== 'object') return
+  const choices = (chunk as any).choices
+  if (!Array.isArray(choices)) return
+
+  for (const choice of choices) {
+    const toolCalls = choice?.delta?.tool_calls
+    if (!Array.isArray(toolCalls)) continue
+    for (const call of toolCalls) {
+      if (
+        call
+        && typeof call === 'object'
+        && typeof call.id === 'string'
+        && call.extra_content !== undefined
+      ) {
+        extrasByToolCallId.set(call.id, cloneJson(call.extra_content))
+      }
+    }
+  }
+}
+
+function restoreOpenAICompatToolCallExtras(body: any, extrasByToolCallId: Map<string, unknown>): void {
+  if (extrasByToolCallId.size === 0 || !Array.isArray(body?.messages)) return
+
+  for (const message of body.messages) {
+    const toolCalls = message?.tool_calls
+    if (!Array.isArray(toolCalls)) continue
+    for (const call of toolCalls) {
+      if (
+        call
+        && typeof call === 'object'
+        && typeof call.id === 'string'
+        && call.extra_content === undefined
+        && extrasByToolCallId.has(call.id)
+      ) {
+        call.extra_content = cloneJson(extrasByToolCallId.get(call.id))
+      }
+    }
+  }
+}
+
 function patchDeepSeekThinkingRequestBody(body: any, turns: DeepSeekReasoningTurn[]): any {
   if (!body || typeof body !== 'object') return body
   if (body.stream === true) {
@@ -132,6 +205,7 @@ export function createReasoningFetch(
   const needsEnableThinking = requiresEnableThinkingFlag(model)
   const needsDeepSeekThinking = isDeepSeekThinkingModel(model)
   const deepSeekReasoningTurns: DeepSeekReasoningTurn[] = []
+  const openAICompatToolCallExtras = new Map<string, unknown>()
 
   const customFetch: typeof globalThis.fetch = async (url, init) => {
     // DashScope Qwen3 opt-in to thinking mode: add enable_thinking at the top
@@ -141,7 +215,7 @@ export function createReasoningFetch(
     // output... wait, should I Y? no. okay..."). 81920 tokens is the max
     // headroom we hand it; explicit caller overrides win.
     // Only do this for streaming requests.
-    if ((needsEnableThinking || needsDeepSeekThinking) && init?.body && typeof init.body === 'string') {
+    if (((needsEnableThinking || needsDeepSeekThinking) || openAICompatToolCallExtras.size > 0) && init?.body && typeof init.body === 'string') {
       try {
         const body = JSON.parse(init.body)
         if (needsEnableThinking && body && body.stream === true) {
@@ -149,6 +223,7 @@ export function createReasoningFetch(
           if (body.thinking_budget == null) body.thinking_budget = 81920
         }
         if (needsDeepSeekThinking) patchDeepSeekThinkingRequestBody(body, deepSeekReasoningTurns)
+        restoreOpenAICompatToolCallExtras(body, openAICompatToolCallExtras)
         init = { ...init, body: JSON.stringify(body) }
       } catch { /* non-JSON body — leave alone */ }
     }
@@ -186,9 +261,12 @@ export function createReasoningFetch(
       }
       try {
         const obj = JSON.parse(payload)
+        captureOpenAICompatToolCallExtras(obj, openAICompatToolCallExtras)
+        const sanitizedProviderExtras = stripOpenAICompatPrivateFields(obj)
+        const normalizedToolCallIndexes = normalizeOpenAICompatToolCallIndexes(obj)
         const choice = obj.choices?.[0]
         const delta = choice?.delta
-        if (!delta) return evt
+        if (!delta) return (sanitizedProviderExtras || normalizedToolCallIndexes) ? 'data: ' + JSON.stringify(obj) : evt
 
         if (typeof delta.reasoning_content === 'string' && delta.reasoning_content.length > 0) {
           const rc = delta.reasoning_content
@@ -218,6 +296,7 @@ export function createReasoningFetch(
           inReasoning = false
           return closeEvent() + '\n\n' + evt
         }
+        if (sanitizedProviderExtras || normalizedToolCallIndexes) return 'data: ' + JSON.stringify(obj)
         return evt
       } catch {
         return evt
@@ -257,13 +336,7 @@ export function createReasoningFetch(
 }
 
 export function createProvider(config: LLMConfig, onProgress?: ProviderProgressCallback) {
-  const needsReasoningWrap = isReasoningModel(config.model)
-
-  // Always wrap fetch — reasoning models also get the SSE transformer; everyone
-  // gets retry-with-backoff. Only retry, no transform, for non-reasoning models.
-  const customFetch: typeof globalThis.fetch = needsReasoningWrap
-    ? createReasoningFetch(config.model, onProgress)
-    : (url, init) => fetchWithRetry(url, init, onProgress)
+  const customFetch = createReasoningFetch(config.model, onProgress)
 
   const provider = createOpenAI({
     apiKey: config.apiKey,

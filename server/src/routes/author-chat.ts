@@ -7,13 +7,15 @@
 import fs from 'fs'
 import path from 'path'
 import { type FastifyInstance } from 'fastify'
-import { type ModelMessage } from 'ai'
+import { streamText, stepCountIs, type ModelMessage } from 'ai'
 import { runAgentStream } from '../agent/agent-loop.js'
 import { createAllTools } from '../tools/index.js'
+import { ToolRegistry } from '../tools/base-tool.js'
+import { createBookTool } from '../tools/create-book.js'
 import { sanitizePathSegment } from '../utils/path-sanitizer.js'
 import { sendChatBody } from './schemas.js'
 import { getSettings } from './settings.js'
-import { createMessageId, loadHistoryFull, type ChatHistoryMessage } from './chat-history.js'
+import { bindSessionHistoryToBook, createMessageId, loadHistoryFull, loadSessionHistoryFull, saveHistory, saveSessionHistory, type ChatHistoryMessage } from './chat-history.js'
 import { createStatsHooks } from '../stats/tool-stats.js'
 import { createTipHooks } from '../stats/tips/index.js'
 import { composeHooks, type ToolHooks } from '../tools/base-tool.js'
@@ -26,12 +28,180 @@ import { appendRunEvent, createRunId, loadRecentRuns, type RunTimelineEvent, typ
 import { clearAuthorChatSession, loadAuthorChatConfig, persistUsageBestEffort, previewValue } from './author-chat-support.js'
 import { ReasoningSegmentAccumulator } from './stream-segments.js'
 import { persistAuthorChatTurn, prepareHistoryForAuthorChatSend, type AuthorChatTurnStatus } from './author-chat-persistence.js'
+import { createProvider, type ProviderProgressEvent } from '../llm/provider.js'
+import { extractMemories, ingestExtracted } from '../memory/extractor.js'
 
 const loadConfig = loadAuthorChatConfig
 export { persistUsageBestEffort }
 
 export async function authorChatRoutes(app: FastifyInstance) {
   const toolRegistry = createAllTools()
+  const sessionToolRegistry = new ToolRegistry()
+  sessionToolRegistry.register(createBookTool)
+
+  app.get<{ Params: { sessionId: string } }>(
+    '/api/v1/author-chat/sessions/:sessionId/history',
+    async (request, reply) => {
+      try {
+        const sessionId = sanitizePathSegment(request.params.sessionId, 'sessionId')
+        const { dataDir } = loadConfig()
+        const history = loadSessionHistoryFull(dataDir, sessionId)
+        const display = history.filter(m => m.role === 'user' || m.role === 'assistant')
+        return { messages: display }
+      } catch (err: any) {
+        reply.code(400)
+        return { error: err.message }
+      }
+    }
+  )
+
+  app.delete<{ Params: { sessionId: string } }>(
+    '/api/v1/author-chat/sessions/:sessionId/history',
+    async (request, reply) => {
+      try {
+        const sessionId = sanitizePathSegment(request.params.sessionId, 'sessionId')
+        const { dataDir } = loadConfig()
+        saveSessionHistory(dataDir, sessionId, [])
+        return { status: 'ok' }
+      } catch (err: any) {
+        reply.code(400)
+        return { error: err.message }
+      }
+    }
+  )
+
+  app.post<{ Params: { sessionId: string }; Body: { message: string; mode?: string } }>(
+    '/api/v1/author-chat/sessions/:sessionId/send',
+    async (request, reply) => {
+      let sessionId: string
+      try {
+        sessionId = sanitizePathSegment(request.params.sessionId, 'sessionId')
+      } catch (err: any) {
+        reply.code(400)
+        return { error: err.message }
+      }
+      const parsed = sendChatBody.safeParse(request.body)
+      if (!parsed.success) {
+        reply.code(400)
+        return { error: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ') }
+      }
+      const { message } = parsed.data
+      const { llmConfig, dataDir } = loadConfig()
+
+      reply.raw.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no',
+      })
+      const sse = (data: unknown) => reply.raw.write(`data: ${JSON.stringify(data)}\n\n`)
+
+      const abortController = new AbortController()
+      let streamDone = false
+      const onSocketClose = () => { if (!streamDone) abortController.abort() }
+      request.socket.on('close', onSocketClose)
+      const createdBookRef: { current: { book_id: string; title: string } | null } = { current: null }
+
+      try {
+        const rawHistory = loadSessionHistoryFull(dataDir, sessionId)
+        const history: ModelMessage[] = rawHistory
+          .filter((m) => !(m as any).status)
+          .map((m) => {
+            const { thinking: _t, segments: _s, status: _st, ...rest } = m as ModelMessage & {
+              thinking?: string; segments?: unknown; status?: string
+            }
+            return rest as ModelMessage
+          })
+
+        const model = createProvider(llmConfig, (evt: ProviderProgressEvent) => {
+          if (evt.type === 'retry') {
+            sse({ type: 'retry', attempt: evt.attempt, delay_ms: evt.delayMs, status: evt.status, reason: evt.reason })
+          }
+        })
+        const result = streamText({
+          model,
+          system: [
+            '你是 InkFlow 的作者 Agent。',
+            '当前会话尚未绑定作品；先帮助用户讨论题材、主角、世界、开场、结构和创作方向。',
+            '除非用户明确要求创建作品，或明确确认“就按这个创建/建书/新作品”，不要调用 create_book。',
+            '调用 create_book 后，这个未绑定会话会成为新作品的聊天记录。',
+          ].join('\n'),
+          messages: [...history, { role: 'user', content: message }],
+          tools: sessionToolRegistry.toVercelTools({
+            bookId: '__unbound__',
+            dataDir,
+            sessionId,
+            onBookCreated: async (book) => { createdBookRef.current = book },
+          }),
+          stopWhen: stepCountIs(8),
+          temperature: 0.7,
+          abortSignal: abortController.signal,
+          maxRetries: 0,
+          providerOptions: { openai: { parallelToolCalls: true } },
+        })
+
+        const accumulator = new ReasoningSegmentAccumulator((event) => sse(event))
+        let streamError: unknown = null
+        for await (const part of result.fullStream) {
+          switch (part.type) {
+            case 'text-delta':
+              accumulator.pushText(part.text)
+              break
+            case 'tool-call':
+              accumulator.flushForBoundary()
+              accumulator.addToolCall(part.toolName, part.input)
+              break
+            case 'tool-result':
+              accumulator.addToolResult(part.toolName, part.output)
+              break
+            case 'tool-error':
+              accumulator.addToolError((part as any).toolName, (part as any).error)
+              break
+            case 'error':
+              streamError = (part as any).error
+              break
+          }
+        }
+        accumulator.finalize()
+
+        const userMessageId = createMessageId()
+        const nextHistory: ChatHistoryMessage[] = [
+          ...(history as ChatHistoryMessage[]),
+          { role: 'user', content: message, id: userMessageId },
+        ]
+        if (accumulator.hasAnything()) {
+          nextHistory.push({
+            role: 'assistant',
+            content: accumulator.fullText,
+            thinking: accumulator.fullThinking,
+            segments: accumulator.segments,
+          } as ChatHistoryMessage)
+        }
+
+        if (createdBookRef.current) {
+          bindSessionHistoryToBook(dataDir, sessionId, createdBookRef.current.book_id)
+          saveHistory(dataDir, createdBookRef.current.book_id, nextHistory)
+          sse({ type: 'book_created', book: createdBookRef.current })
+        } else {
+          saveSessionHistory(dataDir, sessionId, nextHistory)
+        }
+
+        if (streamError) {
+          sse({ type: 'error', message: String((streamError as any)?.message ?? streamError).slice(0, 500) })
+        }
+        streamDone = true
+        sse({ type: 'done', tools_used: createdBookRef.current ? ['create_book'] : [], has_thinking: accumulator.fullThinking.length > 0 })
+      } catch (err: any) {
+        streamDone = true
+        sse({ type: 'error', message: String(err?.message ?? err).slice(0, 500) })
+        sse({ type: 'done', tools_used: [], has_thinking: false })
+      } finally {
+        streamDone = true
+        request.socket.off('close', onSocketClose)
+        reply.raw.end()
+      }
+    }
+  )
 
   // GET history
   app.get<{ Params: { bookId: string } }>(
@@ -541,7 +711,6 @@ export async function authorChatRoutes(app: FastifyInstance) {
           timeline('memory_extract_start', '后台提取记忆', 'running', {}, false)
           ;(async () => {
             try {
-              const { extractMemories, ingestExtracted } = await import('../memory/extractor.js')
               const extracted = await extractMemories({
                 event: 'user_message',
                 llmConfig,

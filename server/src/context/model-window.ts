@@ -2,6 +2,7 @@ export function getModelContextWindow(model: string): number {
   if (/\[1m\]/i.test(model)) return 1_000_000
   if (/claude-opus-4\.\d.*1m/i.test(model)) return 1_000_000
   if (/glm-5\.\d/i.test(model)) return 1_000_000
+  if (/gemini-(3\.5|3|2\.[05])-flash/i.test(model)) return 1_000_000
   if (/deepseek-v3\.\d/i.test(model)) return 200_000
   if (/claude-opus|claude-sonnet/i.test(model)) return 200_000
   return 200_000

@@ -3,5 +3,8 @@ module.exports = {
     scripts: [
       '../server/node_modules/axios/dist/node/axios.cjs',
     ],
+    assets: [
+      '../prompts/**/*',
+    ],
   },
 }

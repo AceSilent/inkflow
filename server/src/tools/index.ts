@@ -20,6 +20,7 @@ import { submitForReviewTool, presentOptionsTool, requestGuidanceTool } from './
 import { loadSkillTool, listSkillsTool } from './skills.js'
 import { analyzeStyleProfileTool, browseExamplesTool } from './examples.js'
 import { submitToEditorialTool } from '../editorial/editorial.js'
+import { createBookTool } from './create-book.js'
 
 export function createAllTools(): ToolRegistry {
   const registry = new ToolRegistry()
@@ -30,6 +31,7 @@ export function createAllTools(): ToolRegistry {
   registry.register(readOutlineTool)
 
   // Write tools
+  registry.register(createBookTool)
   registry.register(saveDraftTool)
   registry.register(saveOutlineTool)
   registry.register(saveLoreTool)

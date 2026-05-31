@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { PanelRightClose, PanelRightOpen } from 'lucide-react'
 import { WorkspacePane } from './WorkspacePane'
 import { WorkspaceTabs } from './WorkspaceTabs'
+import { startNativeWindowDrag } from './nativeWindowDrag'
 import { studioChromeLayout } from './studioChrome'
 import { WORKSPACE_MIN_WIDTH, clampWorkspaceWidth, isWorkspaceTab, loadWorkspaceLayout, saveWorkspaceLayout } from './workspaceLayout'
+import { useI18n } from '../../hooks/useI18n'
 
 function workspaceMaxWidth(viewportWidth) {
   return Math.max(WORKSPACE_MIN_WIDTH, Math.floor(viewportWidth * 0.5))
@@ -42,6 +45,7 @@ export function StudioShell({
   activeWorkspaceTab,
   onWorkspaceTabChange,
 }) {
+  const { t } = useI18n()
   const bookId = currentBook?.book_id
   const resizeCleanupRef = useRef(null)
   const [viewportWidth, setViewportWidth] = useState(() => currentViewportWidth())
@@ -177,9 +181,22 @@ export function StudioShell({
       data-theme={theme}
       style={{ '--studio-titlebar-left-inset': `${studioChromeLayout.titlebarLeftInset}px` }}
     >
-      <header className="studio-titlebar" data-tauri-drag-region>
-        <div className="studio-titlebar-context" data-tauri-drag-region>
+      <header className="studio-titlebar" data-tauri-drag-region="deep" onMouseDownCapture={startNativeWindowDrag}>
+        <div className="studio-titlebar-drag-region" data-tauri-drag-region />
+        <div className="studio-titlebar-context" aria-hidden={!currentBook}>
           {currentBook?.title || currentBook?.book_id || ''}
+        </div>
+        <div className="studio-titlebar-actions">
+          <button
+            className="studio-titlebar-button workspace-titlebar-toggle"
+            data-window-drag-block
+            type="button"
+            onClick={handleToggleWorkspace}
+            title={layout.collapsed ? t('workspace.expand') : t('workspace.collapse')}
+            aria-label={layout.collapsed ? t('workspace.expand') : t('workspace.collapse')}
+          >
+            {layout.collapsed ? <PanelRightOpen size={16} /> : <PanelRightClose size={16} />}
+          </button>
         </div>
       </header>
 
@@ -196,7 +213,6 @@ export function StudioShell({
           width={visualWidth}
           maxWidth={visualMaxWidth}
           activeTab={layout.activeTab}
-          onToggle={handleToggleWorkspace}
           onResizeStart={handleResizeStart}
           onKeyDown={handleWorkspaceKeyDown}
         >

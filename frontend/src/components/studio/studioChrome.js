@@ -1,5 +1,8 @@
 export const studioChromeLayout = {
   showTitlebarBrand: false,
   showBottomStatusbar: false,
-  titlebarLeftInset: 76,
+  titlebarLeftInset: 68,
+  titlebarHeight: 40,
+  draggableTitlebar: true,
+  dragRegionStrategy: 'tauri-region-overlay',
 }

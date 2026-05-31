@@ -2,9 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { Send, Trash2, Plus, X, FileText, PenTool, Loader, Square } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { useI18n } from '../hooks/useI18n'
-import { ContextStatusBar } from './ContextStatusBar'
-import { AgentRunTimeline } from './AgentRunTimeline'
-import { CreativeStageBar } from './CreativeStageBar'
+import { CreativeFlowNotch } from './CreativeFlowNotch'
 import { MessageBubble, OptionsCard, StreamingToolCard, ThinkingCard } from './author-chat/MessageCards'
 import {
   DATA_MUTATING_TOOLS,
@@ -16,9 +14,9 @@ import {
 } from './author-chat/messageUtils'
 import { parseSlashCommand } from './author-chat/slashCommands'
 import { agentLifecycleState } from './author-chat/agentState'
-import { deriveNewBookDraftFromPrompt } from './author-chat/newBookDraft'
 
 function CheckpointEditComposer({ value, onChange, onCancel, onSubmit, disabled }) {
+  const { t } = useI18n()
   const submit = () => {
     if (!disabled && value.trim()) onSubmit()
   }
@@ -68,7 +66,7 @@ function CheckpointEditComposer({ value, onChange, onCancel, onSubmit, disabled 
           type="button"
           onClick={onCancel}
           disabled={disabled}
-          title="取消编辑"
+          title={t('authorChat.cancelEdit')}
           style={{
             border: '1px solid var(--border-subtle)',
             background: 'transparent',
@@ -82,13 +80,13 @@ function CheckpointEditComposer({ value, onChange, onCancel, onSubmit, disabled 
             fontSize: 12,
           }}
         >
-          <X size={13} /> 取消
+          <X size={13} /> {t('authorChat.cancel')}
         </button>
         <button
           type="button"
           onClick={submit}
           disabled={disabled || !value.trim()}
-          title="从这里重新运行"
+          title={t('authorChat.rerunFromHere')}
           style={{
             border: 'none',
             background: value.trim() ? 'var(--accent)' : 'var(--bg-elevated)',
@@ -103,7 +101,7 @@ function CheckpointEditComposer({ value, onChange, onCancel, onSubmit, disabled 
             fontWeight: 600,
           }}
         >
-          <Send size={13} /> 重发
+          <Send size={13} /> {t('authorChat.resend')}
         </button>
       </div>
     </div>
@@ -123,35 +121,9 @@ function AgentStateBadge({ phase }) {
   )
 }
 
-function ComposerModelSwitch({ authorModel, availableModels = [], onAuthorModelChange }) {
-  const hasChoices = availableModels.length > 1
-
-  if (hasChoices) {
-    return (
-      <select
-        className="chat-model-select"
-        value={authorModel}
-        onChange={event => onAuthorModelChange?.(event.target.value)}
-        aria-label="切换作者模型"
-      >
-        {availableModels.map(model => (
-          <option key={model.value} value={model.value}>
-            {model.provider ? `${model.provider} / ${model.label}` : model.label}
-          </option>
-        ))}
-      </select>
-    )
-  }
-
-  return <span className="chat-model-pill">{authorModel || '示例模式'}</span>
-}
-
 export function NoBookChatStarter({
-  onCreateBookRequest,
+  onSubmitMessage,
   addToast,
-  authorModel,
-  availableModels,
-  onAuthorModelChange,
 }) {
   const { t } = useI18n()
   const [draft, setDraft] = useState('')
@@ -162,9 +134,9 @@ export function NoBookChatStarter({
     const text = draft.trim()
     if (!text && attachments.length === 0) return
     const concept = attachments.length > 0
-      ? buildAttachmentMessage(text || '根据附件创建作品', attachments, t('authorChat.attachment'))
+      ? buildAttachmentMessage(text || t('authorChat.attachmentBookFallback'), attachments, t('authorChat.attachment'))
       : text
-    onCreateBookRequest?.(deriveNewBookDraftFromPrompt(concept))
+    onSubmitMessage?.(concept)
     setDraft('')
     setAttachments([])
   }
@@ -194,6 +166,13 @@ export function NoBookChatStarter({
       <div className="chat-scroll">
         <div className="no-book-chat-card">
           <h2>{t('authorChat.noBookTitle')}</h2>
+          <div className="no-book-suggestions">
+            {[t('authorChat.suggestion1'), t('authorChat.suggestion2'), t('authorChat.suggestion3')].map(suggestion => (
+              <button key={suggestion} type="button" onClick={() => setDraft(suggestion)}>
+                {suggestion}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
       {attachments.length > 0 && (
@@ -218,14 +197,6 @@ export function NoBookChatStarter({
             placeholder={t('authorChat.noBookPlaceholder')}
             rows={1}
           />
-          <div className="chat-composer-meta">
-            <span className="chat-mode-pill">作者模式</span>
-            <ComposerModelSwitch
-              authorModel={authorModel}
-              availableModels={availableModels}
-              onAuthorModelChange={onAuthorModelChange}
-            />
-          </div>
         </div>
         <button
           type="button"
@@ -243,6 +214,7 @@ export function NoBookChatStarter({
 }
 
 function AttachmentPreview({ attachments, onRemove }) {
+  const { t } = useI18n()
   return (
     <div className="chat-attachment-preview">
       {attachments.map((a, i) => (
@@ -250,7 +222,7 @@ function AttachmentPreview({ attachments, onRemove }) {
           <FileText size={11} />
           <span>{a.name}</span>
           <small>{(a.size / 1024).toFixed(1)}KB</small>
-          <button type="button" onClick={() => onRemove(i)} aria-label="移除附件">
+          <button type="button" onClick={() => onRemove(i)} aria-label={t('authorChat.removeAttachment')}>
             <X size={11} />
           </button>
         </div>
@@ -263,10 +235,8 @@ export function AuthorChatPanel({
   currentBook,
   addToast,
   onLoreUpdated,
-  onCreateBookRequest,
-  authorModel,
-  availableModels,
-  onAuthorModelChange,
+  draftSessionId,
+  onBookCreated,
 }) {
   const { t } = useI18n()
   const [messages, setMessages] = useState([])
@@ -276,9 +246,6 @@ export function AuthorChatPanel({
   const [streamingMsg, setStreamingMsg] = useState(null) // {thinking, segments[], thinkingDone, phase}
   const [checkpointEditor, setCheckpointEditor] = useState(null)
   const [checkpointResending, setCheckpointResending] = useState(false)
-  const [recentRuns, setRecentRuns] = useState([])
-  const [currentRun, setCurrentRun] = useState(null)
-  const [stageRefreshKey, setStageRefreshKey] = useState(0)
   const chatEndRef = useRef(null)
   const inputRef = useRef(null)
   const fileInputRef = useRef(null)
@@ -291,17 +258,26 @@ export function AuthorChatPanel({
   const draftBeforeNav = useRef('')
 
   const bookId = currentBook?.book_id
-  const draftStorageKey = bookId ? `inkflow.authorChatDraft:${bookId}` : null
+  const isUnboundSession = !bookId
+  const activeSessionId = draftSessionId || 'session_default'
+  const historyEndpoint = bookId
+    ? `/api/v1/author-chat/${bookId}/history`
+    : `/api/v1/author-chat/sessions/${activeSessionId}/history`
+  const sendEndpoint = bookId
+    ? `/api/v1/author-chat/${bookId}/send`
+    : `/api/v1/author-chat/sessions/${activeSessionId}/send`
+  const draftStorageKey = bookId
+    ? `inkflow.authorChatDraft:${bookId}`
+    : `inkflow.authorChatDraft:session:${activeSessionId}`
   const refreshAfterTool = useCallback((toolName) => {
     if (DATA_MUTATING_TOOLS.has(toolName)) {
       onLoreUpdated?.()
-      setStageRefreshKey(k => k + 1)
     }
   }, [onLoreUpdated])
 
   const loadChatHistory = useCallback(() => {
-    if (!bookId) return
-    fetch(`/api/v1/author-chat/${bookId}/history`)
+    if (!bookId && !activeSessionId) return
+    fetch(historyEndpoint)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (!data?.messages) return
@@ -311,7 +287,7 @@ export function AuthorChatPanel({
         setHistIdx(null)
       })
       .catch(() => {})
-  }, [bookId])
+  }, [activeSessionId, bookId, historyEndpoint])
 
   useEffect(() => { loadChatHistory() }, [loadChatHistory])
 
@@ -333,19 +309,6 @@ export function AuthorChatPanel({
     if (value) window.localStorage.setItem(draftStorageKey, value)
     else window.localStorage.removeItem(draftStorageKey)
   }, [draftStorageKey])
-
-  const fetchRecentRuns = useCallback(() => {
-    if (!bookId) return
-    fetch(`/api/v1/books/${bookId}/runs/recent?limit=5`)
-      .then(r => r.ok ? r.json() : { runs: [] })
-      .then(data => setRecentRuns(data.runs || []))
-      .catch(() => setRecentRuns([]))
-  }, [bookId])
-
-  useEffect(() => {
-    setCurrentRun(null)
-    fetchRecentRuns()
-  }, [fetchRecentRuns])
 
   // Auto-scroll
   useEffect(() => {
@@ -388,7 +351,7 @@ export function AuthorChatPanel({
     const baseInput = fromOverride ? overrideMsg : input.trim()
     const useAttachments = !fromOverride && attachments.length > 0
     const replaceMessageId = options?.replaceMessageId
-    if ((!baseInput && !useAttachments) || loading || !bookId) return
+    if ((!baseInput && !useAttachments) || loading) return
 
     const slash = fromOverride ? null : parseSlashCommand(baseInput)
     if (slash) {
@@ -401,8 +364,8 @@ export function AuthorChatPanel({
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ text: slash.text, scope: 'user', type: 'preference', tags: [] }),
           })
-          if (r.ok) addToast?.('已记住', 'success')
-          else addToast?.('保存失败', 'error')
+          if (r.ok) addToast?.(t('authorChat.remembered'), 'success')
+          else addToast?.(t('authorChat.saveFailed'), 'error')
         } catch (e) {
           addToast?.(e.message, 'error')
         }
@@ -436,11 +399,10 @@ export function AuthorChatPanel({
     }])
     setLoading(true)
     setStreamingMsg({ thinking: '', segments: [], thinkingDone: false, phase: 'init', retry: null })
-    setCurrentRun(null)
 
     abortRef.current = new AbortController()
     try {
-      const resp = await fetch(`/api/v1/author-chat/${bookId}/send`, {
+      const resp = await fetch(sendEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -458,6 +420,7 @@ export function AuthorChatPanel({
       // markers and announced via thinking_start / thinking_done events).
       let segments = []
       let currentContentBuf = ''
+      let createdBookFromStream = null
 
       const flushContent = () => {
         if (currentContentBuf.trim()) {
@@ -491,27 +454,6 @@ export function AuthorChatPanel({
 
             if (evt.type === 'status') {
               setStreamingMsg(prev => ({ ...prev, phase: evt.phase }))
-            } else if (evt.type === 'timeline') {
-              const event = evt.event
-              if (event?.runId) {
-                setCurrentRun(prev => {
-                  const base = prev?.runId === event.runId ? prev : {
-                    runId: event.runId,
-                    startedAt: event.ts,
-                    status: 'running',
-                    events: [],
-                  }
-                  const events = [...(base.events || []).filter(e => e.seq !== event.seq), event]
-                    .sort((a, b) => a.seq - b.seq)
-                  const terminal = [...events].reverse().find(e => e.type === 'run_done' || e.type === 'run_error' || e.type === 'run_aborted' || e.type === 'run_interrupted')
-                  return {
-                    ...base,
-                    status: terminal?.status || event.status || 'running',
-                    endedAt: terminal?.ts || base.endedAt,
-                    events,
-                  }
-                })
-              }
             } else if (evt.type === 'retry') {
               // Stamp `retryStartedAt` so the UI can tick down delayMs in real time
               // (the server only emits one retry event per attempt).
@@ -524,6 +466,8 @@ export function AuthorChatPanel({
               setStreamingMsg(prev => ({ ...prev, idleMs: evt.idle_ms }))
             } else if (evt.type === 'tip') {
               addToast?.(`${evt.title}：${evt.message}`, evt.severity === 'warning' ? 'warning' : 'info')
+            } else if (evt.type === 'book_created') {
+              createdBookFromStream = evt.book
             } else if (evt.type === 'thinking_start') {
               flushContent()
               segments.push({ type: 'thinking', text: '', streaming: true })
@@ -577,14 +521,14 @@ export function AuthorChatPanel({
                 setMessages(prev => [...prev, {
                   id: `ctx_dec_${Date.now()}`,
                   role: 'system_notice',
-                  content: `本轮衰减了 ${d.decayedCount} 条工具结果（节省 token）`,
+                  content: t('authorChat.contextDecayed').replace('{count}', d.decayedCount),
                 }])
               }
               if (d.compactedCount > 0) {
                 setMessages(prev => [...prev, {
                   id: `ctx_cp_${Date.now()}`,
                   role: 'system_notice',
-                  content: `已压缩 ${d.compactedCount} 条早期消息到会话摘要`,
+                  content: t('authorChat.contextCompacted').replace('{count}', d.compactedCount),
                 }])
               }
             } else if (evt.type === 'done') {
@@ -592,8 +536,6 @@ export function AuthorChatPanel({
               if (evt.tools_used?.length > 0 && onLoreUpdated) {
                 onLoreUpdated()
               }
-              setStageRefreshKey(k => k + 1)
-              fetchRecentRuns()
             }
           } catch { /* SSE parse error — skip malformed event */ }
         }
@@ -611,10 +553,13 @@ export function AuthorChatPanel({
         segments: segments.length > 0 ? segments : [{ type: 'content', text: t('authorChat.noReply') }],
         id: msgId
       }])
+      if (createdBookFromStream?.book_id) {
+        onBookCreated?.(createdBookFromStream)
+      }
 
     } catch (e) {
       if (e.name === 'AbortError') {
-        addToast?.('已取消，已生成的内容已保存', 'info')
+        addToast?.(t('authorChat.cancelledSaved'), 'info')
         loadChatHistory()  // pick up the server-side aborted message
       } else {
         addToast?.(t('authorChat.sendFailed') + ': ' + e.message, 'error')
@@ -623,8 +568,6 @@ export function AuthorChatPanel({
       abortRef.current = null
       setLoading(false)
       setStreamingMsg(null)
-      setStageRefreshKey(k => k + 1)
-      fetchRecentRuns()
       inputRef.current?.focus()
     }
   }
@@ -661,13 +604,10 @@ export function AuthorChatPanel({
 
       setMessages(prev => truncateMessagesBeforeCheckpoint(prev, checkpointEditor.messageId))
       setCheckpointEditor(null)
-      setCurrentRun(null)
-      setRecentRuns([])
       onLoreUpdated?.()
-      setStageRefreshKey(k => k + 1)
       await handleSend(replacement, { replaceMessageId: checkpointEditor.messageId })
     } catch (e) {
-      addToast?.(`重发失败：${e.message}`, 'error')
+      addToast?.(t('authorChat.resendFailed').replace('{message}', e.message), 'error')
     } finally {
       setCheckpointResending(false)
     }
@@ -678,36 +618,36 @@ export function AuthorChatPanel({
   }
 
   const handleCompact = async () => {
-    if (!bookId || loading) return
+    if (!bookId || loading) {
+      if (!bookId) addToast?.(t('authorChat.unboundCompactHint'), 'info')
+      return
+    }
     try {
       const r = await fetch(`/api/v1/books/${bookId}/session/compact`, { method: 'POST' })
       const data = await r.json().catch(() => ({}))
       if (!r.ok) throw new Error(data.error || data.message || 'compact failed')
       const hasCount = data.compactedCount !== undefined && data.compactedCount !== null
       const notice = hasCount
-        ? `已手动压缩上下文：${data.compactedCount} 条消息${data.message ? `（${data.message}）` : ''}`
-        : (data.message || '已手动压缩上下文：0 条消息')
+        ? `${t('authorChat.manualCompact').replace('{count}', data.compactedCount)}${data.message ? ` (${data.message})` : ''}`
+        : (data.message || t('authorChat.manualCompact').replace('{count}', '0'))
       setMessages(prev => [...prev, {
         id: `manual_compact_${Date.now()}`,
         role: 'system_notice',
         content: notice,
       }])
-      addToast?.(data.message || '上下文已压缩', 'success')
+      addToast?.(data.message || t('authorChat.contextCompactedSuccess'), 'success')
     } catch (e) {
-      addToast?.(`压缩失败：${e.message}`, 'error')
+      addToast?.(t('authorChat.compactFailed').replace('{message}', e.message), 'error')
     }
   }
 
   const handleClear = async (options = {}) => {
-    if (!bookId) return false
     const clearInput = options?.clearInput !== false
     try {
-      const r = await fetch(`/api/v1/author-chat/${bookId}/history`, { method: 'DELETE' })
+      const r = await fetch(historyEndpoint, { method: 'DELETE' })
       const data = await r.json().catch(() => ({}))
       if (!r.ok) throw new Error(data.error || data.message || 'clear failed')
       setMessages([])
-      setCurrentRun(null)
-      setRecentRuns([])
       setHistIdx(null)
       setCheckpointEditor(null)
       sentHistory.current = []
@@ -715,7 +655,7 @@ export function AuthorChatPanel({
       if (clearInput) updateInput('')
       return true
     } catch (e) {
-      addToast?.(`清空失败：${e.message}`, 'error')
+      addToast?.(t('authorChat.clearFailed').replace('{message}', e.message), 'error')
       return false
     }
   }
@@ -754,43 +694,38 @@ export function AuthorChatPanel({
     }
   }
 
-  if (!bookId) {
+  if (isUnboundSession && messages.length === 0 && !streamingMsg) {
     return (
       <NoBookChatStarter
-        onCreateBookRequest={onCreateBookRequest}
+        onSubmitMessage={(text) => handleSend(text)}
         addToast={addToast}
-        authorModel={authorModel}
-        availableModels={availableModels}
-        onAuthorModelChange={onAuthorModelChange}
       />
     )
   }
 
   return (
     <div className="author-chat">
-      <ContextStatusBar bookId={currentBook?.book_id} />
       {/* Header */}
-      <div style={{
-        padding: '10px 16px', borderBottom: '1px solid var(--border-subtle)',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div className="author-chat-header">
+        <div className="author-chat-title">
           <PenTool size={18} style={{ color: 'var(--accent)' }} />
-          <span style={{ fontSize: 13, fontWeight: 600 }}>作者 Agent</span>
-          <span style={{ fontSize: 10, color: 'var(--ink-muted)', background: 'var(--bg-elevated)', padding: '2px 6px', borderRadius: 4 }}>
-            22 tools · streaming
+          <span>{t('authorChat.agentTitle')}</span>
+          <span className="author-chat-tool-summary">
+            {t('authorChat.toolSummary')}
           </span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, position: 'relative' }}>
-          <button onClick={handleClear} title="清空对话"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-muted)', padding: 4, borderRadius: 4 }}>
+        <div className="author-chat-actions">
+          <button className="btn-icon author-chat-clear-button" onClick={handleClear} title={t('authorChat.clear')}>
             <Trash2 size={14} />
           </button>
         </div>
       </div>
 
-      <AgentRunTimeline currentRun={currentRun} recentRuns={recentRuns} loading={loading} />
-      <CreativeStageBar bookId={bookId} refreshKey={stageRefreshKey} loading={loading} />
+      <CreativeFlowNotch
+        bookId={bookId}
+        refreshKey={`${messages.length}:${loading ? 'loading' : 'idle'}`}
+        loading={loading}
+      />
 
       {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -846,7 +781,7 @@ export function AuthorChatPanel({
                 fontSize: 11, color: 'var(--ink-secondary)', display: 'flex', alignItems: 'center', gap: 6,
               }}>
                 <Loader size={11} style={{ animation: 'spin 1.5s linear infinite', color: '#3b82f6' }} />
-                <span>等待 LLM 响应中… 已 {Math.round(streamingMsg.idleMs / 1000)}s（thinking + 长上下文较慢，请稍候）</span>
+                <span>{t('authorChat.idleWaiting').replace('{seconds}', Math.round(streamingMsg.idleMs / 1000))}</span>
               </div>
             )}
 
@@ -859,11 +794,15 @@ export function AuthorChatPanel({
               }}>
                 <Loader size={11} style={{ animation: 'spin 1.5s linear infinite', color: '#f59e0b' }} />
                 <span>
-                  服务繁忙（{streamingMsg.retry.status}），第 {streamingMsg.retry.attempt} 次重试中…{' '}
+                  {t('authorChat.retrying')
+                    .replace('{status}', streamingMsg.retry.status)
+                    .replace('{attempt}', streamingMsg.retry.attempt)}{' '}
                   {(() => {
                     const elapsed = Date.now() - (streamingMsg.retry.startedAt ?? Date.now())
                     const remaining = Math.max(0, streamingMsg.retry.delayMs - elapsed)
-                    return remaining > 0 ? `${(remaining / 1000).toFixed(1)}s 后再试` : '正在重试…'
+                    return remaining > 0
+                      ? t('authorChat.retryAfter').replace('{seconds}', (remaining / 1000).toFixed(1))
+                      : t('authorChat.retryNow')
                   })()}
                 </span>
               </div>
@@ -927,19 +866,11 @@ export function AuthorChatPanel({
             onCompositionEnd={() => { composingRef.current = false }}
             placeholder={t('authorChat.placeholder')} rows={1}
           />
-          <div className="chat-composer-meta">
-            <span className="chat-mode-pill">作者模式</span>
-            <ComposerModelSwitch
-              authorModel={authorModel}
-              availableModels={availableModels}
-              onAuthorModelChange={onAuthorModelChange}
-            />
-          </div>
         </div>
         {loading ? (
           <button className="chat-send-button chat-stop-button" onClick={handleStop}
-            title="停止生成（已生成的内容会保存）"
-            aria-label="停止生成"
+            title={t('authorChat.stopSaved')}
+            aria-label={t('authorChat.stop')}
           >
             <Square size={12} fill="white" />
           </button>

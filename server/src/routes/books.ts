@@ -14,6 +14,7 @@ import path from 'path'
 import { sanitizePathSegment } from '../utils/path-sanitizer.js'
 import { safeReadJson, ensureDir, writeJson } from '../utils/file-io.js'
 import { createBookBody, bookIdParam } from './schemas.js'
+import { bindSessionHistoryToBook } from './chat-history.js'
 
 // ── Types ──
 
@@ -25,6 +26,13 @@ export interface BookMeta {
   concept?: string
   target_words: number
   created_at?: string
+}
+
+export interface CreateBookSpaceInput {
+  name: string
+  book_id?: string
+  concept?: string
+  source_session_id?: string
 }
 
 export interface TreeNode {
@@ -74,12 +82,43 @@ export function createBook(dataDir: string, meta: BookMeta): BookMeta {
   return withTimestamp
 }
 
+export function createBookSpace(dataDir: string, input: CreateBookSpaceInput): BookMeta {
+  const name = input.name.trim()
+  if (!name) throw new Error('Book name is required')
+  const bookId = sanitizePathSegment((input.book_id || name).trim(), 'book_id')
+  const book = createBook(dataDir, {
+    book_id: bookId,
+    title: name,
+    genre: 'unspecified',
+    tone: 'unspecified',
+    concept: input.concept?.trim() || '',
+    target_words: 500000,
+  })
+  if (input.source_session_id) {
+    bindSessionHistoryToBook(dataDir, input.source_session_id, book.book_id)
+  }
+  return book
+}
+
 export function deleteBook(dataDir: string, bookId: string): void {
   const bookDir = path.join(dataDir, bookId)
   if (!fs.existsSync(bookDir)) {
     throw new Error(`Book '${bookId}' not found`)
   }
   fs.rmSync(bookDir, { recursive: true, force: true })
+}
+
+export function recoverBookIdFromRawBooksUrl(rawUrl: string | undefined, routePrefix = '/api/v1/books/'): string | null {
+  if (!rawUrl) return null
+  const start = rawUrl.indexOf(routePrefix)
+  if (start < 0) return null
+  const rawSegment = rawUrl.slice(start + routePrefix.length)
+  if (!rawSegment) return null
+  try {
+    return decodeURIComponent(rawSegment)
+  } catch {
+    return rawSegment
+  }
 }
 
 function scanOutlineNode(node: any): TreeNode {
@@ -196,9 +235,13 @@ export async function booksRoutes(app: FastifyInstance): Promise<void> {
           reply.code(400)
           return { error: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ') }
         }
-        const body = parsed.data as BookMeta
-        sanitizePathSegment(body.book_id, 'book_id')
-        const book = createBook(dataDir(), body)
+        const body = parsed.data as BookMeta & { source_session_id?: string }
+        const { source_session_id: sourceSessionId, ...meta } = body
+        sanitizePathSegment(meta.book_id, 'book_id')
+        const book = createBook(dataDir(), meta)
+        if (sourceSessionId) {
+          bindSessionHistoryToBook(dataDir(), sourceSessionId, book.book_id)
+        }
         reply.code(201)
         return book
       } catch (err: any) {
@@ -214,7 +257,14 @@ export async function booksRoutes(app: FastifyInstance): Promise<void> {
     async (request, reply) => {
       try {
         const bookId = sanitizePathSegment(request.params.bookId, 'bookId')
-        deleteBook(dataDir(), bookId)
+        try {
+          deleteBook(dataDir(), bookId)
+        } catch (err: any) {
+          const recovered = recoverBookIdFromRawBooksUrl(request.raw.url)
+          if (!recovered || recovered === bookId) throw err
+          const recoveredBookId = sanitizePathSegment(recovered, 'bookId')
+          deleteBook(dataDir(), recoveredBookId)
+        }
         return { status: 'ok' }
       } catch (err: any) {
         reply.code(404)

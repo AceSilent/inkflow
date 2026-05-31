@@ -70,6 +70,18 @@ describe('createBookBody', () => {
     expect(createBookBody.parse(valid)).toEqual(valid)
   })
 
+  it('accepts lightweight book creation from an unbound session', () => {
+    const body = {
+      book_id: '雾港来信',
+      title: '雾港来信',
+      genre: 'unspecified',
+      tone: 'unspecified',
+      target_words: 500000,
+      source_session_id: 'session_abc123',
+    }
+    expect(createBookBody.parse(body)).toEqual(body)
+  })
+
   it('rejects missing book_id', () => {
     const { book_id, ...noId } = valid
     expect(() => createBookBody.parse(noId)).toThrow()
@@ -175,6 +187,12 @@ describe('providerSchema', () => {
 
   it('accepts empty models array', () => {
     expect(providerSchema.parse({ ...valid, models: [] })).toBeDefined()
+  })
+
+  it('accepts provider kind for Gemini OpenAI-compatible routing', () => {
+    expect(providerSchema.parse({ ...valid, kind: 'gemini-openai-compatible' })).toMatchObject({
+      kind: 'gemini-openai-compatible',
+    })
   })
 
   it('rejects empty id', () => {

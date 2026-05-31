@@ -1,15 +1,15 @@
-export function createBookId(title, now = Date.now()) {
-  return `${title
+export function createBookId(title) {
+  return title
     .toLowerCase()
     .replace(/[^a-z0-9\u4e00-\u9fff]/g, '_')
     .replace(/_+/g, '_')
     .replace(/^_|_$/g, '')
-    .slice(0, 40) || 'untitled'}_${now.toString(36)}`
+    .slice(0, 40) || 'untitled'
 }
 
 export async function createBookFromDraft(draft) {
-  const title = draft?.title?.trim()
-  if (!title) throw new Error('missing title')
+  const title = (draft?.name || draft?.title || '').trim()
+  if (!title) throw new Error('missing name')
 
   const body = {
     book_id: createBookId(title),
@@ -18,6 +18,7 @@ export async function createBookFromDraft(draft) {
     tone: 'unspecified',
     concept: draft?.concept?.trim() || '',
     target_words: draft?.targetWords || 500000,
+    ...(draft?.sourceSessionId ? { source_session_id: draft.sourceSessionId } : {}),
   }
 
   const res = await fetch('/api/v1/books', {

@@ -6,6 +6,7 @@ import fs from 'fs'
 import path from 'path'
 import {
   getSettings,
+  mergeMaskedApiKeys,
   saveSettings,
   maskApiKey,
   type AppSettings,
@@ -149,6 +150,30 @@ describe('Settings Save/Load with Validated Data', () => {
 
     const exactlyNine = '123456789'
     expect(maskApiKey(exactlyNine)).toBe('12345...6789')
+  })
+
+  it('preserves stored API keys when a masked GET payload is saved back', () => {
+    const existing: AppSettings = {
+      providers: [{
+        id: 'gemini',
+        name: 'Gemini',
+        baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+        apiKey: 'real-gemini-key',
+        models: ['gemini-3.5-flash'],
+      }],
+      authorModel: 'gemini/gemini-3.5-flash',
+      editorModel: '',
+    }
+    const incoming: AppSettings = {
+      ...existing,
+      providers: [{
+        ...existing.providers[0],
+        apiKey: maskApiKey(existing.providers[0].apiKey),
+        models: ['gemini-3.5-flash', 'gemini-3-flash-preview'],
+      }],
+    }
+
+    expect(mergeMaskedApiKeys(incoming, existing).providers[0].apiKey).toBe('real-gemini-key')
   })
 })
 

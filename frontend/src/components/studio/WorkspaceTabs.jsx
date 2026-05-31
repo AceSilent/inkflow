@@ -1,18 +1,20 @@
 import { useId } from 'react'
+import { useI18n } from '../../hooks/useI18n'
 
 const tabs = [
-  { id: 'chapter', label: '章节' },
-  { id: 'outline', label: '大纲' },
-  { id: 'plot', label: '剧情图' },
+  { id: 'chapter', labelKey: 'workspace.chapter' },
+  { id: 'outline', labelKey: 'workspace.outline' },
+  { id: 'plot', labelKey: 'workspace.plot' },
 ]
 
 export function WorkspaceTabs({ activeTab, onTabChange, chapter, outline, plot }) {
+  const { t } = useI18n()
   const tabSetId = useId()
   const panelId = `${tabSetId}-panel`
 
   return (
     <div className="workspace-tabs-shell">
-      <div className="workspace-tabs" role="tablist" aria-label="作品空间">
+      <div className="workspace-tabs" role="tablist" aria-label={t('workspace.label')}>
         {tabs.map(tab => {
           const tabId = `${tabSetId}-${tab.id}`
 
@@ -27,7 +29,7 @@ export function WorkspaceTabs({ activeTab, onTabChange, chapter, outline, plot }
               className={`workspace-tab ${activeTab === tab.id ? 'active' : ''}`}
               onClick={() => onTabChange(tab.id)}
             >
-              {tab.label}
+              {t(tab.labelKey)}
             </button>
           )
         })}

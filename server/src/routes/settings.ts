@@ -18,6 +18,7 @@ export interface ProviderConfig {
   baseUrl: string
   apiKey: string
   models: string[]
+  kind?: 'openai-compatible' | 'gemini-openai-compatible'
 }
 
 export type ContextManagerMode = 'auto' | 'decay_only' | 'disabled'
@@ -52,11 +53,34 @@ const DEFAULT_SETTINGS: AppSettings = {
   contextManager: 'auto',
 }
 
+const RECOMMENDED_PROVIDERS: ProviderConfig[] = [
+  {
+    id: 'gemini',
+    name: 'Gemini',
+    kind: 'gemini-openai-compatible',
+    baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+    apiKey: '',
+    models: ['gemini-3.5-flash'],
+  },
+  {
+    id: 'deepseek',
+    name: 'DeepSeek',
+    kind: 'openai-compatible',
+    baseUrl: 'https://api.deepseek.com',
+    apiKey: '',
+    models: ['deepseek-v4-pro', 'deepseek-v4-flash'],
+  },
+]
+
 // ── Key masking ──
 
 export function maskApiKey(key: string): string {
   if (!key || key.length < 9) return '****'
   return `${key.slice(0, 5)}...${key.slice(-4)}`
+}
+
+function isMaskedApiKey(key: string): boolean {
+  return key === '****' || key.includes('...')
 }
 
 // ── Helper functions (exported for direct testing) ──
@@ -81,6 +105,53 @@ export function getSettings(dataDir: string): AppSettings {
 export function saveSettings(dataDir: string, settings: AppSettings): void {
   // writeJson handles ensureDir(dirname) for us.
   writeJson(settingsPath(dataDir), settings)
+}
+
+export function mergeMaskedApiKeys(incoming: AppSettings, existing: AppSettings): AppSettings {
+  const existingById = new Map(existing.providers.map(provider => [provider.id, provider]))
+  return {
+    ...incoming,
+    providers: incoming.providers.map(provider => {
+      if (!isMaskedApiKey(provider.apiKey)) return provider
+      const previous = existingById.get(provider.id)?.apiKey
+      return {
+        ...provider,
+        apiKey: previous || '',
+      }
+    }),
+  }
+}
+
+export function applyRecommendedProviderDefaults(settings: AppSettings): AppSettings {
+  const providers = [...(settings.providers ?? [])]
+
+  for (const recommended of RECOMMENDED_PROVIDERS) {
+    const existingIndex = providers.findIndex(provider => provider.id === recommended.id)
+    if (existingIndex >= 0) {
+      const existing = providers[existingIndex]
+      providers[existingIndex] = {
+        ...existing,
+        name: existing.name || recommended.name,
+        kind: recommended.kind,
+        baseUrl: recommended.baseUrl,
+        models: recommended.models,
+      }
+    } else {
+      providers.push({ ...recommended })
+    }
+  }
+
+  return {
+    ...settings,
+    providers,
+    authorModel: settings.authorModel || 'gemini/gemini-3.5-flash',
+    editorModel: settings.editorModel || 'deepseek/deepseek-v4-pro',
+    reviewerModels: {
+      editorial_lore: settings.reviewerModels?.editorial_lore || 'deepseek/deepseek-v4-pro',
+      editorial_causality: settings.reviewerModels?.editorial_causality || 'deepseek/deepseek-v4-pro',
+      ...(settings.reviewerModels || {}),
+    },
+  }
 }
 
 export function applyRuntimeSettingsFallback(
@@ -127,7 +198,8 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
           reply.code(400)
           return { error: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ') }
         }
-        saveSettings(dataDir(), parsed.data as AppSettings)
+        const nextSettings = mergeMaskedApiKeys(parsed.data as AppSettings, getSettings(dataDir()))
+        saveSettings(dataDir(), nextSettings)
         return { status: 'ok' }
       } catch (err: any) {
         reply.code(500)

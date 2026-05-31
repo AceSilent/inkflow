@@ -1,14 +1,18 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import Fastify from 'fastify'
 import fs from 'fs'
 import path from 'path'
 import {
+  booksRoutes,
   listBooks,
   getBook,
   createBook,
+  createBookSpace,
   deleteBook,
   explorerTree,
   type BookMeta,
 } from '../src/routes/books.js'
+import { loadHistoryFull, saveSessionHistory } from '../src/routes/chat-history.js'
 
 const TEST_DIR = path.join(process.cwd(), '__test_books__')
 
@@ -100,6 +104,31 @@ describe('Books CRUD', () => {
     expect(fs.existsSync(path.join(TEST_DIR, 'to-delete'))).toBe(false)
   })
 
+  it('DELETE route deletes book ids that contain raw URL delimiter characters', async () => {
+    const meta: BookMeta = {
+      book_id: 'delete?ui-smoke',
+      title: '删除?界面烟测',
+      genre: 'unspecified',
+      tone: 'unspecified',
+      target_words: 500000,
+    }
+    createBook(TEST_DIR, meta)
+    const previousDataDir = process.env.AUTONOVEL_DATA_DIR
+    process.env.AUTONOVEL_DATA_DIR = TEST_DIR
+    const app = Fastify()
+    try {
+      await app.register(booksRoutes)
+      const response = await app.inject({ method: 'DELETE', url: '/api/v1/books/delete?ui-smoke' })
+
+      expect(response.statusCode).toBe(200)
+      expect(fs.existsSync(path.join(TEST_DIR, 'delete?ui-smoke'))).toBe(false)
+    } finally {
+      await app.close()
+      if (previousDataDir === undefined) delete process.env.AUTONOVEL_DATA_DIR
+      else process.env.AUTONOVEL_DATA_DIR = previousDataDir
+    }
+  })
+
   it('should return explorer tree with multiple books', () => {
     createBook(TEST_DIR, {
       book_id: 'book-a',
@@ -140,5 +169,27 @@ describe('Books CRUD', () => {
     createBook(TEST_DIR, meta)
 
     expect(() => createBook(TEST_DIR, meta)).toThrow(/already exists/)
+  })
+
+  it('creates a book space from just a directory/title name and binds a draft session', () => {
+    saveSessionHistory(TEST_DIR, 'session_seed', [
+      { role: 'user', content: '先讨论一个关于雾港和失踪作家的故事。' },
+      { role: 'assistant', content: '可以把记忆改写作为城市规则。' },
+    ])
+
+    const book = createBookSpace(TEST_DIR, {
+      name: '雾港来信',
+      source_session_id: 'session_seed',
+    })
+
+    expect(book.book_id).toBe('雾港来信')
+    expect(book.title).toBe('雾港来信')
+    expect(book.genre).toBe('unspecified')
+    expect(book.tone).toBe('unspecified')
+    expect(fs.existsSync(path.join(TEST_DIR, '雾港来信', '02_Outlines'))).toBe(true)
+    expect(loadHistoryFull(TEST_DIR, '雾港来信').map(m => m.content)).toEqual([
+      '先讨论一个关于雾港和失踪作家的故事。',
+      '可以把记忆改写作为城市规则。',
+    ])
   })
 })

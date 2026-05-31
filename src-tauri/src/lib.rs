@@ -10,7 +10,13 @@ pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
-            let (mut rx, child) = app.shell().sidecar("inkflow-server")?.spawn()?;
+            let data_dir = app.path().app_data_dir()?.join("books");
+            std::fs::create_dir_all(&data_dir)?;
+            let (mut rx, child) = app
+                .shell()
+                .sidecar("inkflow-server")?
+                .env("AUTONOVEL_DATA_DIR", data_dir)
+                .spawn()?;
             app.manage(ServerSidecar(Mutex::new(Some(child))));
 
             tauri::async_runtime::spawn(async move {
@@ -26,6 +32,11 @@ pub fn run() {
                     }
                 }
             });
+
+            #[cfg(target_os = "macos")]
+            if let Some(window) = app.get_webview_window("main") {
+                enable_macos_window_background_drag(&window);
+            }
 
             Ok(())
         })
@@ -48,7 +59,28 @@ pub fn stop_sidecar(app: &tauri::AppHandle) {
 }
 
 pub fn handle_run_event(app: &tauri::AppHandle, event: &RunEvent) {
+    #[cfg(target_os = "macos")]
+    if matches!(event, RunEvent::Ready) {
+        if let Some(window) = app.get_webview_window("main") {
+            enable_macos_window_background_drag(&window);
+        }
+    }
+
     if matches!(event, RunEvent::ExitRequested { .. } | RunEvent::Exit) {
         stop_sidecar(app);
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn enable_macos_window_background_drag(window: &tauri::WebviewWindow) {
+    use objc2_app_kit::NSWindow;
+
+    let Ok(ns_window_ptr) = window.ns_window() else {
+        return;
+    };
+
+    unsafe {
+        let ns_window = &*ns_window_ptr.cast::<NSWindow>();
+        ns_window.setMovableByWindowBackground(true);
     }
 }

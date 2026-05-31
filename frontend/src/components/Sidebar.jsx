@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
-import { ChevronRight, FileText, Folder, Search, Settings, Smartphone, SquarePen, Trash2 } from 'lucide-react'
+import { ChevronRight, FileText, Folder, FolderPlus, Search, Settings, Smartphone, SquarePen, Trash2 } from 'lucide-react'
+import { bookResourcePath } from '../api/books'
 import { useI18n } from '../hooks/useI18n'
 import { bottomSidebarActions, primarySidebarActions } from './studio/sidebarNavigation'
+import { fetchExplorerTree } from './sidebarTreeFetch'
 import { toRoman } from '../utils/roman'
 
 function matchesTreeQuery(node, query) {
@@ -27,6 +29,7 @@ function filterTree(nodes, query) {
 
 const primaryIcons = {
   'new-chat': SquarePen,
+  'new-book': FolderPlus,
   search: Search,
 }
 
@@ -35,7 +38,7 @@ const bottomIcons = {
   mobile: Smartphone,
 }
 
-export function Sidebar({ activePanel, addToast, onSelect, onBookSelect, onNewConversation, onActivityClick, dataVersion }) {
+export function Sidebar({ activePanel, addToast, onSelect, onBookSelect, onNewConversation, onCreateBookClick, onActivityClick, dataVersion }) {
   const { t } = useI18n()
   const [selectedId, setSelectedId] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -45,29 +48,26 @@ export function Sidebar({ activePanel, addToast, onSelect, onBookSelect, onNewCo
 
   const fetchTree = async (showFeedback = false) => {
     setLoading(true)
-    try {
-      const resp = await fetch('/api/v1/books/explorer')
-      if (resp.ok) {
-        const data = await resp.json()
-        const tree = Array.isArray(data) ? data : (data.tree || [])
-        setTreeData(tree)
-        const books = tree.filter(n => n.type === 'book')
-        const savedBookId = localStorage.getItem('autonovel:lastBookId')
-        const restored = books.find(n => n.id === savedBookId) || (!selectedId ? books[books.length - 1] : null)
-        if (restored && selectedId !== restored.id) {
-          setSelectedId(restored.id)
-          onBookSelect?.({ book_id: restored.id, title: restored.label })
-        }
-        if (showFeedback) addToast?.(t('sidebar.refreshed'), 'success')
-        return books.map(n => n.id)
-      }
-    } catch (e) {
-      console.error(e)
+    const result = await fetchExplorerTree()
+    setLoading(false)
+
+    if (!result.ok) {
+      if (result.error) console.error(result.error)
       if (showFeedback) addToast?.(t('sidebar.refreshFailed'), 'error')
-    } finally {
-      setLoading(false)
+      return null
     }
-    return null
+
+    const tree = result.tree
+    setTreeData(tree)
+    const books = tree.filter(n => n.type === 'book')
+    const savedBookId = localStorage.getItem('autonovel:lastBookId')
+    const restored = books.find(n => n.id === savedBookId) || (!selectedId ? books[books.length - 1] : null)
+    if (restored && selectedId !== restored.id) {
+      setSelectedId(restored.id)
+      onBookSelect?.({ book_id: restored.id, title: restored.label })
+    }
+    if (showFeedback) addToast?.(t('sidebar.refreshed'), 'success')
+    return books.map(n => n.id)
   }
 
   useEffect(() => {
@@ -103,7 +103,7 @@ export function Sidebar({ activePanel, addToast, onSelect, onBookSelect, onNewCo
     // Second click — confirmed, actually delete
     setPendingDelete(null)
     try {
-      const res = await fetch(`/api/v1/books/${node.id}`, { method: 'DELETE' })
+      const res = await fetch(bookResourcePath(node.id), { method: 'DELETE' })
       if (res.ok) {
         addToast?.(t('sidebar.deleted').replace('{label}', node.label), 'success')
         onBookSelect?.(null)  // Clear current book
@@ -124,6 +124,10 @@ export function Sidebar({ activePanel, addToast, onSelect, onBookSelect, onNewCo
       onNewConversation?.()
       return
     }
+    if (id === 'new-book') {
+      onCreateBookClick?.()
+      return
+    }
     onActivityClick?.(id)
   }
 
@@ -131,8 +135,8 @@ export function Sidebar({ activePanel, addToast, onSelect, onBookSelect, onNewCo
 
   return (
     <aside className="sidebar studio-sidebar-panel">
-      <div className="studio-sidebar-actions" aria-label="主导航">
-        {primarySidebarActions().map(action => {
+      <div className="studio-sidebar-actions" aria-label={t('sidebar.primaryNav')}>
+        {primarySidebarActions(t).map(action => {
           const Icon = primaryIcons[action.id]
           const active = action.id === 'search' && activePanel === 'search'
           return (
@@ -157,27 +161,27 @@ export function Sidebar({ activePanel, addToast, onSelect, onBookSelect, onNewCo
           <input
             value={searchQuery}
             onChange={event => setSearchQuery(event.target.value)}
-            placeholder="搜索作品、章节或大纲"
+            placeholder={t('sidebar.searchPlaceholder')}
             autoFocus
           />
         </div>
       )}
 
-      <div className="studio-sidebar-section-label">作品</div>
+      <div className="studio-sidebar-section-label">{t('sidebar.works')}</div>
 
       <div className="sidebar-content studio-project-list">
         {visibleTree.map((node, idx) => (
-          <TreeNode key={node.id} node={node} index={idx} bookId={node.type === 'book' ? node.id : null} selectedId={selectedId} onSelect={handleNodeSelect} onDeleteBook={handleDeleteBook} pendingDelete={pendingDelete} onCancelDelete={() => setPendingDelete(null)} />
+          <TreeNode key={node.id} node={node} index={idx} bookId={node.type === 'book' ? node.id : null} selectedId={selectedId} onSelect={handleNodeSelect} onDeleteBook={handleDeleteBook} pendingDelete={pendingDelete} />
         ))}
         {!loading && visibleTree.length === 0 && (
           <div className="studio-sidebar-empty">
-            {activePanel === 'search' && searchQuery.trim() ? '没有匹配结果' : '从新对话开始'}
+            {activePanel === 'search' && searchQuery.trim() ? t('sidebar.noMatches') : t('sidebar.startFromChat')}
           </div>
         )}
       </div>
 
       <div className="studio-sidebar-bottom">
-        {bottomSidebarActions().map(action => {
+        {bottomSidebarActions(t).map(action => {
           const Icon = bottomIcons[action.id]
           if (!action.enabled) {
             return (
@@ -205,7 +209,7 @@ export function Sidebar({ activePanel, addToast, onSelect, onBookSelect, onNewCo
   )
 }
 
-function TreeNode({ node, index = 0, bookId, level = 0, selectedId, onSelect, onDeleteBook, pendingDelete, onCancelDelete }) {
+function TreeNode({ node, index = 0, bookId, level = 0, selectedId, onSelect, onDeleteBook, pendingDelete }) {
   const { t } = useI18n()
   const [open, setOpen] = useState(level < 2)
   const [hovered, setHovered] = useState(false)
@@ -222,7 +226,7 @@ function TreeNode({ node, index = 0, bookId, level = 0, selectedId, onSelect, on
         style={{ paddingLeft: 12 + level * 16 }}
         onClick={() => { if (hasChildren) setOpen(!open); onSelect?.(node, effectiveBookId); }}
         onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => { setHovered(false); if (isConfirming) onCancelDelete?.(); }}
+        onMouseLeave={() => setHovered(false)}
       >
         <span className={`tree-item-toggle ${open ? 'open' : ''}`} style={{ visibility: hasChildren ? 'visible' : 'hidden' }}><ChevronRight size={12} /></span>
         <span className="tree-item-icon" style={{ color: hasChildren ? 'var(--warning)' : 'var(--accent)' }}><Icon size={15} /></span>
@@ -264,7 +268,7 @@ function TreeNode({ node, index = 0, bookId, level = 0, selectedId, onSelect, on
           </button>
         )}
       </div>
-      {hasChildren && <div className={`tree-children ${!open ? 'collapsed' : ''}`}>{node.children.map((c, i) => <TreeNode key={c.id} node={c} index={i} bookId={effectiveBookId} level={level+1} selectedId={selectedId} onSelect={onSelect} onDeleteBook={onDeleteBook} pendingDelete={pendingDelete} onCancelDelete={onCancelDelete} />)}</div>}
+      {hasChildren && <div className={`tree-children ${!open ? 'collapsed' : ''}`}>{node.children.map((c, i) => <TreeNode key={c.id} node={c} index={i} bookId={effectiveBookId} level={level+1} selectedId={selectedId} onSelect={onSelect} onDeleteBook={onDeleteBook} pendingDelete={pendingDelete} />)}</div>}
     </div>
   )
 }

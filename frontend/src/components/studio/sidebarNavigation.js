@@ -1,13 +1,16 @@
-export function primarySidebarActions() {
+const defaultT = key => key
+
+export function primarySidebarActions(t = defaultT) {
   return [
-    { id: 'new-chat', label: '新对话', enabled: true },
-    { id: 'search', label: '搜索', enabled: true, shortcut: '⌘G' },
+    { id: 'new-chat', label: t('sidebar.newChat'), enabled: true },
+    { id: 'new-book', label: t('sidebar.newWork'), enabled: true },
+    { id: 'search', label: t('sidebar.search'), enabled: true },
   ]
 }
 
-export function bottomSidebarActions() {
+export function bottomSidebarActions(t = defaultT) {
   return [
-    { id: 'settings', label: '设置', enabled: true },
-    { id: 'mobile', label: '连接手机', enabled: false },
+    { id: 'settings', label: t('sidebar.settings'), enabled: true },
+    { id: 'mobile', label: t('sidebar.mobile'), enabled: false },
   ]
 }

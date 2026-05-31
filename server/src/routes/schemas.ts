@@ -16,6 +16,7 @@ export const createBookBody = z.object({
   tone: z.string().min(1).max(50),
   concept: z.string().max(10000).optional(),
   target_words: z.number().int().positive().max(10000000),
+  source_session_id: z.string().min(1).max(128).optional(),
 })
 
 // ── Author-chat schemas ──
@@ -34,6 +35,7 @@ export const providerSchema = z.object({
   baseUrl: z.string().url().max(500),
   apiKey: z.string().max(500),
   models: z.array(z.string().max(100)).min(0).max(50),
+  kind: z.enum(['openai-compatible', 'gemini-openai-compatible']).optional(),
 })
 
 export const saveSettingsBody = z.object({

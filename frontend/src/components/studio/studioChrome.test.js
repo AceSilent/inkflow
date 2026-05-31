@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { studioChromeLayout } from './studioChrome'
 
 describe('studio chrome layout', () => {
@@ -6,7 +7,18 @@ describe('studio chrome layout', () => {
     expect(studioChromeLayout).toEqual({
       showTitlebarBrand: false,
       showBottomStatusbar: false,
-      titlebarLeftInset: 76,
+      titlebarLeftInset: 68,
+      titlebarHeight: 40,
+      draggableTitlebar: true,
+      dragRegionStrategy: 'tauri-region-overlay',
     })
+  })
+
+  it('keeps native mac traffic lights vertically centered in the overlay titlebar', () => {
+    const config = JSON.parse(readFileSync(new URL('../../../../src-tauri/tauri.conf.json', import.meta.url), 'utf8'))
+    const [windowConfig] = config.app.windows
+
+    expect(windowConfig.titleBarStyle).toBe('Overlay')
+    expect(windowConfig.trafficLightPosition).toEqual({ x: 14, y: 22 })
   })
 })

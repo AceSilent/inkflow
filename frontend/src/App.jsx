@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from 'react'
+import { useState, useCallback } from 'react'
 import { useI18n } from './hooks/useI18n'
 import { Sidebar } from './components/Sidebar'
 import { BrainstormPanel } from './components/BrainstormPanel'
@@ -17,6 +17,10 @@ import { OutlineWorkspace } from './components/studio/OutlineWorkspace'
 import { PlotGraphWorkspace } from './components/studio/PlotGraphWorkspace'
 import { createBookFromDraft } from './components/books/createBookFromDraft'
 
+function createDraftSessionId() {
+  return `session_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
+}
+
 export default function App() {
   const [theme, toggleTheme] = useTheme()
   const { t } = useI18n()
@@ -26,34 +30,10 @@ export default function App() {
   const [activeChapter, setActiveChapter] = useState(null)
   const [workspaceChapter, setWorkspaceChapter] = useState(null)
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState(null)
+  const [draftSessionId, setDraftSessionId] = useState(() => createDraftSessionId())
+  const [createWorkOpen, setCreateWorkOpen] = useState(false)
   const [dataVersion, setDataVersion] = useState(0)
-  const [settings, setSettings] = useState(null)
   const { toasts, addToast, removeToast } = useToast()
-
-  useEffect(() => {
-    let cancelled = false
-    fetch('/api/v1/settings')
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (!cancelled) setSettings(data || null)
-      })
-      .catch(() => {
-        if (!cancelled) setSettings(null)
-      })
-    return () => { cancelled = true }
-  }, [dataVersion])
-
-  const authorModel = settings?.authorModel || ''
-
-  const availableModels = useMemo(() => {
-    return (settings?.providers || []).flatMap(provider =>
-      (provider.models || []).map(model => ({
-        value: `${provider.id}/${model}`,
-        label: model,
-        provider: provider.name,
-      }))
-    )
-  }, [settings])
 
   const refreshData = useCallback(() => {
     setDataVersion(prev => prev + 1)
@@ -75,38 +55,35 @@ export default function App() {
     setActiveChapter(null)
     setWorkspaceChapter(null)
     setActiveWorkspaceTab(null)
+    setDraftSessionId(createDraftSessionId())
     setActivePanel('explorer')
   }, [])
 
   const handleCreateBookRequest = useCallback(async (draft) => {
     try {
-      const book = await createBookFromDraft(draft)
+      const book = await createBookFromDraft({
+        ...draft,
+        ...(!currentBook ? { sourceSessionId: draftSessionId } : {}),
+      })
       addToast?.(t('newBook.created'), 'success')
       handleBookSelect(book)
       setActivePanel('explorer')
       setDataVersion(v => v + 1)
     } catch (e) {
-      addToast?.(`创建失败：${e.message}`, 'error')
+      addToast?.(t('authorChat.createFailed').replace('{message}', e.message), 'error')
     }
+  }, [addToast, currentBook, draftSessionId, handleBookSelect, t])
+
+  const handleBookCreatedByAgent = useCallback((book) => {
+    handleBookSelect(book)
+    setActivePanel('explorer')
+    setDataVersion(v => v + 1)
+    addToast?.(t('newBook.created'), 'success')
   }, [addToast, handleBookSelect, t])
 
-  const handleAuthorModelChange = useCallback(async (model) => {
-    if (!settings) return
-    const nextSettings = { ...settings, authorModel: model }
-    setSettings(nextSettings)
-    try {
-      const resp = await fetch('/api/v1/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(nextSettings),
-      })
-      if (!resp.ok) throw new Error('save failed')
-      addToast?.('作者模型已切换', 'success')
-    } catch {
-      setSettings(settings)
-      addToast?.('模型切换失败', 'error')
-    }
-  }, [addToast, settings])
+  const handleCreateBookClick = useCallback(() => {
+    setCreateWorkOpen(true)
+  }, [])
 
   const handleSceneSelect = useCallback((sceneInfo) => {
     if (sceneInfo.type === 'chapter') {
@@ -166,10 +143,8 @@ export default function App() {
       currentBook={currentBook}
       addToast={addToast}
       onLoreUpdated={refreshData}
-      onCreateBookRequest={handleCreateBookRequest}
-      authorModel={authorModel}
-      availableModels={availableModels}
-      onAuthorModelChange={handleAuthorModelChange}
+      draftSessionId={draftSessionId}
+      onBookCreated={handleBookCreatedByAgent}
     />
   )
 
@@ -180,6 +155,7 @@ export default function App() {
       onSelect={handleSceneSelect}
       onBookSelect={handleBookSelect}
       onNewConversation={handleNewConversation}
+      onCreateBookClick={handleCreateBookClick}
       onActivityClick={handleActivityClick}
       dataVersion={dataVersion}
     />
@@ -220,7 +196,66 @@ export default function App() {
         }
       />
 
+      {createWorkOpen && (
+        <CreateWorkDialog
+          onCancel={() => setCreateWorkOpen(false)}
+          onCreate={async (name) => {
+            await handleCreateBookRequest({ name })
+            setCreateWorkOpen(false)
+          }}
+        />
+      )}
       <ToastContainer toasts={toasts} onRemove={removeToast} />
+    </div>
+  )
+}
+
+function CreateWorkDialog({ onCancel, onCreate }) {
+  const { t } = useI18n()
+  const [name, setName] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+
+  const submit = async () => {
+    const value = name.trim()
+    if (!value || submitting) return
+    setSubmitting(true)
+    try {
+      await onCreate(value)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" onMouseDown={onCancel}>
+      <div className="modal create-work-dialog" onMouseDown={event => event.stopPropagation()}>
+        <div className="modal-header">
+          <div className="modal-title">{t('newBook.title')}</div>
+          <button type="button" className="btn-icon" onClick={onCancel} aria-label={t('common.close')}>×</button>
+        </div>
+        <div className="modal-body">
+          <div className="field">
+            <label className="field-label">{t('newBook.bookTitle')}</label>
+            <input
+              className="input"
+              value={name}
+              autoFocus
+              placeholder={t('sidebar.newWorkPrompt')}
+              onChange={event => setName(event.target.value)}
+              onKeyDown={event => {
+                if (event.key === 'Enter') submit()
+                if (event.key === 'Escape') onCancel()
+              }}
+            />
+          </div>
+        </div>
+        <div className="modal-footer">
+          <button type="button" className="btn btn-secondary" onClick={onCancel}>{t('common.cancel')}</button>
+          <button type="button" className="btn btn-primary" disabled={!name.trim() || submitting} onClick={submit}>
+            {submitting ? t('newBook.creating') : t('newBook.create')}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

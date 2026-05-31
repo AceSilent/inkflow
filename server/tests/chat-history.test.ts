@@ -2,7 +2,15 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
-import { loadHistoryFull, saveHistory, truncateHistoryAtMessage } from '../src/routes/chat-history.js'
+import {
+  bindSessionHistoryToBook,
+  loadHistoryFull,
+  loadSessionHistoryFull,
+  saveHistory,
+  saveSessionHistory,
+  sessionHistoryPath,
+  truncateHistoryAtMessage,
+} from '../src/routes/chat-history.js'
 
 let tmpDir: string
 
@@ -56,5 +64,34 @@ describe('chat-history', () => {
     ]
 
     expect(() => truncateHistoryAtMessage(messages, 'a1')).toThrow('not a user message')
+  })
+
+  it('stores unbound sessions outside book directories', () => {
+    saveSessionHistory(tmpDir, 'session_alpha', [
+      { role: 'user', content: '先聊一个雾港故事' },
+      { role: 'assistant', content: '我们可以先确定主角和谜团。' },
+    ])
+
+    expect(sessionHistoryPath(tmpDir, 'session_alpha')).toContain(path.join('.sessions', 'session_alpha'))
+    expect(loadSessionHistoryFull(tmpDir, 'session_alpha').map(m => m.content)).toEqual([
+      '先聊一个雾港故事',
+      '我们可以先确定主角和谜团。',
+    ])
+    expect(fs.existsSync(path.join(tmpDir, 'session_alpha', '00_Config'))).toBe(false)
+  })
+
+  it('can bind an unbound session into a newly created book history', () => {
+    saveSessionHistory(tmpDir, 'session_to_bind', [
+      { role: 'user', content: '我们先聊设定' },
+      { role: 'assistant', content: '这会成为作品的创作记录。' },
+    ])
+
+    bindSessionHistoryToBook(tmpDir, 'session_to_bind', 'book1')
+
+    expect(loadHistoryFull(tmpDir, 'book1').map(m => m.content)).toEqual([
+      '我们先聊设定',
+      '这会成为作品的创作记录。',
+    ])
+    expect(loadSessionHistoryFull(tmpDir, 'session_to_bind')).toEqual([])
   })
 })

@@ -26,6 +26,8 @@ export const TOOL_CATEGORY_ORDER: ToolCategory[] = ['读取', '写入', '剧情�
 export interface ToolContext {
   bookId: string
   dataDir: string
+  sessionId?: string
+  onBookCreated?: (book: { book_id: string; title: string }) => void | Promise<void>
   /** Current agent mode: 'brainstorm' | 'author' */
   mode?: string
   /** Optional progress channel for long-running tool internals. */

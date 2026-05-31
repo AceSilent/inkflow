@@ -20,6 +20,7 @@ import {
 import { MIN_REVIEW_DRAFT_CHARS } from '../tools/write-tools.js'
 import { formatDraftSelfCheck, runDraftSelfCheck } from '../tools/draft-self-check.js'
 import { persistChapterSummary } from '../memory/chapter-summarizer.js'
+import { extractMemories, ingestExtracted } from '../memory/extractor.js'
 import { loadEditorialContextByDir } from './editorial-context.js'
 import { editorialLLMConfig, reviewerLLMConfigs } from './model-config.js'
 import { mergeTargetedReview, resolveReviewers } from './review-targeting.js'
@@ -141,7 +142,6 @@ export async function runEditorialPipelineForChapter(
   // just as valuable as those from passing ones for craft-skill accumulation.
   ;(async () => {
     try {
-      const { extractMemories, ingestExtracted } = await import('../memory/extractor.js')
       const extracted = await extractMemories({
         event: 'editorial_return',
         llmConfig,
