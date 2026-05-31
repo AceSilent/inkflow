@@ -2,7 +2,7 @@ import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { I18nContext } from '../../i18n/context'
-import { NoBookChatStarter } from '../AuthorChatPanel'
+import { ChatComposerBody, NoBookChatStarter } from '../AuthorChatPanel'
 
 const labels = {
   'authorChat.noBookTitle': '先和作者 Agent 聊聊',
@@ -13,6 +13,7 @@ const labels = {
   'authorChat.suggestion1': '我想写一座会改写记忆的城市',
   'authorChat.suggestion2': '帮我比较复仇和救赎两条主线',
   'authorChat.suggestion3': '先问我几个问题来确定题材',
+  'authorChat.removeAttachment': '移除附件',
 }
 
 function renderNoBookComposer() {
@@ -35,5 +36,28 @@ describe('NoBookChatStarter', () => {
     expect(html).not.toContain('讨论成熟后再创建作品。')
     expect(html).not.toContain('作者模式')
     expect(html).not.toContain('示例模式')
+  })
+
+  it('renders uploaded documents inside the composer body', () => {
+    const html = renderToStaticMarkup(
+      <I18nContext.Provider value={{ t: key => labels[key] || key }}>
+        <div className="chat-composer">
+          <ChatComposerBody
+            attachments={[{ name: 'notes.md', content: 'hello', size: 2048 }]}
+            onRemoveAttachment={() => {}}
+          >
+            <textarea aria-label="draft" />
+          </ChatComposerBody>
+        </div>
+      </I18nContext.Provider>
+    )
+
+    const bodyStart = html.indexOf('class="chat-composer-body"')
+    const previewStart = html.indexOf('class="chat-attachment-preview"')
+    const textareaStart = html.indexOf('<textarea')
+    expect(bodyStart).toBeGreaterThan(-1)
+    expect(previewStart).toBeGreaterThan(bodyStart)
+    expect(textareaStart).toBeGreaterThan(previewStart)
+    expect(html).toContain('notes.md')
   })
 })

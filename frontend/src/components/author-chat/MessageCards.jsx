@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Wrench, Loader, Check, ChevronDown, ChevronRight, Brain, User, PenTool, FileText, Pencil } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { useI18n } from '../../hooks/useI18n'
+import { visibleUserMessageContent } from './messageUtils'
 
 export function StreamingToolCard({ segment }) {
   const hasResult = segment.status === 'done' && segment.result
@@ -255,10 +256,7 @@ export function MessageBubble({ msg, onOptionSelect, optionsDisabled, onCheckpoi
           borderBottomRightRadius: isUser ? 4 : 12,
           borderBottomLeftRadius: isUser ? 12 : 4,
         }}>
-          {isUser
-            ? (msg.hasAttachments ? msg.content.split('\n\n--- 附件:')[0] || t('authorChat.sentAttachment') : msg.content)
-            : <ReactMarkdown>{msg.content}</ReactMarkdown>
-          }
+          {isUser ? (visibleUserMessageContent(msg) || t('authorChat.sentAttachment')) : <ReactMarkdown>{msg.content}</ReactMarkdown>}
         </div>
       )}
     </div>

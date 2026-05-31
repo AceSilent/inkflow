@@ -12,6 +12,8 @@ export const DATA_MUTATING_TOOLS = new Set([
   'submit_to_editorial',
 ])
 
+const USER_MESSAGE_PREVIEW_CHARS = 6000
+
 export function restoreChatMessages(rawMessages = []) {
   return rawMessages.map((message, index) => {
     const id = message.id || Date.now() + index
@@ -61,6 +63,37 @@ export function editableUserMessageContent(message) {
   return message.hasAttachments
     ? (message.content.split('\n\n--- 附件:')[0] || '')
     : message.content
+}
+
+export function visibleUserMessageContent(message) {
+  if (!message?.content) return ''
+  const raw = message.hasAttachments
+    ? (message.content.split('\n\n--- 附件:')[0] || '')
+    : String(message.content)
+  if (raw.length <= USER_MESSAGE_PREVIEW_CHARS) return raw
+
+  const omitted = raw.length - USER_MESSAGE_PREVIEW_CHARS
+  return `${raw.slice(0, USER_MESSAGE_PREVIEW_CHARS).trimEnd()}\n\n…已省略 ${omitted} 字，完整内容已发送给 Agent。`
+}
+
+export function persistDraftInput(store, key, value) {
+  if (!store || !key) return false
+  try {
+    if (value) store.setItem(key, value)
+    else store.removeItem(key)
+    return true
+  } catch {
+    return false
+  }
+}
+
+export function restoreDraftInput(store, key) {
+  if (!store || !key) return ''
+  try {
+    return store.getItem(key) || ''
+  } catch {
+    return ''
+  }
 }
 
 export function truncateMessagesBeforeCheckpoint(messages, messageId) {

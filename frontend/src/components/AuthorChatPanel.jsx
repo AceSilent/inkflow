@@ -8,7 +8,9 @@ import {
   DATA_MUTATING_TOOLS,
   buildAttachmentMessage,
   editableUserMessageContent,
+  persistDraftInput,
   restoreChatMessages,
+  restoreDraftInput,
   sentHistoryFromMessages,
   truncateMessagesBeforeCheckpoint,
 } from './author-chat/messageUtils'
@@ -175,16 +177,13 @@ export function NoBookChatStarter({
           </div>
         </div>
       </div>
-      {attachments.length > 0 && (
-        <AttachmentPreview attachments={attachments} onRemove={removeAttachment} />
-      )}
       <div className="chat-composer">
         <input ref={fileInputRef} type="file" multiple accept=".txt,.md,.json,.csv,.py,.js,.jsx"
           onChange={handleFileSelect} style={{ display: 'none' }} />
         <button type="button" className="btn-icon chat-tool-button" onClick={() => fileInputRef.current?.click()} title={t('authorChat.attachFile')}>
           <Plus size={17} />
         </button>
-        <div className="chat-composer-body">
+        <ChatComposerBody attachments={attachments} onRemoveAttachment={removeAttachment}>
           <textarea
             value={draft}
             onChange={event => setDraft(event.target.value)}
@@ -197,7 +196,7 @@ export function NoBookChatStarter({
             placeholder={t('authorChat.noBookPlaceholder')}
             rows={1}
           />
-        </div>
+        </ChatComposerBody>
         <button
           type="button"
           className="chat-send-button"
@@ -227,6 +226,17 @@ function AttachmentPreview({ attachments, onRemove }) {
           </button>
         </div>
       ))}
+    </div>
+  )
+}
+
+export function ChatComposerBody({ attachments = [], onRemoveAttachment, children }) {
+  return (
+    <div className="chat-composer-body">
+      {attachments.length > 0 && (
+        <AttachmentPreview attachments={attachments} onRemove={onRemoveAttachment} />
+      )}
+      {children}
     </div>
   )
 }
@@ -300,14 +310,13 @@ export function AuthorChatPanel({
       setInput('')
       return
     }
-    setInput(window.localStorage.getItem(draftStorageKey) || '')
+    setInput(restoreDraftInput(window.localStorage, draftStorageKey))
   }, [draftStorageKey])
 
   const updateInput = useCallback((value) => {
     setInput(value)
     if (!draftStorageKey) return
-    if (value) window.localStorage.setItem(draftStorageKey, value)
-    else window.localStorage.removeItem(draftStorageKey)
+    persistDraftInput(window.localStorage, draftStorageKey, value)
   }, [draftStorageKey])
 
   // Auto-scroll
@@ -846,9 +855,6 @@ export function AuthorChatPanel({
         <div ref={chatEndRef} />
       </div>
 
-      {/* Attachment Preview */}
-      {attachments.length > 0 && <AttachmentPreview attachments={attachments} onRemove={removeAttachment} />}
-
       {/* Input */}
       <div className="chat-composer author-chat-composer">
         <input ref={fileInputRef} type="file" multiple accept=".txt,.md,.json,.csv,.py,.js,.jsx"
@@ -856,7 +862,7 @@ export function AuthorChatPanel({
         <button className="btn-icon chat-tool-button" onClick={() => fileInputRef.current?.click()} title={t('authorChat.attachFile')}>
           <Plus size={17} />
         </button>
-        <div className="chat-composer-body">
+        <ChatComposerBody attachments={attachments} onRemoveAttachment={removeAttachment}>
           <textarea
             ref={inputRef}
             value={input}
@@ -866,7 +872,7 @@ export function AuthorChatPanel({
             onCompositionEnd={() => { composingRef.current = false }}
             placeholder={t('authorChat.placeholder')} rows={1}
           />
-        </div>
+        </ChatComposerBody>
         {loading ? (
           <button className="chat-send-button chat-stop-button" onClick={handleStop}
             title={t('authorChat.stopSaved')}
