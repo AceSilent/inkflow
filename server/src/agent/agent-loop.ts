@@ -14,7 +14,7 @@
 import path from 'path'
 import { streamText, stepCountIs, type ModelMessage } from 'ai'
 import { composeHooks, type ToolRegistry, type ToolContext, type ToolHooks, type BlockedToolCall, type ToolProgressEvent } from '../tools/base-tool.js'
-import { buildAuthorPrompt, buildBrainstormPrompt, buildPlotGraphStatus, buildStyleProfileStatus } from './prompt-builder.js'
+import { buildAuthorPrompt, buildBrainstormPrompt, buildGameScriptPrompt, buildPlotGraphStatus, buildStyleProfileStatus } from './prompt-builder.js'
 import { buildCreativeStagePrompt } from './creative-stage.js'
 import { type LLMConfig, type ProviderProgressCallback, createProvider } from '../llm/provider.js'
 import { blockWhileUserEditing } from '../stats/tips/block-while-user-editing.js'
@@ -76,9 +76,9 @@ function selectPrompt(
   creativeStage?: string,
 ): string {
   const ctx = { memory: memoryContext, toolSummary, plotLedger, styleProfile, creativeStage }
-  return mode === 'brainstorm'
-    ? buildBrainstormPrompt(ctx)
-    : buildAuthorPrompt(ctx)
+  if (mode === 'brainstorm') return buildBrainstormPrompt(ctx)
+  if (mode === 'game_script') return buildGameScriptPrompt(ctx)
+  return buildAuthorPrompt(ctx)
 }
 
 /**

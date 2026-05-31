@@ -23,7 +23,7 @@ export const createBookBody = z.object({
 
 export const sendChatBody = z.object({
   message: z.string().min(1).max(50000),
-  mode: z.enum(['brainstorm', 'author']).optional(),
+  mode: z.enum(['brainstorm', 'author', 'game_script']).optional(),
   replace_message_id: z.string().min(1).max(200).optional(),
 })
 

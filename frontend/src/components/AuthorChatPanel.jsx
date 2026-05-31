@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Trash2, Plus, X, FileText, PenTool, Loader, Square } from 'lucide-react'
+import { Send, Trash2, Plus, X, FileText, PenTool, Loader, Square, Paperclip, Gamepad2, Check } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { useI18n } from '../hooks/useI18n'
 import { CreativeFlowNotch } from './CreativeFlowNotch'
 import { MessageBubble, OptionsCard, StreamingToolCard, ThinkingCard } from './author-chat/MessageCards'
+import { CHAT_MODES, normalizeChatMode } from './author-chat/chatModes'
 import {
   DATA_MUTATING_TOOLS,
   buildAttachmentMessage,
@@ -14,6 +15,18 @@ import {
 } from './author-chat/messageUtils'
 import { parseSlashCommand } from './author-chat/slashCommands'
 import { agentLifecycleState } from './author-chat/agentState'
+import { buildAuthorChatRequestBody } from './author-chat/requestPayload'
+
+const CHAT_MODE_STORAGE_KEY = 'inkflow.chatMode'
+
+function readInitialChatMode() {
+  if (typeof window === 'undefined') return 'author'
+  try {
+    return normalizeChatMode(window.localStorage.getItem(CHAT_MODE_STORAGE_KEY))
+  } catch {
+    return 'author'
+  }
+}
 
 function CheckpointEditComposer({ value, onChange, onCancel, onSubmit, disabled }) {
   const { t } = useI18n()
@@ -108,6 +121,96 @@ function CheckpointEditComposer({ value, onChange, onCancel, onSubmit, disabled 
   )
 }
 
+export function ComposerToolMenu({
+  mode = 'author',
+  onModeChange,
+  onAttachFile,
+  disabled = false,
+  openByDefault = false,
+}) {
+  const { t } = useI18n()
+  const [open, setOpen] = useState(openByDefault)
+  const menuRef = useRef(null)
+  const activeMode = normalizeChatMode(mode)
+
+  useEffect(() => {
+    if (!open || typeof document === 'undefined') return
+    const handlePointerDown = (event) => {
+      if (!menuRef.current?.contains(event.target)) setOpen(false)
+    }
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('pointerdown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [open])
+
+  const selectMode = (nextMode) => {
+    onModeChange?.(normalizeChatMode(nextMode))
+    setOpen(false)
+  }
+
+  const attachFile = () => {
+    onAttachFile?.()
+    setOpen(false)
+  }
+
+  return (
+    <div className="chat-tool-menu-wrap" ref={menuRef}>
+      <button
+        type="button"
+        className={`btn-icon chat-tool-button${open ? ' is-open' : ''}`}
+        onClick={() => setOpen(prev => !prev)}
+        title={open ? t('authorChat.closeTools') : t('authorChat.openTools')}
+        aria-label={open ? t('authorChat.closeTools') : t('authorChat.openTools')}
+        aria-expanded={open}
+        disabled={disabled}
+      >
+        <Plus size={17} />
+      </button>
+      {open && (
+        <div className="chat-tool-menu" role="menu">
+          <button
+            type="button"
+            className="chat-tool-menu-item chat-tool-menu-upload"
+            onClick={attachFile}
+            role="menuitem"
+          >
+            <Paperclip size={15} />
+            <span>{t('authorChat.attachFile')}</span>
+          </button>
+          <div className="chat-tool-menu-divider" />
+          <div className="chat-tool-menu-label">{t('authorChat.modeGroup')}</div>
+          <div className="chat-mode-options">
+            {CHAT_MODES.map(item => {
+              const selected = item.id === activeMode
+              const Icon = item.id === 'game_script' ? Gamepad2 : PenTool
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`chat-mode-option${selected ? ' active' : ''}`}
+                  onClick={() => selectMode(item.id)}
+                  aria-pressed={selected}
+                  role="menuitemradio"
+                >
+                  <Icon size={15} />
+                  <span>{t(item.labelKey)}</span>
+                  {selected && <Check size={13} />}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function AgentStateBadge({ phase }) {
   const state = agentLifecycleState(phase)
   return (
@@ -124,6 +227,8 @@ function AgentStateBadge({ phase }) {
 export function NoBookChatStarter({
   onSubmitMessage,
   addToast,
+  chatMode = 'author',
+  onModeChange,
 }) {
   const { t } = useI18n()
   const [draft, setDraft] = useState('')
@@ -181,9 +286,11 @@ export function NoBookChatStarter({
       <div className="chat-composer">
         <input ref={fileInputRef} type="file" multiple accept=".txt,.md,.json,.csv,.py,.js,.jsx"
           onChange={handleFileSelect} style={{ display: 'none' }} />
-        <button type="button" className="btn-icon chat-tool-button" onClick={() => fileInputRef.current?.click()} title={t('authorChat.attachFile')}>
-          <Plus size={17} />
-        </button>
+        <ComposerToolMenu
+          mode={chatMode}
+          onModeChange={onModeChange}
+          onAttachFile={() => fileInputRef.current?.click()}
+        />
         <div className="chat-composer-body">
           <textarea
             value={draft}
@@ -251,6 +358,7 @@ export function AuthorChatPanel({
   const fileInputRef = useRef(null)
   const abortRef = useRef(null)
   const composingRef = useRef(false)
+  const [chatMode, setChatModeState] = useState(readInitialChatMode)
   // Up/Down arrow history navigation. histIdx is the offset back from the
   // newest sent message; null means "currently editing fresh input".
   const sentHistory = useRef([])  // newest last
@@ -269,6 +377,14 @@ export function AuthorChatPanel({
   const draftStorageKey = bookId
     ? `inkflow.authorChatDraft:${bookId}`
     : `inkflow.authorChatDraft:session:${activeSessionId}`
+  const setChatMode = useCallback((mode) => {
+    const nextMode = normalizeChatMode(mode)
+    setChatModeState(nextMode)
+    if (typeof window === 'undefined') return
+    try {
+      window.localStorage.setItem(CHAT_MODE_STORAGE_KEY, nextMode)
+    } catch { /* ignore localStorage failures */ }
+  }, [])
   const refreshAfterTool = useCallback((toolName) => {
     if (DATA_MUTATING_TOOLS.has(toolName)) {
       onLoreUpdated?.()
@@ -405,10 +521,11 @@ export function AuthorChatPanel({
       const resp = await fetch(sendEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: JSON.stringify(buildAuthorChatRequestBody({
           message: userMsg,
-          ...(replaceMessageId ? { replace_message_id: replaceMessageId } : {}),
-        }),
+          mode: chatMode,
+          replaceMessageId,
+        })),
         signal: abortRef.current.signal,
       })
 
@@ -699,6 +816,8 @@ export function AuthorChatPanel({
       <NoBookChatStarter
         onSubmitMessage={(text) => handleSend(text)}
         addToast={addToast}
+        chatMode={chatMode}
+        onModeChange={setChatMode}
       />
     )
   }
@@ -853,9 +972,12 @@ export function AuthorChatPanel({
       <div className="chat-composer author-chat-composer">
         <input ref={fileInputRef} type="file" multiple accept=".txt,.md,.json,.csv,.py,.js,.jsx"
           onChange={handleFileSelect} style={{ display: 'none' }} />
-        <button className="btn-icon chat-tool-button" onClick={() => fileInputRef.current?.click()} title={t('authorChat.attachFile')}>
-          <Plus size={17} />
-        </button>
+        <ComposerToolMenu
+          mode={chatMode}
+          onModeChange={setChatMode}
+          onAttachFile={() => fileInputRef.current?.click()}
+          disabled={loading}
+        />
         <div className="chat-composer-body">
           <textarea
             ref={inputRef}

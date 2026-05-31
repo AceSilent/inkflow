@@ -34,6 +34,25 @@ import { extractMemories, ingestExtracted } from '../memory/extractor.js'
 const loadConfig = loadAuthorChatConfig
 export { persistUsageBestEffort }
 
+function buildUnboundSessionSystem(mode?: string): string {
+  if (mode === 'game_script') {
+    return [
+      '你是 InkFlow 的游戏文案策划 Agent。',
+      '当前会话尚未绑定作品；先帮助用户讨论游戏世界、角色、任务链、关卡结构、互动对白、分支选项和文案语气。',
+      '除非用户明确要求创建作品，或明确确认“就按这个创建/建书/新作品”，不要调用 create_book。',
+      '调用 create_book 后，这个未绑定会话会成为新作品的聊天记录。',
+      '回复使用中文，不要提具体模型、provider、API 名称。',
+    ].join('\n')
+  }
+
+  return [
+    '你是 InkFlow 的作者 Agent。',
+    '当前会话尚未绑定作品；先帮助用户讨论题材、主角、世界、开场、结构和创作方向。',
+    '除非用户明确要求创建作品，或明确确认“就按这个创建/建书/新作品”，不要调用 create_book。',
+    '调用 create_book 后，这个未绑定会话会成为新作品的聊天记录。',
+  ].join('\n')
+}
+
 export async function authorChatRoutes(app: FastifyInstance) {
   const toolRegistry = createAllTools()
   const sessionToolRegistry = new ToolRegistry()
@@ -85,7 +104,7 @@ export async function authorChatRoutes(app: FastifyInstance) {
         reply.code(400)
         return { error: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ') }
       }
-      const { message } = parsed.data
+      const { message, mode } = parsed.data
       const { llmConfig, dataDir } = loadConfig()
 
       reply.raw.writeHead(200, {
@@ -120,17 +139,13 @@ export async function authorChatRoutes(app: FastifyInstance) {
         })
         const result = streamText({
           model,
-          system: [
-            '你是 InkFlow 的作者 Agent。',
-            '当前会话尚未绑定作品；先帮助用户讨论题材、主角、世界、开场、结构和创作方向。',
-            '除非用户明确要求创建作品，或明确确认“就按这个创建/建书/新作品”，不要调用 create_book。',
-            '调用 create_book 后，这个未绑定会话会成为新作品的聊天记录。',
-          ].join('\n'),
+          system: buildUnboundSessionSystem(mode),
           messages: [...history, { role: 'user', content: message }],
           tools: sessionToolRegistry.toVercelTools({
             bookId: '__unbound__',
             dataDir,
             sessionId,
+            mode,
             onBookCreated: async (book) => { createdBookRef.current = book },
           }),
           stopWhen: stepCountIs(8),

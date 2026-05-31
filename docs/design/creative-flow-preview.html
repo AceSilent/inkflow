@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>InkFlow Creation Notch</title>
+  <style>
+    :root {
+      --bg: oklch(98.4% 0.004 255);
+      --panel: oklch(99% 0.002 255 / 0.74);
+      --line: oklch(86% 0.012 255 / 0.7);
+      --ink: oklch(24% 0.018 255);
+      --muted: oklch(57% 0.015 255);
+      --accent: oklch(60% 0.15 250);
+      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background:
+        radial-gradient(circle at 24% 10%, oklch(88% 0.045 250 / 0.28), transparent 30%),
+        linear-gradient(180deg, oklch(99.2% 0.002 255), var(--bg));
+    }
+
+    .preview-window {
+      width: min(920px, calc(100vw - 44px));
+      min-height: 520px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: var(--panel);
+      backdrop-filter: blur(30px) saturate(1.12);
+      box-shadow: 0 30px 90px oklch(0% 0 0 / 0.11), inset 0 1px 0 oklch(100% 0 0 / 0.58);
+    }
+
+    .titlebar {
+      height: 42px;
+      border-bottom: 1px solid var(--line);
+      background: oklch(98.8% 0.002 255 / 0.64);
+    }
+
+    .chat {
+      position: relative;
+      min-height: 478px;
+      padding: 0 58px 86px;
+      background:
+        linear-gradient(180deg, oklch(99% 0.002 255 / 0.76), oklch(98.4% 0.004 255 / 0.82)),
+        radial-gradient(circle at 50% 0%, oklch(91% 0.028 250 / 0.38), transparent 44%);
+    }
+
+    .notch-wrap {
+      position: sticky;
+      top: 0;
+      z-index: 4;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      pointer-events: none;
+    }
+
+    .notch-shell {
+      width: min(560px, 78%);
+      min-height: 32px;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 11px;
+      padding: 5px 11px 6px;
+      border: 1px solid var(--line);
+      border-top: 0;
+      border-radius: 0 0 18px 18px;
+      background: oklch(100% 0 0 / 0.78);
+      backdrop-filter: blur(28px) saturate(1.18);
+      box-shadow: 0 12px 38px oklch(60% 0.15 250 / 0.1), inset 0 1px 0 oklch(100% 0 0 / 0.66);
+      pointer-events: auto;
+    }
+
+    .notch-orb {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--accent);
+      box-shadow: 0 0 0 5px oklch(60% 0.15 250 / 0.13);
+    }
+
+    .notch-summary {
+      overflow: hidden;
+      color: var(--muted);
+      font-size: 12px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .pull-handle {
+      width: 44px;
+      height: 4px;
+      border-radius: 999px;
+      background: oklch(68% 0.012 255 / 0.45);
+    }
+
+    .notch-timeline {
+      width: min(620px, 88%);
+      margin-top: 12px;
+      padding: 14px;
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 8px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: oklch(100% 0 0 / 0.62);
+      backdrop-filter: blur(24px) saturate(1.12);
+    }
+
+    .stage {
+      min-height: 54px;
+      padding: 8px;
+      border-radius: 12px;
+      background: oklch(97% 0.004 255 / 0.72);
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .stage.active {
+      color: var(--ink);
+      background: oklch(91% 0.026 250 / 0.78);
+    }
+  </style>
+</head>
+<body>
+  <main class="preview-window" aria-label="Creation Notch preview">
+    <div class="titlebar"></div>
+    <section class="chat">
+      <div class="notch-wrap">
+        <div class="notch-shell">
+          <span class="notch-orb"></span>
+          <span class="notch-summary">Creation Notch · setting bible in progress</span>
+          <span class="pull-handle"></span>
+        </div>
+        <div class="notch-timeline">
+          <div class="stage active">Intent</div>
+          <div class="stage active">Lore</div>
+          <div class="stage">Outline</div>
+          <div class="stage">Draft</div>
+          <div class="stage">Review</div>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

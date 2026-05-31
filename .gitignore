@@ -4,7 +4,9 @@
 /.agents/
 /AGENTS.md
 /CLAUDE.md
-/docs/
+/docs/*
+!/docs/design/
+!/docs/design/creative-flow-preview.html
 
 # Python
 __pycache__/
