@@ -6,7 +6,6 @@ import { CreativeFlowNotch } from './CreativeFlowNotch'
 import { MessageBubble, OptionsCard, StreamingToolCard, ThinkingCard } from './author-chat/MessageCards'
 import {
   DATA_MUTATING_TOOLS,
-  buildAttachmentMessage,
   editableUserMessageContent,
   persistDraftInput,
   restoreChatMessages,
@@ -135,10 +134,7 @@ export function NoBookChatStarter({
   const submit = () => {
     const text = draft.trim()
     if (!text && attachments.length === 0) return
-    const concept = attachments.length > 0
-      ? buildAttachmentMessage(text || t('authorChat.attachmentBookFallback'), attachments, t('authorChat.attachment'))
-      : text
-    onSubmitMessage?.(concept)
+    onSubmitMessage?.(text, { attachments })
     setDraft('')
     setAttachments([])
   }
@@ -152,7 +148,7 @@ export function NoBookChatStarter({
       }
       const reader = new FileReader()
       reader.onload = ev => {
-        setAttachments(prev => [...prev, { name: file.name, content: ev.target.result, size: file.size }])
+        setAttachments(prev => [...prev, { name: file.name, content: ev.target.result, size: file.size, type: file.type || '' }])
       }
       reader.readAsText(file)
     })
@@ -344,7 +340,7 @@ export function AuthorChatPanel({
       }
       const reader = new FileReader()
       reader.onload = (ev) => {
-        setAttachments(prev => [...prev, { name: file.name, content: ev.target.result, size: file.size }])
+        setAttachments(prev => [...prev, { name: file.name, content: ev.target.result, size: file.size, type: file.type || '' }])
       }
       reader.readAsText(file)
     })
@@ -356,13 +352,22 @@ export function AuthorChatPanel({
   }
 
   const handleSend = async (overrideMsg, options = {}) => {
-    const fromOverride = typeof overrideMsg === 'string' && overrideMsg.length > 0
-    const baseInput = fromOverride ? overrideMsg : input.trim()
-    const useAttachments = !fromOverride && attachments.length > 0
+    const fromOverride = typeof overrideMsg === 'string'
+    const baseInput = fromOverride ? overrideMsg.trim() : input.trim()
+    const outgoingAttachments = Array.isArray(options?.attachments)
+      ? options.attachments
+      : fromOverride ? [] : attachments
+    const attachmentPayload = outgoingAttachments.map((attachment, index) => ({
+      name: String(attachment.name || `file-${index + 1}`),
+      size: Number(attachment.size || String(attachment.content ?? '').length || 0),
+      content: String(attachment.content ?? ''),
+      type: String(attachment.type || ''),
+    }))
+    const useAttachments = attachmentPayload.length > 0
     const replaceMessageId = options?.replaceMessageId
     if ((!baseInput && !useAttachments) || loading) return
 
-    const slash = fromOverride ? null : parseSlashCommand(baseInput)
+    const slash = fromOverride || useAttachments ? null : parseSlashCommand(baseInput)
     if (slash) {
       updateInput('')
       setAttachments([])
@@ -390,21 +395,16 @@ export function AuthorChatPanel({
       }
     }
 
-    let userMsg = baseInput
-    if (useAttachments) {
-      userMsg = buildAttachmentMessage(baseInput, attachments, t('authorChat.attachment'))
-    }
-
-    const attachmentNames = useAttachments ? attachments.map(a => a.name) : []
+    const userMsg = baseInput
     // Push to in-memory recall ring (keep raw user text, not the attachment-suffixed version).
     if (baseInput) sentHistory.current.push(baseInput)
     setHistIdx(null)
     draftBeforeNav.current = ''
     if (!fromOverride) updateInput('')
-    if (useAttachments) setAttachments([])
+    if (!fromOverride && useAttachments) setAttachments([])
     setMessages(prev => [...prev, {
       role: 'user', content: userMsg,
-      hasAttachments: attachmentNames.length > 0, attachmentNames
+      attachments: attachmentPayload,
     }])
     setLoading(true)
     setStreamingMsg({ thinking: '', segments: [], thinkingDone: false, phase: 'init', retry: null })
@@ -416,6 +416,7 @@ export function AuthorChatPanel({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: userMsg,
+          ...(useAttachments ? { attachments: attachmentPayload } : {}),
           ...(replaceMessageId ? { replace_message_id: replaceMessageId } : {}),
         }),
         signal: abortRef.current.signal,
@@ -706,7 +707,7 @@ export function AuthorChatPanel({
   if (isUnboundSession && messages.length === 0 && !streamingMsg) {
     return (
       <NoBookChatStarter
-        onSubmitMessage={(text) => handleSend(text)}
+        onSubmitMessage={(text, options) => handleSend(text, options)}
         addToast={addToast}
       />
     )

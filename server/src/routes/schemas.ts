@@ -21,11 +21,22 @@ export const createBookBody = z.object({
 
 // ── Author-chat schemas ──
 
+export const chatAttachmentSchema = z.object({
+  name: z.string().min(1).max(255),
+  size: z.number().int().nonnegative().max(512 * 1024),
+  content: z.string().max(512 * 1024),
+  type: z.string().max(120).optional(),
+})
+
 export const sendChatBody = z.object({
-  message: z.string().min(1).max(50000),
+  message: z.string().max(50000),
+  attachments: z.array(chatAttachmentSchema).max(10).optional(),
   mode: z.enum(['brainstorm', 'author']).optional(),
   replace_message_id: z.string().min(1).max(200).optional(),
-})
+}).refine(
+  value => value.message.trim().length > 0 || (value.attachments?.length ?? 0) > 0,
+  { path: ['message'], message: 'message or attachments required' },
+)
 
 // ── Settings schemas ──
 

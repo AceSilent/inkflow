@@ -200,6 +200,33 @@ describe('Author Chat Schema Validation', () => {
     expect(result.success).toBe(true)
   })
 
+  it('should accept structured text attachments without merging them into message', () => {
+    const result = sendChatBody.safeParse({
+      message: '请读取这些文件',
+      attachments: [
+        { name: 'outline.md', size: 128, content: '# 大纲', type: 'text/markdown' },
+        { name: 'script.py', size: 64, content: 'print("hi")', type: 'text/x-python' },
+      ],
+    })
+
+    expect(result.success).toBe(true)
+    if (result.success) {
+      expect(result.data.message).toBe('请读取这些文件')
+      expect(result.data.attachments).toHaveLength(2)
+    }
+  })
+
+  it('should accept attachment-only sends', () => {
+    const result = sendChatBody.safeParse({
+      message: '',
+      attachments: [
+        { name: 'notes.txt', size: 12, content: 'hello' },
+      ],
+    })
+
+    expect(result.success).toBe(true)
+  })
+
   it('should reject empty message', () => {
     const result = sendChatBody.safeParse({ message: '' })
     expect(result.success).toBe(false)

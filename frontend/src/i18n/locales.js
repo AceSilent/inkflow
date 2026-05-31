@@ -354,7 +354,6 @@ const zh = {
   'authorChat.rerunFromHere': '从这里重新运行',
   'authorChat.resend': '重发',
   'authorChat.removeAttachment': '移除附件',
-  'authorChat.attachmentBookFallback': '根据附件创建作品',
   'authorChat.remembered': '已记住',
   'authorChat.saveFailed': '保存失败',
   'authorChat.contextDecayed': '本轮衰减了 {count} 条工具结果（节省 token）',
@@ -397,6 +396,10 @@ const zh = {
   'authorChat.thinkingProcess': '思考过程',
   'authorChat.chars': '字',
   'authorChat.sentAttachment': '（已发送附件）',
+  'authorChat.attachmentCollapsed': '展开',
+  'authorChat.attachmentPreview': '查看全文',
+  'authorChat.attachmentFull': '收起',
+  'authorChat.attachmentLines': '{count} 行',
 
   // Chapter Editor
   'chapter.noData': '无法加载章节数据',
@@ -776,7 +779,6 @@ const en = {
   'authorChat.rerunFromHere': 'Rerun from here',
   'authorChat.resend': 'Resend',
   'authorChat.removeAttachment': 'Remove attachment',
-  'authorChat.attachmentBookFallback': 'Create work from attachments',
   'authorChat.remembered': 'Saved to memory',
   'authorChat.saveFailed': 'Save failed',
   'authorChat.contextDecayed': 'Decayed {count} tool results this turn to save tokens',
@@ -819,6 +821,10 @@ const en = {
   'authorChat.thinkingProcess': 'Thinking process',
   'authorChat.chars': 'chars',
   'authorChat.sentAttachment': '(attachment sent)',
+  'authorChat.attachmentCollapsed': 'Expand',
+  'authorChat.attachmentPreview': 'Full file',
+  'authorChat.attachmentFull': 'Collapse',
+  'authorChat.attachmentLines': '{count} lines',
 
   // Chapter Editor
   'chapter.noData': 'Unable to load chapter data',

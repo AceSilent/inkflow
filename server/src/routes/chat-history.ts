@@ -8,11 +8,13 @@ import { randomUUID } from 'crypto'
 import { type ModelMessage } from 'ai'
 import { safeReadJson, ensureDir, writeJson } from '../utils/file-io.js'
 import { sanitizePathSegment } from '../utils/path-sanitizer.js'
+import { type ChatAttachment } from './chat-attachments.js'
 
 export type ChatHistoryMessage = ModelMessage & {
   id?: string
   checkpoint_id?: string
   status?: string
+  attachments?: ChatAttachment[]
 }
 
 export function historyPath(dataDir: string, bookId: string): string {

@@ -18,14 +18,11 @@ export function restoreChatMessages(rawMessages = []) {
   return rawMessages.map((message, index) => {
     const id = message.id || Date.now() + index
     const restored = { ...message, id }
-    if (message.role === 'user' && message.content?.includes('\n\n--- 附件:')) {
-      const parts = message.content.split('\n\n--- 附件:')
-      const names = parts.slice(1).map(part => {
-        const match = part.match(/^([^\n(]+)/)
-        return match ? match[1].trim() : 'file'
-      })
-      restored.hasAttachments = true
-      restored.attachmentNames = names
+    if (message.role === 'user') {
+      const normalizedAttachments = normalizeMessageAttachments(message.attachments)
+      if (normalizedAttachments.length > 0) {
+        restored.attachments = normalizedAttachments
+      }
     }
 
     if (message.role === 'assistant') {
@@ -53,27 +50,93 @@ export function restoreChatMessages(rawMessages = []) {
 export function sentHistoryFromMessages(messages) {
   return messages
     .filter(message => message.role === 'user' && message.content)
-    .map(message => message.hasAttachments
-      ? (message.content.split('\n\n--- 附件:')[0] || '')
-      : message.content)
+    .map(message => String(message.content ?? ''))
 }
 
 export function editableUserMessageContent(message) {
   if (!message?.content) return ''
-  return message.hasAttachments
-    ? (message.content.split('\n\n--- 附件:')[0] || '')
-    : message.content
+  return String(message.content ?? '')
 }
 
 export function visibleUserMessageContent(message) {
   if (!message?.content) return ''
-  const raw = message.hasAttachments
-    ? (message.content.split('\n\n--- 附件:')[0] || '')
-    : String(message.content)
+  const raw = String(message.content ?? '')
   if (raw.length <= USER_MESSAGE_PREVIEW_CHARS) return raw
 
   const omitted = raw.length - USER_MESSAGE_PREVIEW_CHARS
   return `${raw.slice(0, USER_MESSAGE_PREVIEW_CHARS).trimEnd()}\n\n…已省略 ${omitted} 字，完整内容已发送给 Agent。`
+}
+
+export function messageDisplayParts(message = {}) {
+  return {
+    text: String(message?.content ?? ''),
+    attachments: normalizeMessageAttachments(message?.attachments),
+  }
+}
+
+export function normalizeMessageAttachments(attachments = []) {
+  if (!Array.isArray(attachments)) return []
+  return attachments
+    .filter(attachment => attachment && typeof attachment === 'object')
+    .map((attachment, index) => {
+      const name = String(attachment.name || `file-${index + 1}`).trim() || `file-${index + 1}`
+      const content = String(attachment.content ?? '')
+      const size = Number.isFinite(Number(attachment.size)) ? Math.max(0, Number(attachment.size)) : content.length
+      return {
+        name,
+        content,
+        size,
+        type: String(attachment.type || ''),
+        sizeLabel: formatAttachmentSize(size),
+        language: languageForAttachmentName(name),
+        lineCount: content ? content.split(/\r?\n/).length : 0,
+      }
+    })
+}
+
+export function formatAttachmentSize(size = 0) {
+  const bytes = Math.max(0, Number(size) || 0)
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`
+  return `${(bytes / 1024 / 1024).toFixed(1)}MB`
+}
+
+export function languageForAttachmentName(name = '') {
+  const ext = String(name).split('.').pop()?.toLowerCase() || ''
+  const map = {
+    md: 'markdown',
+    markdown: 'markdown',
+    txt: 'text',
+    text: 'text',
+    log: 'text',
+    py: 'python',
+    js: 'javascript',
+    jsx: 'javascript',
+    mjs: 'javascript',
+    cjs: 'javascript',
+    ts: 'typescript',
+    tsx: 'typescript',
+    json: 'json',
+    jsonl: 'json',
+    csv: 'csv',
+    html: 'html',
+    htm: 'html',
+    css: 'css',
+    yml: 'yaml',
+    yaml: 'yaml',
+    xml: 'xml',
+    sh: 'shell',
+    bash: 'shell',
+    zsh: 'shell',
+    toml: 'toml',
+    rs: 'rust',
+    go: 'go',
+    java: 'java',
+    c: 'c',
+    h: 'c',
+    cpp: 'cpp',
+    hpp: 'cpp',
+  }
+  return map[ext] || 'text'
 }
 
 export function persistDraftInput(store, key, value) {
@@ -100,11 +163,4 @@ export function truncateMessagesBeforeCheckpoint(messages, messageId) {
   const index = messages.findIndex(message => message.id === messageId)
   if (index < 0) return messages
   return messages.slice(0, index)
-}
-
-export function buildAttachmentMessage(baseInput, attachments, attachmentLabel) {
-  const fileParts = attachments.map(attachment =>
-    `\n\n--- ${attachmentLabel}: ${attachment.name} (${(attachment.size / 1024).toFixed(1)}KB) ---\n${attachment.content}`
-  ).join('')
-  return baseInput + fileParts
 }

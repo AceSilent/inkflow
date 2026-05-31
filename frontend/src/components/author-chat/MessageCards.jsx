@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Wrench, Loader, Check, ChevronDown, ChevronRight, Brain, User, PenTool, FileText, Pencil } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { useI18n } from '../../hooks/useI18n'
-import { visibleUserMessageContent } from './messageUtils'
+import { messageDisplayParts, visibleUserMessageContent } from './messageUtils'
 
 export function StreamingToolCard({ segment }) {
   const hasResult = segment.status === 'done' && segment.result
@@ -170,6 +170,88 @@ function ToolCallCard({ segment }) {
   )
 }
 
+function attachmentLineLabel(t, count) {
+  return t('authorChat.attachmentLines').replace('{count}', count)
+}
+
+function AttachmentCodeBlock({ attachment, t }) {
+  const [level, setLevel] = useState('preview')
+  const lines = attachment.content ? attachment.content.split(/\r?\n/) : []
+  const canExpand = lines.length > 5
+  const visibleContent = level === 'full'
+    ? attachment.content
+    : level === 'preview'
+      ? lines.slice(0, 5).join('\n')
+      : ''
+  const primaryLabel = level === 'collapsed'
+    ? t('authorChat.attachmentCollapsed')
+    : level === 'preview' && canExpand
+      ? t('authorChat.attachmentPreview')
+      : t('authorChat.attachmentFull')
+  const primaryAction = () => {
+    if (level === 'collapsed') setLevel('preview')
+    else if (level === 'preview' && canExpand) setLevel('full')
+    else setLevel('collapsed')
+  }
+
+  return (
+    <div className={`chat-attachment-code-block is-${level}`}>
+      <div className="chat-attachment-code-head">
+        <FileText size={13} />
+        <span className="chat-attachment-code-name">{attachment.name}</span>
+        <span className="chat-attachment-code-meta">{attachment.language}</span>
+        <span className="chat-attachment-code-meta">{attachment.sizeLabel}</span>
+        <span className="chat-attachment-code-meta">{attachmentLineLabel(t, attachment.lineCount)}</span>
+        <div className="chat-attachment-code-actions">
+          {level === 'preview' && canExpand && (
+            <button type="button" className="chat-attachment-code-toggle" onClick={() => setLevel('collapsed')}>
+              {t('authorChat.attachmentFull')}
+            </button>
+          )}
+          <button type="button" className="chat-attachment-code-toggle" onClick={primaryAction}>
+            {primaryLabel}
+          </button>
+        </div>
+      </div>
+      {level !== 'collapsed' && (
+        <div className="chat-attachment-code-body">
+          <pre><code className={`language-${attachment.language}`}>{visibleContent}</code></pre>
+          {level === 'preview' && canExpand && (
+            <div className="chat-attachment-code-fade">{attachmentLineLabel(t, lines.length - 5)}</div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function UserMessageContent({ msg, t }) {
+  const { text, attachments } = messageDisplayParts(msg)
+  const hasText = Boolean(text)
+  const hasAttachments = attachments.length > 0
+
+  if (!hasAttachments) {
+    return (
+      <div className="user-message-bubble">
+        {visibleUserMessageContent(msg) || t('authorChat.sentAttachment')}
+      </div>
+    )
+  }
+
+  return (
+    <div className="user-message-stack">
+      {hasText && (
+        <div className="user-message-bubble">
+          {visibleUserMessageContent(msg)}
+        </div>
+      )}
+      {attachments.map((attachment, index) => (
+        <AttachmentCodeBlock key={`${attachment.name}-${index}`} attachment={attachment} t={t} />
+      ))}
+    </div>
+  )
+}
+
 export function MessageBubble({ msg, onOptionSelect, optionsDisabled, onCheckpointEdit, checkpointEditDisabled }) {
   const { t } = useI18n()
   const isUser = msg.role === 'user'
@@ -207,20 +289,6 @@ export function MessageBubble({ msg, onOptionSelect, optionsDisabled, onCheckpoi
         )}
       </div>
 
-      {msg.attachmentNames?.length > 0 && (
-        <div style={{ display: 'flex', gap: 4, marginBottom: 4, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-          {msg.attachmentNames.map((name, j) => (
-            <span key={j} style={{
-              fontSize: 10, padding: '2px 6px', borderRadius: 4,
-              background: 'var(--accent)', color: 'white', opacity: 0.8,
-              display: 'flex', alignItems: 'center', gap: 3
-            }}>
-              <FileText size={9} /> {name}
-            </span>
-          ))}
-        </div>
-      )}
-
       {!isUser && msg.segments ? (
         <div style={{ maxWidth: '85%', display: 'flex', flexDirection: 'column', gap: 4, width: '100%' }}>
           {msg.thinking && !msg.segments.some(s => s.type === 'thinking') && (
@@ -245,6 +313,8 @@ export function MessageBubble({ msg, onOptionSelect, optionsDisabled, onCheckpoi
             ) : null
           ))}
         </div>
+      ) : isUser ? (
+        <UserMessageContent msg={msg} t={t} />
       ) : (
         <div className={isUser ? '' : 'markdown-chat'} style={{
           maxWidth: '85%', padding: '10px 14px', borderRadius: 12,
@@ -256,7 +326,7 @@ export function MessageBubble({ msg, onOptionSelect, optionsDisabled, onCheckpoi
           borderBottomRightRadius: isUser ? 4 : 12,
           borderBottomLeftRadius: isUser ? 12 : 4,
         }}>
-          {isUser ? (visibleUserMessageContent(msg) || t('authorChat.sentAttachment')) : <ReactMarkdown>{msg.content}</ReactMarkdown>}
+          <ReactMarkdown>{msg.content}</ReactMarkdown>
         </div>
       )}
     </div>

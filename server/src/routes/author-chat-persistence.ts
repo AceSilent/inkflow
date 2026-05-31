@@ -1,6 +1,7 @@
 import { type ModelMessage } from 'ai'
 import { type AssistantSegment } from './stream-segments.js'
 import { saveHistory, type ChatHistoryMessage } from './chat-history.js'
+import { type ChatAttachment } from './chat-attachments.js'
 
 export type AuthorChatTurnStatus = 'incomplete' | 'aborted'
 
@@ -9,6 +10,7 @@ export interface PersistAuthorChatTurnInput {
   bookId: string
   history: ChatHistoryMessage[]
   message: string
+  attachments?: ChatAttachment[]
   messageId: string
   checkpointId?: string
   status?: AuthorChatTurnStatus
@@ -37,6 +39,9 @@ export function persistAuthorChatTurn(input: PersistAuthorChatTurnInput): void {
     content: input.message,
     id: input.messageId,
     checkpoint_id: input.checkpointId,
+  }
+  if (input.attachments && input.attachments.length > 0) {
+    userMsg.attachments = input.attachments
   }
   const assistantMsg: ModelMessage & { thinking?: string; segments?: AssistantSegment[]; status?: string } = {
     role: 'assistant',

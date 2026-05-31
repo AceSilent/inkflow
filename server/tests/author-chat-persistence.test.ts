@@ -55,6 +55,25 @@ describe('author chat persistence', () => {
     ])
   })
 
+  it('persists structured user attachments beside the visible message', () => {
+    persistAuthorChatTurn({
+      dataDir: tmpDir,
+      bookId: 'book-1',
+      history: [],
+      message: '请读',
+      messageId: 'm3',
+      attachments: [{ name: 'outline.md', size: 128, type: 'text/markdown', content: '# 大纲' }],
+      assistant: { content: '已读取' },
+    })
+
+    expect(loadHistoryFull(tmpDir, 'book-1')[0]).toEqual({
+      role: 'user',
+      content: '请读',
+      id: 'm3',
+      attachments: [{ name: 'outline.md', size: 128, type: 'text/markdown', content: '# 大纲' }],
+    })
+  })
+
   it('removes the restored user message before resending from an edited checkpoint', () => {
     const history = [
       { role: 'system' as const, content: 'compacted summary' },

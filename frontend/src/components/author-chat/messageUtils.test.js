@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   editableUserMessageContent,
+  languageForAttachmentName,
+  messageDisplayParts,
   persistDraftInput,
   restoreDraftInput,
   truncateMessagesBeforeCheckpoint,
@@ -8,11 +10,11 @@ import {
 } from './messageUtils'
 
 describe('author chat message utils', () => {
-  it('extracts the editable prompt from attachment messages', () => {
+  it('extracts the editable prompt without attachment payloads', () => {
     expect(editableUserMessageContent({
       role: 'user',
-      content: '改写第一章\n\n--- 附件: notes.md (1.0KB) ---\nnotes',
-      hasAttachments: true,
+      content: '改写第一章',
+      attachments: [{ name: 'notes.md', content: 'notes', size: 1024 }],
     })).toBe('改写第一章')
   })
 
@@ -37,6 +39,41 @@ describe('author chat message utils', () => {
     expect(visible).toContain('开头')
     expect(visible).toContain('已省略')
     expect(visible).not.toContain('结尾')
+  })
+
+  it('normalizes multiple uploaded documents as separate attachment blocks', () => {
+    const parsed = messageDisplayParts({
+      role: 'user',
+      content: '请阅读这些资料',
+      attachments: [
+        { name: 'outline.md', size: 1280, content: '# 第一章\n主角进入雾港。', type: 'text/markdown' },
+        { name: 'tools.py', size: 410, content: 'def hello():\n    return "world"', type: 'text/x-python' },
+      ],
+    })
+
+    expect(parsed.text).toBe('请阅读这些资料')
+    expect(parsed.attachments).toHaveLength(2)
+    expect(parsed.attachments[0]).toMatchObject({
+      name: 'outline.md',
+      sizeLabel: '1.3KB',
+      language: 'markdown',
+      content: '# 第一章\n主角进入雾港。',
+    })
+    expect(parsed.attachments[1]).toMatchObject({
+      name: 'tools.py',
+      sizeLabel: '0.4KB',
+      language: 'python',
+      content: 'def hello():\n    return "world"',
+    })
+  })
+
+  it('maps common document extensions to code block languages', () => {
+    expect(languageForAttachmentName('chapter.md')).toBe('markdown')
+    expect(languageForAttachmentName('notes.txt')).toBe('text')
+    expect(languageForAttachmentName('script.py')).toBe('python')
+    expect(languageForAttachmentName('data.json')).toBe('json')
+    expect(languageForAttachmentName('ui.jsx')).toBe('javascript')
+    expect(languageForAttachmentName('unknown.asset')).toBe('text')
   })
 
   it('does not throw when draft persistence storage is unavailable', () => {

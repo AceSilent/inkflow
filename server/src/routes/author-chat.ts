@@ -28,11 +28,39 @@ import { appendRunEvent, createRunId, loadRecentRuns, type RunTimelineEvent, typ
 import { clearAuthorChatSession, loadAuthorChatConfig, persistUsageBestEffort, previewValue } from './author-chat-support.js'
 import { ReasoningSegmentAccumulator } from './stream-segments.js'
 import { persistAuthorChatTurn, prepareHistoryForAuthorChatSend, type AuthorChatTurnStatus } from './author-chat-persistence.js'
+import { renderUserMessageForModel, summarizeAttachmentsForCheckpoint, type ChatAttachment } from './chat-attachments.js'
 import { createProvider, type ProviderProgressEvent } from '../llm/provider.js'
 import { extractMemories, ingestExtracted } from '../memory/extractor.js'
 
 const loadConfig = loadAuthorChatConfig
 export { persistUsageBestEffort }
+
+function toModelMessage(message: ChatHistoryMessage): ModelMessage {
+  const {
+    thinking: _thinking,
+    segments: _segments,
+    status: _status,
+    attachments,
+    id: _id,
+    checkpoint_id: _checkpointId,
+    ...rest
+  } = message as ChatHistoryMessage & {
+    thinking?: string
+    segments?: unknown
+    status?: string
+    attachments?: ChatAttachment[]
+    id?: string
+    checkpoint_id?: string
+  }
+
+  if (rest.role === 'user') {
+    return {
+      ...rest,
+      content: renderUserMessageForModel(String(rest.content ?? ''), attachments ?? []),
+    } as ModelMessage
+  }
+  return rest as ModelMessage
+}
 
 export async function authorChatRoutes(app: FastifyInstance) {
   const toolRegistry = createAllTools()
@@ -70,7 +98,7 @@ export async function authorChatRoutes(app: FastifyInstance) {
     }
   )
 
-  app.post<{ Params: { sessionId: string }; Body: { message: string; mode?: string } }>(
+  app.post<{ Params: { sessionId: string }; Body: { message: string; attachments?: ChatAttachment[]; mode?: string } }>(
     '/api/v1/author-chat/sessions/:sessionId/send',
     async (request, reply) => {
       let sessionId: string
@@ -85,7 +113,8 @@ export async function authorChatRoutes(app: FastifyInstance) {
         reply.code(400)
         return { error: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ') }
       }
-      const { message } = parsed.data
+      const { message, attachments = [] } = parsed.data
+      const modelUserMessage = renderUserMessageForModel(message, attachments)
       const { llmConfig, dataDir } = loadConfig()
 
       reply.raw.writeHead(200, {
@@ -106,12 +135,7 @@ export async function authorChatRoutes(app: FastifyInstance) {
         const rawHistory = loadSessionHistoryFull(dataDir, sessionId)
         const history: ModelMessage[] = rawHistory
           .filter((m) => !(m as any).status)
-          .map((m) => {
-            const { thinking: _t, segments: _s, status: _st, ...rest } = m as ModelMessage & {
-              thinking?: string; segments?: unknown; status?: string
-            }
-            return rest as ModelMessage
-          })
+          .map(toModelMessage)
 
         const model = createProvider(llmConfig, (evt: ProviderProgressEvent) => {
           if (evt.type === 'retry') {
@@ -126,7 +150,7 @@ export async function authorChatRoutes(app: FastifyInstance) {
             '除非用户明确要求创建作品，或明确确认“就按这个创建/建书/新作品”，不要调用 create_book。',
             '调用 create_book 后，这个未绑定会话会成为新作品的聊天记录。',
           ].join('\n'),
-          messages: [...history, { role: 'user', content: message }],
+          messages: [...history, { role: 'user', content: modelUserMessage }],
           tools: sessionToolRegistry.toVercelTools({
             bookId: '__unbound__',
             dataDir,
@@ -166,8 +190,8 @@ export async function authorChatRoutes(app: FastifyInstance) {
 
         const userMessageId = createMessageId()
         const nextHistory: ChatHistoryMessage[] = [
-          ...(history as ChatHistoryMessage[]),
-          { role: 'user', content: message, id: userMessageId },
+          ...rawHistory.filter((m) => !(m as any).status),
+          { role: 'user', content: message, id: userMessageId, ...(attachments.length > 0 ? { attachments } : {}) },
         ]
         if (accumulator.hasAnything()) {
           nextHistory.push({
@@ -317,7 +341,7 @@ export async function authorChatRoutes(app: FastifyInstance) {
   )
 
   // POST send — SSE streaming
-  app.post<{ Params: { bookId: string }; Body: { message: string; mode?: string } }>(
+  app.post<{ Params: { bookId: string }; Body: { message: string; attachments?: ChatAttachment[]; mode?: string } }>(
     '/api/v1/author-chat/:bookId/send',
     async (request, reply) => {
       let bookId: string
@@ -332,7 +356,9 @@ export async function authorChatRoutes(app: FastifyInstance) {
         reply.code(400)
         return { error: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ') }
       }
-      const { message, mode, replace_message_id: replaceMessageId } = parsed.data
+      const { message, attachments = [], mode, replace_message_id: replaceMessageId } = parsed.data
+      const modelUserMessage = renderUserMessageForModel(message, attachments)
+      const checkpointMessage = summarizeAttachmentsForCheckpoint(message, attachments)
       const { llmConfig, dataDir } = loadConfig()
 
       reply.raw.writeHead(200, {
@@ -372,7 +398,7 @@ export async function authorChatRoutes(app: FastifyInstance) {
         if (send) sse({ type: 'timeline', event })
         return event
       }
-      timeline('run_start', '收到用户指令', 'running', { inputPreview: previewValue(message) })
+      timeline('run_start', '收到用户指令', 'running', { inputPreview: previewValue(checkpointMessage) })
 
       // AbortController for client disconnect
       // Listen on the response socket, not the request —
@@ -402,25 +428,20 @@ export async function authorChatRoutes(app: FastifyInstance) {
           replaceMessageId,
         )
         timeline('history_load_done', '对话历史已读取', 'done', { meta: { messages: rawHistory.length } })
+        const replayableHistory = rawHistory.filter((m) => !(m as any).status)
         // For LLM context: drop pairs marked status='incomplete' / 'aborted'
         // (failed or cancelled turns are kept on disk for UI replay but must
         // never be replayed to the model — partial assistant content + an
         // unanswered user message would corrupt subsequent reasoning).
         // Also strip UI-only metadata (`thinking`, `segments`, `status`).
-        const history: ModelMessage[] = rawHistory
-          .filter((m) => !(m as any).status)
-          .map((m) => {
-            const { thinking: _t, segments: _s, status: _st, ...rest } = m as ModelMessage & {
-              thinking?: string; segments?: unknown; status?: string
-            }
-            return rest as ModelMessage
-          })
+        const history: ModelMessage[] = replayableHistory.map(toModelMessage)
         persistAssistant = (status: AuthorChatTurnStatus = 'incomplete') => {
           persistAuthorChatTurn({
             dataDir,
             bookId,
-            history: history as ChatHistoryMessage[],
+            history: replayableHistory,
             message,
+            attachments,
             messageId: userMessageId,
             checkpointId,
             status,
@@ -432,7 +453,7 @@ export async function authorChatRoutes(app: FastifyInstance) {
         // but never blocking — snapshot failure shouldn't kill the chat.
         try {
           timeline('snapshot_start', '创建发送前快照', 'running')
-          const snap = createSnapshot(dataDir, bookId, message, { messageId: userMessageId })
+          const snap = createSnapshot(dataDir, bookId, checkpointMessage, { messageId: userMessageId })
           checkpointId = snap.id
           timeline('snapshot_done', '快照已创建', 'done')
         } catch (snapErr) {
@@ -546,7 +567,7 @@ export async function authorChatRoutes(app: FastifyInstance) {
         const result = runAgentStream({
           bookId,
           dataDir,
-          userMessage: message,
+          userMessage: modelUserMessage,
           history: newMessages,
           llmConfig,
           toolRegistry,
@@ -614,8 +635,9 @@ export async function authorChatRoutes(app: FastifyInstance) {
           persistAuthorChatTurn({
             dataDir,
             bookId,
-            history: history as ChatHistoryMessage[],
+            history: replayableHistory,
             message,
+            attachments,
             messageId: userMessageId,
             checkpointId,
             status,
@@ -715,7 +737,7 @@ export async function authorChatRoutes(app: FastifyInstance) {
                 event: 'user_message',
                 llmConfig,
                 recentHistory: history.slice(-5),
-                userMessage: message,
+                userMessage: modelUserMessage,
                 bookId,
               })
               if (extracted.length > 0) {
