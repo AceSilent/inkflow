@@ -30,9 +30,12 @@ export interface RenumberResult {
   skipped: string[]
 }
 
+/** Leaf-level outline types that represent actual content units. */
+const LEAF_OUTLINE_TYPES = new Set(['chapter', 'scene', 'stage'])
+
 function walkChapters(node: any, acc: any[] = []): any[] {
   if (!node) return acc
-  if (node.type === 'chapter') acc.push(node)
+  if (LEAF_OUTLINE_TYPES.has(node.type)) acc.push(node)
   if (Array.isArray(node.children)) {
     for (const c of node.children) walkChapters(c, acc)
   }

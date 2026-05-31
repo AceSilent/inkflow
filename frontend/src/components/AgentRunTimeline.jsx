@@ -56,7 +56,9 @@ function normalizeEventForRunStatus(event, runStatus) {
       label: runStatus === 'done' ? '模型与工具链完成' : '模型与工具链中断',
     }
   }
-  return event
+  // When the run is terminal but individual events are still 'running',
+  // mark them as the run's final status so spinners stop.
+  return { ...event, status: runStatus === 'done' ? 'done' : runStatus }
 }
 
 function annotateReviewRounds(events) {

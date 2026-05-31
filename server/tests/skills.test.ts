@@ -11,9 +11,9 @@ describe('Skill Discovery', () => {
     expect(skills['iceberg_writing']).toBeDefined()
     expect(skills['scene_rhythm']).toBeDefined()
     expect(skills['plot_tree_methodology']).toBeDefined()
-    expect(skills['volume_planning']).toBeDefined()
-    expect(skills['chapter_edit']).toBeDefined()
-    expect(skills['chapter_rewrite']).toBeDefined()
+    expect(skills['package_planning']).toBeDefined()
+    expect(skills['stage_edit']).toBeDefined()
+    expect(skills['stage_rewrite']).toBeDefined()
   })
 
   it('should parse YAML frontmatter correctly', () => {

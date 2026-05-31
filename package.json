@@ -2,7 +2,7 @@
   "name": "inkflow",
   "version": "1.0.1",
   "private": true,
-  "description": "InkFlow novel authoring studio",
+  "description": "InkFlow game script authoring studio",
   "scripts": {
     "install:all": "npm --prefix server install && npm --prefix frontend install",
     "dev:server": "npm --prefix server run dev",

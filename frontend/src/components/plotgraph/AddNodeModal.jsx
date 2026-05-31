@@ -48,7 +48,7 @@ export function AddNodeModal({ open, onCancel, onSubmit }) {
             value={title} onChange={e => setTitle(e.target.value)} autoFocus />
           <textarea className="editable-input" placeholder="描述（可选）"
             value={description} onChange={e => setDescription(e.target.value)} rows={3} />
-          <input className="editable-input" placeholder="关联章节（逗号分隔，如 ch01,ch02）"
+          <input className="editable-input" placeholder="关联 stage（逗号分隔，如 arrival,nightfall）"
             value={references} onChange={e => setReferences(e.target.value)} />
           <input className="editable-input" placeholder="涉及角色（逗号分隔）"
             value={characters} onChange={e => setCharacters(e.target.value)} />

@@ -348,6 +348,9 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
       if (e.name === 'AbortError') {
         addToast?.('已取消，已生成的内容已保存', 'info')
         loadChatHistory()  // pick up the server-side aborted message
+        setCurrentRun(prev => prev && prev.status === 'running'
+          ? { ...prev, status: 'aborted', endedAt: Date.now() }
+          : prev)
       } else {
         addToast?.(t('authorChat.sendFailed') + ': ' + e.message, 'error')
       }
@@ -369,6 +372,9 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
     if (!bookId) return
     await fetch(`/api/v1/author-chat/${bookId}/history`, { method: 'DELETE' })
     setMessages([])
+    setCurrentRun(null)
+    setRecentRuns([])
+    setStageRefreshKey(k => k + 1)
   }
 
   const handleKeyDown = (e) => {
@@ -490,7 +496,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
         </div>
       </div>
 
-      <AgentRunTimeline currentRun={currentRun} recentRuns={recentRuns} loading={loading} />
+      <AgentRunTimeline currentRun={currentRun} recentRuns={messages.length > 0 ? recentRuns : []} loading={loading} />
       <CreativeStageBar bookId={bookId} refreshKey={stageRefreshKey} loading={loading} />
 
       {/* Messages */}
@@ -626,7 +632,7 @@ export function AuthorChatPanel({ currentBook, addToast, onLoreUpdated }) {
         padding: '12px 16px', borderTop: '1px solid var(--border-subtle)',
         display: 'flex', gap: 8, alignItems: 'flex-end', flexShrink: 0
       }}>
-        <input ref={fileInputRef} type="file" multiple accept=".txt,.md,.json,.csv,.py,.js,.jsx"
+        <input ref={fileInputRef} type="file" multiple accept=".txt,.md,.json,.csv,.yaml,.yml,.py,.js,.jsx"
           onChange={handleFileSelect} style={{ display: 'none' }} />
         <button onClick={() => fileInputRef.current?.click()} title={t('authorChat.attachFile')}
           style={{

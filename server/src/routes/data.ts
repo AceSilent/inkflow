@@ -10,6 +10,7 @@
 import { type FastifyInstance } from 'fastify'
 import fs from 'fs'
 import path from 'path'
+import { parse as yamlParse, stringify as yamlStringify } from 'yaml'
 import { sanitizePathSegment } from '../utils/path-sanitizer.js'
 import { safeReadJson, writeJson, ensureDir } from '../utils/file-io.js'
 import { collectChapters, findChapterById } from '../utils/outline.js'
@@ -18,6 +19,7 @@ import { loadStats } from '../stats/tool-stats.js'
 import { archivePriorDraft } from '../tools/draft-history.js'
 import { createBackup } from '../tools/safety.js'
 import { getCreativeStage, getStageDescription } from '../agent/creative-stage.js'
+import { StoryPackageSchema } from '../schemas/index.js'
 
 // ── Helper functions (exported for direct testing) ──
 
@@ -268,6 +270,91 @@ export async function dataRoutes(app: FastifyInstance): Promise<void> {
     async (request) => {
       const bookId = sanitizePathSegment(request.params.bookId, 'bookId')
       return { stats: loadStats(dataDir(), bookId) }
+    }
+  )
+
+  // GET /api/v1/books/:bookId/scripts/:packageId — read script package YAML as JSON
+  app.get<{ Params: { bookId: string; packageId: string } }>(
+    '/api/v1/books/:bookId/scripts/:packageId',
+    async (request, reply) => {
+      const bookId = sanitizePathSegment(request.params.bookId, 'bookId')
+      const packageId = sanitizePathSegment(request.params.packageId, 'packageId')
+      const scriptPath = path.join(dataDir(), bookId, '03_Scripts', `${packageId}.yaml`)
+      if (!fs.existsSync(scriptPath)) {
+        reply.code(404)
+        return { error: 'Script package not found' }
+      }
+      try {
+        const raw = fs.readFileSync(scriptPath, 'utf-8')
+        return yamlParse(raw)
+      } catch (err: any) {
+        reply.code(500)
+        return { error: `Failed to parse script YAML: ${err.message}` }
+      }
+    }
+  )
+
+  // PUT /api/v1/books/:bookId/scripts/:packageId — save edited script package as YAML
+  app.put<{ Params: { bookId: string; packageId: string } }>(
+    '/api/v1/books/:bookId/scripts/:packageId',
+    async (request, reply) => {
+      const bookId = sanitizePathSegment(request.params.bookId, 'bookId')
+      const packageId = sanitizePathSegment(request.params.packageId, 'packageId')
+      const parsed = StoryPackageSchema.safeParse(request.body)
+      if (!parsed.success) {
+        reply.code(400)
+        return { error: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ') }
+      }
+      const scriptsDir = path.join(dataDir(), bookId, '03_Scripts')
+      ensureDir(scriptsDir)
+      const scriptPath = path.join(scriptsDir, `${packageId}.yaml`)
+      createBackup(scriptPath)
+      const yamlContent = yamlStringify(parsed.data)
+      fs.writeFileSync(scriptPath, yamlContent, 'utf-8')
+      return { ok: true, bytes: Buffer.byteLength(yamlContent, 'utf-8') }
+    }
+  )
+
+  // PATCH /api/v1/books/:bookId/scripts/:packageId/stages/:stageId — merge single stage
+  app.patch<{ Params: { bookId: string; packageId: string; stageId: string } }>(
+    '/api/v1/books/:bookId/scripts/:packageId/stages/:stageId',
+    async (request, reply) => {
+      const bookId = sanitizePathSegment(request.params.bookId, 'bookId')
+      const packageId = sanitizePathSegment(request.params.packageId, 'packageId')
+      const stageId = sanitizePathSegment(request.params.stageId, 'stageId')
+      const scriptPath = path.join(dataDir(), bookId, '03_Scripts', `${packageId}.yaml`)
+
+      if (!fs.existsSync(scriptPath)) {
+        reply.code(404)
+        return { error: 'Script package not found' }
+      }
+
+      const existing = yamlParse(fs.readFileSync(scriptPath, 'utf-8'))
+      if (!existing?.stages || !Array.isArray(existing.stages)) {
+        reply.code(500)
+        return { error: 'Existing YAML has no stages array' }
+      }
+
+      const stageBody = request.body as any
+      const stageData = { ...stageBody, id: stageId }
+
+      const idx = existing.stages.findIndex((s: any) => s.id === stageId)
+      if (idx >= 0) {
+        existing.stages[idx] = stageData
+      } else {
+        existing.stages.push(stageData)
+      }
+
+      const fullResult = StoryPackageSchema.safeParse(existing)
+      if (!fullResult.success) {
+        reply.code(400)
+        return { error: fullResult.error.issues.map((i: any) => `${i.path.join('.')}: ${i.message}`).join('; ') }
+      }
+
+      createBackup(scriptPath)
+      const yamlContent = yamlStringify(fullResult.data)
+      fs.writeFileSync(scriptPath, yamlContent, 'utf-8')
+      return { ok: true, stageId, bytes: Buffer.byteLength(yamlContent, 'utf-8') }
     }
   )
 }

@@ -23,30 +23,30 @@ export function buildHelpCard(): Record<string, unknown> {
     config: { wide_screen_mode: true },
     header: {
       template: 'indigo',
-      title: { tag: 'plain_text', content: 'AutoNovel-Studio 帮助' },
+      title: { tag: 'plain_text', content: 'InkFlow 帮助' },
     },
     elements: [
       {
         tag: 'markdown',
         content: [
-          '**书籍管理**',
-          '`/list` — 查看所有书籍',
-          '`/create <标题> [类型] [风格]` — 创建新书',
-          '`/select <bookId>` — 选择当前书籍',
-          '`/current` — 查看当前书籍信息',
+          '**项目管理**',
+          '`/list` — 查看所有项目',
+          '`/create <标题> [类型] [风格]` — 创建项目',
+          '`/select <projectId>` — 选择当前项目',
+          '`/current` — 查看当前项目信息',
           '',
           '**内容浏览**',
           '`/outline` — 查看大纲结构',
           '`/lore` — 查看设定（世界观/角色）',
-          '`/chapters` — 查看章节列表',
-          '`/review <chapterId>` — 查看审稿结果',
+          '`/chapters` — 查看段落列表',
+          '`/review <stageId>` — 查看审稿结果',
           '',
           '**对话**',
           '`/clear` — 清空对话历史',
           '`/history` — 查看对话历史',
           '',
-          '**自由输入 = 与 Author Agent 对话**',
-          '直接发消息即可与 AI 作者对话，支持写作、修改大纲、提交审稿等。',
+          '**自由输入 = 与编剧 Agent 对话**',
+          '直接发消息即可与 AI 编剧对话，支持写剧本、修改大纲、提交审稿等。',
         ].join('\n'),
       },
     ],
@@ -56,7 +56,7 @@ export function buildHelpCard(): Record<string, unknown> {
 /** Book list with select buttons */
 export function buildBookListCard(books: { book_id: string; title: string; genre?: string }[]): Record<string, unknown> {
   if (books.length === 0) {
-    return buildTextCard('书籍列表', '暂无书籍。发送 `/create <标题>` 创建一本新书。')
+    return buildTextCard('项目列表', '暂无项目。发送 `/create <标题>` 创建一个新项目。')
   }
   const rows = books.map(b =>
     `**${b.title}**${b.genre ? ` (${b.genre})` : ''}\nID: \`${b.book_id}\``
@@ -65,7 +65,7 @@ export function buildBookListCard(books: { book_id: string; title: string; genre
     config: { wide_screen_mode: true },
     header: {
       template: 'turquoise',
-      title: { tag: 'plain_text', content: `书籍列表 (${books.length})` },
+      title: { tag: 'plain_text', content: `项目列表 (${books.length})` },
     },
     elements: [
       {
@@ -80,7 +80,7 @@ export function buildBookListCard(books: { book_id: string; title: string; genre
       { tag: 'markdown', content: rows.join('\n\n') },
       {
         tag: 'note',
-        elements: [{ tag: 'plain_text', content: '点击按钮选择书籍，或发送 /select <bookId>' }],
+        elements: [{ tag: 'plain_text', content: '点击按钮选择项目，或发送 /select <projectId>' }],
       },
     ],
   }
@@ -89,7 +89,7 @@ export function buildBookListCard(books: { book_id: string; title: string; genre
 /** Single book info card */
 export function buildBookInfoCard(book: { title: string; genre?: string; tone?: string; target_words?: number; book_id: string }): Record<string, unknown> {
   return buildTextCard(
-    `当前书籍: ${book.title}`,
+    `当前项目: ${book.title}`,
     [
       `**ID:** \`${book.book_id}\``,
       book.genre ? `**类型:** ${book.genre}` : '',
@@ -105,7 +105,7 @@ export function buildOutlineCard(outline: any): Record<string, unknown> {
     if (!nodes || !Array.isArray(nodes)) return ''
     return nodes.map(n => {
       const indent = '  '.repeat(depth)
-      const icon = n.type === 'volume' ? '📁' : n.type === 'chapter' ? '📄' : '📋'
+      const icon = n.type === 'volume' || n.type === 'story_package' ? '📁' : n.type === 'chapter' || n.type === 'stage' ? '📄' : '📋'
       let line = `${indent}${icon} ${n.label || n.id}`
       if (n.status) line += ` [${n.status}]`
       if (n.children?.length) line += '\n' + walkNodes(n.children, depth + 1)
@@ -115,14 +115,14 @@ export function buildOutlineCard(outline: any): Record<string, unknown> {
 
   const content = outline?.label
     ? walkNodes([outline], 0)
-    : '大纲为空。与 Author Agent 对话来创建大纲。'
+    : '大纲为空。与编剧 Agent 对话来创建大纲。'
   return buildTextCard('大纲结构', content)
 }
 
 /** Lore summary card */
 export function buildLoreCard(lore: any): Record<string, unknown> {
   const sections: string[] = []
-  if (lore?.meta?.title) sections.push(`**书名:** ${lore.meta.title}`)
+  if (lore?.meta?.title) sections.push(`**项目:** ${lore.meta.title}`)
   if (lore?.meta?.genre) sections.push(`**类型:** ${lore.meta.genre}`)
   if (lore?.world_setting) {
     const ws = typeof lore.world_setting === 'string'
@@ -140,13 +140,13 @@ export function buildLoreCard(lore: any): Record<string, unknown> {
 /** Chapter list with status */
 export function buildChapterListCard(chapters: { id: string; label: string; status?: string }[]): Record<string, unknown> {
   if (!chapters?.length) {
-    return buildTextCard('章节列表', '暂无章节。')
+    return buildTextCard('段落列表', '暂无段落。')
   }
   const rows = chapters.map(c => {
     const icon = c.status === 'draft' ? '✅' : '📋'
     return `${icon} **${c.label}** \`${c.id}\`${c.status ? ` [${c.status}]` : ''}`
   })
-  return buildTextCard(`章节列表 (${chapters.length})`, rows.join('\n'))
+  return buildTextCard(`段落列表 (${chapters.length})`, rows.join('\n'))
 }
 
 /** Review results card */

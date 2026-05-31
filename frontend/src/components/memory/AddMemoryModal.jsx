@@ -12,8 +12,8 @@ export function AddMemoryModal({ open, onCancel, onSubmit }) {
           <label className="label-sc">Scope
             <select value={scope} onChange={e => setScope(e.target.value)}
               style={{ marginLeft: 8, padding: '2px 6px' }}>
-              <option value="user">跨书 / 用户偏好</option>
-              <option value="book">本书</option>
+              <option value="user">跨项目 / 用户偏好</option>
+              <option value="book">本项目</option>
             </select>
           </label>
           <textarea

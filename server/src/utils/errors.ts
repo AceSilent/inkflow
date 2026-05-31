@@ -5,7 +5,7 @@
  * error handling with specific types for different failure modes.
  */
 
-/** Base error for all AutoNovel agent errors */
+/** Base error for all InkFlow agent errors */
 export class AgentError extends Error {
   constructor(message: string, public readonly code: string) {
     super(message)

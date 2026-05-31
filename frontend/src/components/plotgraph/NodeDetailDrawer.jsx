@@ -28,7 +28,7 @@ export function NodeDetailDrawer({ open, node, edges, nodes, onClose, onPatch, o
       </div>
 
       <div className="drawer-section">
-        <div className="label-sc">章节引用</div>
+        <div className="label-sc">Stage 引用</div>
         <EditableField
           value={(node.references ?? []).join(', ')}
           onSave={v => onPatch({ references: v.split(',').map(s => s.trim()).filter(Boolean) })}

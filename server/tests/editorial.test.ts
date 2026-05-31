@@ -5,6 +5,7 @@ import { mergeTargetedReview } from '../src/editorial/editorial.js'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
+import { stringify as yamlStringify } from 'yaml'
 
 const PROMPTS_DIR = path.resolve(__dirname, '../../prompts')
 
@@ -53,11 +54,13 @@ describe('Editorial Templates', () => {
     }
   })
 
-  it('templates should contain draft placeholder', () => {
+  it('templates should contain content placeholder (draft or structured lines)', () => {
     for (const t of SCENE_TEMPLATES) {
       const fp = path.join(PROMPTS_DIR, t)
       const content = fs.readFileSync(fp, 'utf-8')
-      expect(content, `Template ${t} missing draft placeholder`).toContain('{{ draft }}')
+      const hasDraft = content.includes('{{ draft }}')
+      const hasLines = content.includes('{{ line.') || content.includes('for line in lines')
+      expect(hasDraft || hasLines, `Template ${t} missing content placeholder (neither {{ draft }} nor lines loop)`).toBe(true)
     }
   })
 
@@ -212,7 +215,7 @@ describe('Convergence tracking (persistReview)', () => {
 })
 
 describe('Editorial revision strategy', () => {
-  it('recommends chapter_edit for high-score local prose failures', () => {
+  it('recommends stage_edit for high-score local prose failures', () => {
     const strategy = buildRevisionStrategy([
       {
         reviewer: 'editorial_ai_tone',
@@ -226,16 +229,16 @@ describe('Editorial revision strategy', () => {
       { reviewer: 'editorial_causality', pass_status: true, issues: [], quick_comment: 'ok' },
     ])
 
-    expect(strategy.action).toBe('chapter_edit')
+    expect(strategy.action).toBe('stage_edit')
     expect(strategy.grade).toBe('light')
     expect(strategy.recommended_review_scope).toBe('failed_only')
     expect(strategy.target_reviewers).toEqual(['editorial_ai_tone'])
     expect(strategy.revision_brief).toContain('Rhetoric_Pileup')
-    expect(strategy.instruction).toContain('load_skill("chapter_edit")')
-    expect(strategy.instruction).toContain('禁止整章重写')
+    expect(strategy.instruction).toContain('load_skill("stage_edit")')
+    expect(strategy.instruction).toContain('禁止整个 stage 重写')
   })
 
-  it('recommends chapter_edit for medium local structural fixes that still preserve the chapter', () => {
+  it('recommends stage_edit for medium local structural fixes that still preserve the chapter', () => {
     const strategy = buildRevisionStrategy([
       {
         reviewer: 'editorial_causality',
@@ -254,11 +257,11 @@ describe('Editorial revision strategy', () => {
       { reviewer: 'editorial_character', pass_status: true, issues: [], quick_comment: 'ok' },
     ])
 
-    expect(strategy.action).toBe('chapter_edit')
-    expect(strategy.instruction).toContain('load_skill("chapter_edit")')
+    expect(strategy.action).toBe('stage_edit')
+    expect(strategy.instruction).toContain('load_skill("stage_edit")')
   })
 
-  it('recommends chapter_edit for multi-reviewer repairable local failures', () => {
+  it('recommends stage_edit for multi-reviewer repairable local failures', () => {
     const strategy = buildRevisionStrategy([
       {
         reviewer: 'editorial_pacing',
@@ -285,16 +288,16 @@ describe('Editorial revision strategy', () => {
       { reviewer: 'editorial_character', pass_status: true, issues: [], quick_comment: 'ok' },
     ])
 
-    expect(strategy.action).toBe('chapter_edit')
+    expect(strategy.action).toBe('stage_edit')
     expect(strategy.grade).toBe('medium')
     expect(strategy.recommended_review_scope).toBe('full')
-    expect(strategy.instruction).toContain('load_skill("chapter_edit")')
-    expect(strategy.instruction).toContain('不要整章重写')
+    expect(strategy.instruction).toContain('load_skill("stage_edit")')
+    expect(strategy.instruction).toContain('不要整个 stage 重写')
     expect(strategy.revision_brief).toContain('Camera_Blocking_Density')
     expect(strategy.revision_brief).toContain('Broken_Causality')
   })
 
-  it('recommends chapter_edit for all-reviewer local first-draft repair issues', () => {
+  it('recommends stage_edit for all-reviewer local first-draft repair issues', () => {
     const strategy = buildRevisionStrategy([
       {
         reviewer: 'editorial_lore',
@@ -345,13 +348,13 @@ describe('Editorial revision strategy', () => {
       },
     ])
 
-    expect(strategy.action).toBe('chapter_edit')
+    expect(strategy.action).toBe('stage_edit')
     expect(strategy.grade).toBe('medium')
     expect(strategy.recommended_review_scope).toBe('full')
-    expect(strategy.instruction).toContain('load_skill("chapter_edit")')
+    expect(strategy.instruction).toContain('load_skill("stage_edit")')
   })
 
-  it('recommends chapter_rewrite for low-score structural failures', () => {
+  it('recommends stage_rewrite for low-score structural failures', () => {
     const strategy = buildRevisionStrategy([
       {
         reviewer: 'editorial_lore',
@@ -373,10 +376,10 @@ describe('Editorial revision strategy', () => {
       },
     ])
 
-    expect(strategy.action).toBe('chapter_rewrite')
+    expect(strategy.action).toBe('stage_rewrite')
     expect(strategy.grade).toBe('severe')
     expect(strategy.recommended_review_scope).toBe('full')
-    expect(strategy.instruction).toContain('load_skill("chapter_rewrite")')
+    expect(strategy.instruction).toContain('load_skill("stage_rewrite")')
   })
 
   it('stops automatic revision as soon as the auto revision budget is exhausted', () => {
@@ -393,7 +396,7 @@ describe('Editorial revision strategy', () => {
     expect(strategy.grade).toBe('stuck')
     expect(strategy.auto_revision.exhausted).toBe(true)
     expect(strategy.instruction).toContain('停止自动重写')
-    expect(strategy.revision_brief).toContain('不要继续保存草稿或再次送审')
+    expect(strategy.revision_brief).toContain('不要继续保存剧本或再次送审')
     expect(strategy.revision_brief).not.toContain('保存后只复审')
   })
 
@@ -536,9 +539,16 @@ describe('Targeted editorial review merging', () => {
 describe('submit_to_editorial hard gates', () => {
   let tmpDir: string
 
+  function writeStageYaml(bookId: string, packageId: string, stageId: string, lines: { text: string }[]) {
+    const scriptsDir = path.join(tmpDir, bookId, '03_Scripts')
+    fs.mkdirSync(scriptsDir, { recursive: true })
+    const pkg = { stages: [{ id: stageId, lines: lines.map((l, i) => ({ id: `L${i}`, speaker: '旁白', text: l.text, type: 'narration' })) }] }
+    fs.writeFileSync(path.join(scriptsDir, `${packageId}.yaml`), yamlStringify(pkg), 'utf-8')
+  }
+
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'editorial-guard-'))
-    fs.mkdirSync(path.join(tmpDir, 'test-book', '04_Drafts'), { recursive: true })
+    fs.mkdirSync(path.join(tmpDir, 'test-book'), { recursive: true })
   })
 
   afterEach(() => {
@@ -555,29 +565,27 @@ describe('submit_to_editorial hard gates', () => {
     expect(result).toContain('最低要求')
   })
 
-  it('should reject when 04_Drafts/{chapterId}.md does not exist', async () => {
+  it('should reject when stage does not exist in 03_Scripts', async () => {
     const registry = createAllTools()
-    // Long enough to pass length guard, but file is missing.
     const longDraft = '正文'.repeat(1300)
     const result = await registry.execute('submit_to_editorial', {
       draft_text: longDraft,
       chapter_id: 'ch07',
     }, { bookId: 'test-book', dataDir: tmpDir })
     expect(result).toContain('Error')
-    expect(result).toContain('04_Drafts/ch07.md')
-    expect(result).toContain('save_draft')
+    expect(result).toContain('03_Scripts')
+    expect(result).toContain('save_script')
   })
 
-  it('should reject when saved draft is shorter than review minimum', async () => {
+  it('should reject when saved stage text is shorter than review minimum', async () => {
     const registry = createAllTools()
-    const draftPath = path.join(tmpDir, 'test-book', '04_Drafts', 'ch03.md')
-    fs.writeFileSync(draftPath, '短草稿'.repeat(100), 'utf8')
+    writeStageYaml('test-book', 'pkg1', 'ch03', [{ text: '短' }])
     const result = await registry.execute('submit_to_editorial', {
       draft_text: '正文'.repeat(1300),
       chapter_id: 'ch03',
     }, { bookId: 'test-book', dataDir: tmpDir })
     expect(result).toContain('Error')
-    expect(result).toContain('已保存草稿')
+    expect(result).toContain('stage')
     expect(result).toContain('最低要求')
   })
 })

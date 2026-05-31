@@ -208,15 +208,15 @@ describe('Write Tools', () => {
     const registry = createAllTools()
     const outline = JSON.stringify({
       id: 'test-book',
-      type: 'book',
+      type: 'project',
       label: '测试小说',
       children: [
         {
-          id: 'vol1',
-          type: 'volume',
-          label: '第一卷',
+          id: 'pkg1',
+          type: 'story_package',
+          label: '第一包',
           children: [
-            { id: 'ch01', type: 'chapter', label: '开篇', summary: '主角登场' },
+            { id: 'arrival', type: 'stage', label: '开篇', summary: '主角登场' },
           ],
         },
       ],
@@ -225,22 +225,22 @@ describe('Write Tools', () => {
     expect(result).toContain('Outline saved')
   })
 
-  it('read_outline should select a volume from the current children tree schema', async () => {
+  it('read_outline should select a story_package from the current children tree schema', async () => {
     const registry = createAllTools()
     const outline = JSON.stringify({
       id: 'test-book',
-      type: 'book',
+      type: 'project',
       label: '测试小说',
       children: [
-        { id: 'vol1', type: 'volume', label: '第一卷', children: [{ id: 'ch01', type: 'chapter', label: '开篇' }] },
-        { id: 'vol2', type: 'volume', label: '第二卷', children: [{ id: 'ch02', type: 'chapter', label: '进城' }] },
+        { id: 'pkg1', type: 'story_package', label: '第一包', children: [{ id: 'arrival', type: 'stage', label: '开篇' }] },
+        { id: 'pkg2', type: 'story_package', label: '第二包', children: [{ id: 'reunion', type: 'stage', label: '进城' }] },
       ],
     })
     await registry.execute('save_outline', { outline_json: outline }, { bookId: 'test-book', dataDir: tmpDir })
 
     const result = await registry.execute('read_outline', { volume: 2 }, { bookId: 'test-book', dataDir: tmpDir })
-    expect(result).toContain('"id": "vol2"')
-    expect(result).toContain('"id": "ch02"')
+    expect(result).toContain('"id": "pkg2"')
+    expect(result).toContain('"id": "reunion"')
   })
 
   it('save_outline should reject free-form JSON missing type', async () => {

@@ -126,22 +126,53 @@ export const DEFAULT_MACHINE_REVIEWERS: EditorialReviewerName[] = [
 ]
 export type ReviewScope = 'full' | 'failed_only' | 'targeted'
 
-// ── Template rendering (Jinja2 subset: {{ var }} + {% if var %}...{% endif %}) ──
+// ── Template rendering (Jinja2 subset: {{ var }} + {% if %} + {% for %}) ──
 
 /**
  * Minimal Jinja2-compatible renderer covering what the reader templates use:
  *   - `{{ var }}` / `{{var}}` variable substitution
  *   - `{% if var %}...{% endif %}` conditional blocks (no else, no nesting),
  *     where "truthy" = var is defined AND its rendered value is non-empty.
+ *   - `{% for item in list_var %}...{% endfor %}` loop blocks where list_var
+ *     is a JSON array in vars. When the list is missing or empty the block is
+ *     stripped. Inside the loop body, dotted access like `{{ item.field }}` is
+ *     resolved against each array element.
  *
- * Anything not covered (loops, filters, else, nested ifs) falls through
- * unchanged. Any dangling `{{ foo }}` after substitution is replaced with
- * "(未提供)" so the LLM never sees raw placeholders.
+ * Anything not covered (filters, else, nested ifs) falls through unchanged.
+ * Any dangling `{{ foo }}` after substitution is replaced with "（未提供）"
+ * so the LLM never sees raw placeholders. Unresolved `{% %}` tags are removed.
  */
 export function renderTemplate(templatePath: string, vars: Record<string, string>): string {
   let content = fs.readFileSync(templatePath, 'utf-8')
 
-  // 1. Resolve `{% if var %}...{% endif %}` blocks first so variables inside
+  // 1. Resolve `{% for item in list %}...{% endfor %}` blocks.
+  //    If the list var is absent/empty, strip the entire block.
+  //    Otherwise expand the body for each element, resolving dotted vars.
+  const forRegex = /\{%\s*for\s+([a-zA-Z_][a-zA-Z0-9_]*)\s+in\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*%\}([\s\S]*?)\{%\s*endfor\s*%\}/g
+  content = content.replace(forRegex, (_, itemName: string, listName: string, body: string) => {
+    const raw = vars[listName]
+    if (!raw || !raw.trim()) return ''
+    let arr: any[]
+    try { arr = JSON.parse(raw) } catch { return '' }
+    if (!Array.isArray(arr) || arr.length === 0) return ''
+    return arr.map((elem: any) => {
+      let line = body
+      if (elem && typeof elem === 'object') {
+        for (const [k, v] of Object.entries(elem)) {
+          const val = String(v ?? '')
+          line = line.replaceAll(`{{ ${itemName}.${k} }}`, val)
+          line = line.replaceAll(`{{${itemName}.${k}}}`, val)
+        }
+      } else {
+        // Primitive array — replace {{ itemName }} with the value
+        line = line.replaceAll(`{{ ${itemName} }}`, String(elem))
+        line = line.replaceAll(`{{${itemName}}}`, String(elem))
+      }
+      return line
+    }).join('')
+  })
+
+  // 2. Resolve `{% if var %}...{% endif %}` blocks so variables inside
   //    stripped blocks don't pollute the output.
   const ifRegex = /\{%\s*if\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*%\}([\s\S]*?)\{%\s*endif\s*%\}/g
   content = content.replace(ifRegex, (_, varName: string, body: string) => {
@@ -149,15 +180,19 @@ export function renderTemplate(templatePath: string, vars: Record<string, string
     return v && v.trim().length > 0 ? body : ''
   })
 
-  // 2. Substitute `{{ var }}` / `{{var}}` occurrences.
+  // 3. Substitute `{{ var }}` / `{{var}}` occurrences.
   for (const [key, value] of Object.entries(vars)) {
     content = content.replaceAll(`{{ ${key} }}`, value)
     content = content.replaceAll(`{{${key}}}`, value)
   }
 
-  // 3. Backstop — any unresolved `{{ anything }}` becomes "(未提供)" so the
+  // 4. Backstop — any unresolved `{{ anything }}` becomes "（未提供）" so the
   //    reviewer LLM doesn't see placeholder syntax.
-  content = content.replace(/\{\{\s*[a-zA-Z_][a-zA-Z0-9_]*\s*\}\}/g, '（未提供）')
+  content = content.replace(/\{\{\s*[a-zA-Z_][a-zA-Z0-9_.]*\s*\}\}/g, '（未提供）')
+
+  // 5. Strip any remaining unresolved `{% %}` tags (e.g. from partially
+  //    matched or unsupported Jinja2 constructs).
+  content = content.replace(/\{%[^%]*%\}/g, '')
 
   return content
 }

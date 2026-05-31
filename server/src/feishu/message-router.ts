@@ -102,7 +102,7 @@ export function createMessageHandler(feishuClient: FeishuClient) {
     // Free text = chat with Agent
     const bookId = resolveBookId(dataDir, sessionKey)
     if (!bookId) {
-      await feishuClient.sendText(chatId, '请先选择一本书。发送 /list 查看书列表，或 /create <标题> 创建新书。')
+      await feishuClient.sendText(chatId, '请先选择一个项目。发送 /list 查看项目列表，或 /create <标题> 创建项目。')
       return
     }
 

@@ -84,7 +84,7 @@ export function buildMarkdownMemoryContext(
 
   const parts: string[] = []
   if (globalResult.lines.length > 0) parts.push(`[记忆·用户偏好]\n${globalResult.lines.join('\n')}`)
-  if (projectResult.lines.length > 0) parts.push(`[记忆·本书]\n${projectResult.lines.join('\n')}`)
+  if (projectResult.lines.length > 0) parts.push(`[记忆·本项目]\n${projectResult.lines.join('\n')}`)
   if (sessionResult.lines.length > 0) parts.push(`[会话摘要·最近]\n${sessionResult.lines.join('\n')}`)
 
   return parts.join('\n\n')

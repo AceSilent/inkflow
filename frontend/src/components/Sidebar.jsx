@@ -56,10 +56,13 @@ export function Sidebar({ activePanel, addToast, onSelect, onBookSelect, onNewBo
     if (node.type === 'scene') {
       onSelect?.({ id: node.id, label: node.label, type: 'scene', bookId })
     }
-    if (node.type === 'chapter' || node.type === 'volume' || node.type === 'draft') {
-      // Also set book context so ChapterWorkbench gets the bookId
+    if (node.type === 'chapter' || node.type === 'stage' || node.type === 'draft') {
       if (bookId) onBookSelect?.({ book_id: bookId, title: '' })
-      onSelect?.({ id: node.id, label: node.label, type: node.type, summary: node.summary, bookId })
+      onSelect?.({ id: node.id, label: node.label, type: 'chapter', summary: node.summary, bookId })
+    }
+    if (node.type === 'volume' || node.type === 'story_package') {
+      if (bookId) onBookSelect?.({ book_id: bookId, title: '' })
+      onSelect?.({ id: node.id, label: node.label, type: 'volume', summary: node.summary, bookId })
     }
   }
 
@@ -139,19 +142,19 @@ function TreeNode({ node, index = 0, bookId, level = 0, selectedId, onSelect, on
         <span className={`tree-item-toggle ${open ? 'open' : ''}`} style={{ visibility: hasChildren ? 'visible' : 'hidden' }}><ChevronRight size={12} /></span>
         <span className="tree-item-icon" style={{ color: hasChildren ? 'var(--warning)' : 'var(--accent)' }}><Icon size={15} /></span>
         <span className="tree-item-label">
-          {node.type === 'volume' && node.id !== '__orphan_drafts__' && (
+          {(node.type === 'volume' || node.type === 'story_package') && node.id !== '__orphan_drafts__' && (
             <span className="label-sc" style={{ color: 'var(--accent)', marginRight: 6 }}>
-              Vol. {toRoman(index + 1)}
+              Pkg. {toRoman(index + 1)}
             </span>
           )}
-          {node.type === 'chapter' && (
+          {(node.type === 'chapter' || node.type === 'stage') && (
             <span className="label-sc" style={{ color: 'var(--accent)', marginRight: 4 }}>
               {toRoman(index + 1)}.
             </span>
           )}
           {node.label}
         </span>
-        {node.type === 'chapter' && node.status && (
+        {(node.type === 'chapter' || node.type === 'stage') && node.status && (
           <span style={{
             width: 6, height: 6, borderRadius: '50%', flexShrink: 0, marginLeft: 4,
             background: node.status === 'draft' ? 'var(--success)' : node.status === 'reviewed' ? 'var(--accent)' : 'var(--warning)',

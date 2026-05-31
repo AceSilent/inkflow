@@ -1,6 +1,6 @@
 import type { EditorialFeedback } from './pipeline.js'
 
-export type RevisionStrategyAction = 'none' | 'chapter_edit' | 'chapter_rewrite' | 'ask_human' | 'stop_auto_revision'
+export type RevisionStrategyAction = 'none' | 'stage_edit' | 'stage_rewrite' | 'ask_human' | 'stop_auto_revision'
 export type RevisionStrategyGrade = 'pass' | 'light' | 'medium' | 'severe' | 'stuck'
 export type RevisionReviewScope = 'failed_only' | 'full'
 
@@ -158,12 +158,12 @@ function issueInstruction(issue: { type?: string; quote?: string; fix_instructio
 
 export function buildRevisionBrief(
   feedbacks: EditorialFeedback[],
-  action: RevisionStrategyAction = 'chapter_edit',
+  action: RevisionStrategyAction = 'stage_edit',
   reviewScope: RevisionReviewScope = 'failed_only',
 ): string {
   const failing = failingFeedbacks(feedbacks)
   if (failing.length === 0) {
-    return '本轮机器慢审已通过。除非人类提出新的创作意图或批注，不要继续改写本章。'
+    return '本轮机器慢审已通过。除非人类提出新的创作意图或批注，不要继续改写本 stage。'
   }
 
   const lines: string[] = []
@@ -204,7 +204,7 @@ export function buildRevisionBrief(
     idx += 1
   }
 
-  lines.push(`${idx}. ${action === 'chapter_rewrite' ? '可以整章重写，但必须保留大纲目标、核心事件和章末落点。' : '保留章节目标和主要事件，不要整章换剧情。'}`)
+  lines.push(`${idx}. ${action === 'stage_rewrite' ? '可以整个 stage 重写，但必须保留大纲目标、核心事件和 stage 末尾落点。' : '保留 stage 目标和主要事件，不要整个 stage 换剧情。'}`)
   idx += 1
   lines.push(`${idx}. 保存后${reviewScope === 'failed_only' ? `只复审 ${reviewers}` : '全量复审设定考据与逻辑审核'}；最终仍需本轮慢审通过并由人类终审，或人类直接通过。`)
   return lines.join('\n')
@@ -230,7 +230,7 @@ function buildStopAutoRevisionBrief(
       `${i + 1}. ${reviewer}：${issueInstruction(issue)}`
     ),
     '',
-    '不要继续保存草稿或再次送审。请等待人类批注、人工通过、调整大纲，或明确授权开启新的修订批次。',
+    '不要继续保存剧本或再次送审。请等待人类批注、人工通过、调整大纲，或明确授权开启新的修订批次。',
   ].join('\n')
 }
 
@@ -260,7 +260,7 @@ function withStrategyDefaults(
       score: strategy.score,
       reason: stopReason,
       instruction: [
-        '停止自动重写。不要再调用 save_draft 或 submit_to_editorial 进入下一轮自循环。',
+        '停止自动重写。不要再调用 save_script 或 submit_to_editorial 进入下一轮自循环。',
         '请向人类汇报未过审稿人、关键问题和你需要的创作判断；等待人类批注、人工通过、调整大纲或明确授权重写。',
       ].join('\n'),
       target_reviewers: targetReviewers,
@@ -296,7 +296,7 @@ export function buildRevisionStrategy(feedbacks: EditorialFeedback[], options: R
       grade: 'pass',
       score: 100,
       reason: '全部审稿人通过，无需修订。',
-      instruction: '章节已通过编辑部。不要继续改写，除非用户提出新的创作意图或批注。',
+      instruction: 'Stage 已通过编辑部。不要继续改写，除非用户提出新的创作意图或批注。',
     }, feedbacks, 'full', options)
   }
 
@@ -317,39 +317,39 @@ export function buildRevisionStrategy(feedbacks: EditorialFeedback[], options: R
 
   if (allLocalProse || (score >= 70 && structuralCriticals === 0)) {
     return withStrategyDefaults({
-      action: 'chapter_edit',
+      action: 'stage_edit',
       grade: 'light',
       score,
-      reason: `章节基础成立；失败集中在局部问题（${failedCount} 个审稿人未过，加权严重度 ${weightedSeverity}）。`,
-      instruction: '这章禁止整章重写。请先 load_skill("chapter_edit")，严格按 revision_brief 做局部替换、插段或删改，然后 save_draft，并用 failed_only 复审未过审稿人。',
+      reason: `Stage 基础成立；失败集中在局部问题（${failedCount} 个审稿人未过，加权严重度 ${weightedSeverity}）。`,
+      instruction: '本 stage 禁止整个 stage 重写。请先 load_skill("stage_edit")，严格按 revision_brief 做局部替换、插段或删改，然后 save_script，并用 failed_only 复审未过审稿人。',
     }, feedbacks, 'failed_only', options)
   }
 
   if (allRepairableLocal && rootStructuralFailures === 0) {
     return withStrategyDefaults({
-      action: 'chapter_edit',
+      action: 'stage_edit',
       grade: 'medium',
       score,
-      reason: `章节主干仍可保留；问题集中在可局部手术的文风、节奏压力或因果桥补丁（${failedCount} 个审稿人未过，最高严重度 ${maxSeverity}，加权严重度 ${weightedSeverity}）。`,
-      instruction: '优先 load_skill("chapter_edit")。保留章节目标和主要事件，按 revision_brief 做局部删除、替换和补桥段；不要整章重写。因为牵涉多个审稿维度，保存后用 full 复审设定考据与逻辑审核。',
+      reason: `Stage 主干仍可保留；问题集中在可局部手术的文风、节奏压力或因果桥补丁（${failedCount} 个审稿人未过，最高严重度 ${maxSeverity}，加权严重度 ${weightedSeverity}）。`,
+      instruction: '优先 load_skill("stage_edit")。保留 stage 目标和主要事件，按 revision_brief 做局部删除、替换和补桥段；不要整个 stage 重写。因为牵涉多个审稿维度，保存后用 full 复审设定考据与逻辑审核。',
     }, feedbacks, failedCount > 1 ? 'full' : 'failed_only', options)
   }
 
   if (score >= 50 && failedCount <= 2 && structuralCriticals <= 1) {
     return withStrategyDefaults({
-      action: 'chapter_edit',
+      action: 'stage_edit',
       grade: 'medium',
       score,
-      reason: `章节主干仍可保留，但需要较明显的局部补强（${failedCount} 个审稿人未过，最高严重度 ${maxSeverity}，加权严重度 ${weightedSeverity}）。`,
-      instruction: '优先 load_skill("chapter_edit") 并严格按 revision_brief 处理。可以新增或替换若干段落来补强因果、动机、设定或节奏，但不要推翻章节目标；若改动结构、设定事实或角色动机，复审用 full。',
+      reason: `Stage 主干仍可保留，但需要较明显的局部补强（${failedCount} 个审稿人未过，最高严重度 ${maxSeverity}，加权严重度 ${weightedSeverity}）。`,
+      instruction: '优先 load_skill("stage_edit") 并严格按 revision_brief 处理。可以新增或替换若干段落来补强因果、动机、设定或节奏，但不要推翻 stage 目标；若改动结构、设定事实或角色动机，复审用 full。',
     }, feedbacks, structuralCriticals > 0 ? 'full' : 'failed_only', options)
   }
 
   return withStrategyDefaults({
-    action: 'chapter_rewrite',
+    action: 'stage_rewrite',
     grade: 'severe',
     score,
-    reason: `章节存在结构性失败或低分审稿结果（${failedCount} 个审稿人未过，最高严重度 ${maxSeverity}，加权严重度 ${weightedSeverity}）。`,
-    instruction: '本章不适合补丁式修。请先 load_skill("chapter_rewrite")，重新确认大纲、设定和剧情图后整章重写，再 save_draft 并重新 submit_to_editorial。',
+    reason: `Stage 存在结构性失败或低分审稿结果（${failedCount} 个审稿人未过，最高严重度 ${maxSeverity}，加权严重度 ${weightedSeverity}）。`,
+    instruction: '本 stage 不适合补丁式修。请先 load_skill("stage_rewrite")，重新确认大纲、设定和剧情图后整个 stage 重写，再 save_script 并重新 submit_to_editorial。',
   }, feedbacks, 'full', options)
 }

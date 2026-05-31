@@ -1,5 +1,5 @@
 /**
- * AutoNovel-Studio TypeScript Backend — Entry Point
+ * InkFlow Game Script Authoring Backend — Entry Point
  */
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
@@ -34,7 +34,7 @@ app.get('/health', async () => ({ status: 'ok', engine: 'autonovel-ts' }))
 
 const start = async () => {
   await app.listen({ port: 3001, host: '0.0.0.0' })
-  console.log('AutoNovel TS backend running on :3001')
+  console.log('InkFlow backend running on :3001')
   await initFeishu(app)
 }
 start()

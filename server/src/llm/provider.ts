@@ -1,8 +1,9 @@
 /**
  * LLM Provider config — creates a Vercel AI SDK provider from config.
- * Supports OpenAI, DeepSeek, DashScope, Kimi, ZhipuAI — any OpenAI-compatible endpoint.
+ * Supports Google Gemini (native), OpenAI, DeepSeek, DashScope, Kimi, ZhipuAI.
  */
 import { createOpenAI } from '@ai-sdk/openai'
+import { createGoogleGenerativeAI } from '@ai-sdk/google'
 
 export interface LLMConfig {
   apiKey: string
@@ -256,7 +257,20 @@ export function createReasoningFetch(
   return customFetch
 }
 
+function isGeminiModel(config: LLMConfig): boolean {
+  return config.model.toLowerCase().startsWith('gemini')
+    || (config.baseURL ?? '').includes('generativelanguage.googleapis.com')
+}
+
 export function createProvider(config: LLMConfig, onProgress?: ProviderProgressCallback) {
+  if (isGeminiModel(config)) {
+    const google = createGoogleGenerativeAI({
+      apiKey: config.apiKey,
+      fetch: (url, init) => fetchWithRetry(url, init, onProgress),
+    })
+    return google(config.model)
+  }
+
   const needsReasoningWrap = isReasoningModel(config.model)
 
   // Always wrap fetch — reasoning models also get the SSE transformer; everyone

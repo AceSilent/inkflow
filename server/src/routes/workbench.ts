@@ -59,7 +59,7 @@ function buildAnnotationPrompt(
   reviewAfterRevision: 'none' | 'failed_only' | 'full' = 'none',
 ): string {
   const lines: string[] = [
-    `请根据以下批注修改第 ${chId} 章（原文在 04_Drafts/${chId}.md）。`,
+    `请根据以下批注修改 stage ${chId}（原文在 04_Drafts/${chId}.md）。`,
     '',
   ]
   annotations.forEach((a, i) => {
@@ -71,10 +71,10 @@ function buildAnnotationPrompt(
     lines.push('')
   })
   lines.push(
-    `请先 load_skill("chapter_edit")，优先做局部编辑和必要扩写，保留已经成立的段落、语气和伏笔；只有结构整体失效时才 load_skill("chapter_rewrite") 整章重写。`,
+    `请先 load_skill("stage_edit")，优先做局部编辑和必要扩写，保留已经成立的段落、语气和伏笔；只有结构整体失效时才 load_skill("stage_rewrite") 整个 stage 重写。`,
   )
   lines.push(
-    `修改后用 save_draft 保存完整新版本。保存稿必须不少于 ${MIN_REVIEW_DRAFT_CHARS} 字符。`,
+    `修改后用 save_script 保存完整新版本。保存稿必须不少于 ${MIN_REVIEW_DRAFT_CHARS} 字符。`,
   )
   if (reviewAfterRevision === 'failed_only') {
     lines.push('保存后调用 submit_to_editorial，并传 review_scope: "failed_only"、reset_auto_revision_budget: true，只复审上一轮未过的设定/逻辑审稿人；慢审通过后仍等待人类终审。')
@@ -262,7 +262,7 @@ export const workbenchRoutes: FastifyPluginAsync<WorkbenchOptions> = async (app,
       })
       if (selfCheck.blockEditorial) {
         return reply.code(400).send({
-          error: '保存草稿未通过本地快速自检，暂不进入慢审稿。',
+          error: '保存剧本未通过本地快速自检，暂不进入慢审稿。',
           code: 'DRAFT_SELF_CHECK_FAILED',
           self_check: selfCheck,
           message: formatDraftSelfCheck(selfCheck),

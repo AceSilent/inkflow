@@ -112,10 +112,10 @@ export function ScriptPreview({ stages = [], templateVars: initialVars = {} }) {
           ))}
         </div>
       )}
-      {currentStage?.is_terminal && allLinesShown && (
+      {allLinesShown && choices.length === 0 && !currentStage?.advance_next && (
         <div className="preview-terminal">
-          <p>— 终 —</p>
-          <button onClick={restart}>重新开始</button>
+          {currentStage?.is_terminal && <p>— 终 —</p>}
+          <button onClick={restart}>回到开头</button>
         </div>
       )}
       {history.length > 0 && (

@@ -3,15 +3,18 @@
 [![中文](https://img.shields.io/badge/中文-README-6b6257)](README.md)
 [![English](https://img.shields.io/badge/English-current-8b3f2f)](README.en.md)
 
-InkFlow is a local-first AI novel authoring studio for long-running personal writing projects. It brings the Author Agent, lore, outlines, plot graphs, chapter drafts, draft self-checks, and editorial review into one web UI so writers can iterate around a book instead of generating isolated text snippets.
+InkFlow is a local-first AI game script authoring studio for long-running game narrative projects. It brings the Scriptwriter Agent, lore, plot graphs, line-based scripts, branch self-checks, and editorial review into one web UI so creators can iterate around a game's narrative instead of generating isolated text snippets.
 
 ## Features
 
-- Create and manage novel projects from the web UI.
-- Chat with the Author Agent to build lore, outlines, plot graphs, and chapter drafts.
-- Run draft self-checks before saving to catch common AI-tone, length, and formatting issues early.
-- Review chapters with configurable lore and logic reviewers.
-- Store book data, drafts, reviews, and settings locally on disk so state survives app restarts.
+- Create and manage game script projects from the web UI.
+- Chat with the Scriptwriter Agent to build lore, plot graphs, outlines, and line-based scripts.
+- Four line types — dialogue, narration, action, thought — with direction tags (bgm, sfx, bg, shake, flash, wait) for scene staging.
+- 2–4 branch choices per stage, with self-checks for branch closure, endpoint reachability, and orphan detection.
+- Run script self-checks before saving to catch broken links, empty stages, narration overload, and other structural issues.
+- Review with configurable lore compliance and causal logic reviewers.
+- Store project data, scripts, reviews, and settings locally on disk so state survives app restarts.
+- Export scripts to YAML, JSON, CSV, or HTML.
 
 ## Requirements
 
@@ -52,7 +55,7 @@ The launcher starts:
 - Backend: `http://127.0.0.1:3001`
 - Frontend: `http://127.0.0.1:5173`
 
-By default, runtime data is stored in the repository root `books/` directory.
+By default, runtime data is stored in a data directory at the repository root (default `books/`, configurable via `AUTONOVEL_DATA_DIR`).
 
 Stop the app:
 

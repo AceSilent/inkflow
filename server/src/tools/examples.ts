@@ -160,7 +160,7 @@ function analyzeStyle(referenceText: string) {
 export const analyzeStyleProfileTool: ToolDefinition = {
   name: 'analyze_style_profile',
   description: [
-    '分析用户提供的参考文本，生成并保存本书 style_profile.json。',
+    '分析用户提供的参考文本，生成并保存本项目 style_profile.json。',
     '用于把范文库从原文参考升级为文风控制面：句长、段落、对话、吐槽、比喻密度、AI腔禁区。',
     '只提取风格指纹和写作约束，不复用原文句子。',
   ].join('\n'),

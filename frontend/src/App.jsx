@@ -9,6 +9,7 @@ import { AuthorChatPanel } from './components/AuthorChatPanel'
 import { OutlineView } from './components/OutlineView'
 import { PlotGraphView } from './components/PlotGraphView'
 import { ChapterWorkbench } from './components/ChapterWorkbench'
+import { StageWorkbench } from './components/StageWorkbench'
 import { MemoryLibrary } from './components/MemoryLibrary'
 import { SettingsPanel } from './components/SettingsPanel'
 import { NewBookModal } from './components/NewBookModal'
@@ -85,10 +86,8 @@ export default function App() {
     }
   }, [openTab])
 
-  const renderEditor = () => {
+  const renderTransientTab = () => {
     switch (activeTab) {
-      case 'brainstorm': return <BrainstormPanel addToast={addToast} currentBook={currentBook} onDataChanged={refreshData} />;
-      case 'author-chat': return <AuthorChatPanel currentBook={currentBook} addToast={addToast} onLoreUpdated={refreshData} />;
       case 'outline':
         return <OutlineView
           currentBook={currentBook}
@@ -107,11 +106,14 @@ export default function App() {
       case 'settings': return <SettingsPanel addToast={addToast} theme={theme} toggleTheme={toggleTheme} currentBook={currentBook} />;
       default:
         if (activeTab.startsWith('chapter-') && activeChapter) {
-          return <ChapterWorkbench bookId={currentBook?.book_id} chapterId={activeChapter.id} chapterLabel={activeChapter.label} addToast={addToast} dataVersion={dataVersion} />;
+          return <StageWorkbench bookId={currentBook?.book_id} stageId={activeChapter.id} stageLabel={activeChapter.label} addToast={addToast} dataVersion={dataVersion} />;
         }
-        return <BrainstormPanel addToast={addToast} currentBook={currentBook} onDataChanged={refreshData} />;
+        return null;
     }
   }
+
+  const isPersistedTab = activeTab === 'brainstorm' || activeTab === 'author-chat'
+  const transientContent = !isPersistedTab ? renderTransientTab() : null
 
   return (
     <div className={`app-shell ${!sidebarOpen ? 'sidebar-collapsed' : ''}`} data-theme={theme}>
@@ -140,9 +142,17 @@ export default function App() {
       <main className="main-area">
         <div className="editor-section">
           <TabBar tabs={tabs} activeTab={activeTab} onSelect={setActiveTab} onClose={closeTab} />
-          <div className="editor-content anim-fade" key={activeTab}>
-            {renderEditor()}
+          <div className="editor-content" style={{ display: activeTab === 'brainstorm' ? undefined : 'none' }}>
+            <BrainstormPanel addToast={addToast} currentBook={currentBook} onDataChanged={refreshData} />
           </div>
+          <div className="editor-content" style={{ display: activeTab === 'author-chat' ? undefined : 'none' }}>
+            <AuthorChatPanel currentBook={currentBook} addToast={addToast} onLoreUpdated={refreshData} />
+          </div>
+          {transientContent && (
+            <div className="editor-content anim-fade" key={activeTab}>
+              {transientContent}
+            </div>
+          )}
         </div>
       </main>
 

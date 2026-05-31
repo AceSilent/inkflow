@@ -10,7 +10,7 @@
 提取为 JSON 数组（不要包含 markdown 代码块围栏，只返回纯 JSON）：
 [
   {
-    "scope": "user" | "book" | "session",
+    "scope": "user" | "project" | "session",
     "type": "preference" | "plot_note" | "fact" | "discussion",
     "title": "简短标题（< 20 字）",
     "body": "具体内容 + 上下文",
@@ -24,7 +24,7 @@
 - 用户"试试 Y 方向" → confidence 0.5-0.7（临时讨论）
 - 用户问问题 / 闲聊 → confidence < 0.3 或整体返回 `[]`
 - 如果对话里 Agent 已复述过的信息 → 降低 confidence
-- scope="book" 当且仅当信息与当前书高度绑定
+- scope="project" 当且仅当信息与当前项目高度绑定
 - book_id 如有 → {{bookId}}
 
 如果没有值得提取的，返回 `[]`。

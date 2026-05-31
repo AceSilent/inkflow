@@ -3,15 +3,18 @@
 [![中文](https://img.shields.io/badge/中文-当前-8b3f2f)](README.md)
 [![English](https://img.shields.io/badge/English-README-6b6257)](README.en.md)
 
-InkFlow 是一个本地优先的 AI 小说创作工作台，面向个人长期写作项目。它把作者 Agent、设定库、大纲、剧情图、章节草稿、自检和编辑审稿整合到一个 Web UI 里，让创作者可以围绕一本书持续迭代，而不是一次性生成一段文本。
+InkFlow 是一个本地优先的 AI 游戏剧本创作工作台，面向游戏文案长期迭代项目。它把编剧 Agent、设定库、剧情图、line-based 剧本（dialogue/narration/action/thought + direction 演出指示）、分支自检和审核整合到一个 Web UI 里，让创作者可以围绕一款游戏持续打磨剧本，而不是一次性生成一段文本。
 
 ## 功能
 
-- 在 Web UI 中创建和管理小说项目。
-- 与作者 Agent 对话，生成设定、大纲、剧情图和章节草稿。
-- 在保存草稿前执行自检，提前拦截常见 AI 腔、字数不足和格式问题。
-- 支持设定考据、逻辑审核等慢审流程。
-- 书籍数据、草稿、审稿结果和设置默认保存在本地文件中，关闭重开后可恢复状态。
+- 在 Web UI 中创建和管理游戏剧本项目（project → story_package → stage 三级结构）。
+- 与编剧 Agent 对话，生成世界设定、剧情图、大纲和 line-based 剧本。
+- 支持 dialogue / narration / action / thought 四种行类型，配合 direction（bgm、sfx、bg、shake、flash、wait）演出指示。
+- 支持 2-4 分支选项设计（choices），自检分支闭合、终点可达和孤岛检测。
+- 保存剧本前执行自检，提前拦截断链、空 stage、旁白过长等结构问题。
+- 支持设定考据、因果逻辑等审核流程（editorial pipeline）。
+- 项目数据、剧本、审稿结果和设置默认保存在本地文件中，关闭重开后可恢复状态。
+- 支持导出为 YAML / JSON / CSV / HTML 多种格式。
 
 ## 环境要求
 
@@ -52,7 +55,7 @@ start.cmd
 - Backend: `http://127.0.0.1:3001`
 - Frontend: `http://127.0.0.1:5173`
 
-默认运行数据保存在仓库根目录的 `books/`。
+默认运行数据保存在仓库根目录的数据目录（默认 `books/`，可通过 `AUTONOVEL_DATA_DIR` 配置）。
 
 退出应用：
 

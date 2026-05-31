@@ -76,7 +76,7 @@ function SortableChapterRow({ bookId, chNode, index, onOpen, onPatch, onKey, reo
           <EditableField
             value={chNode.label}
             onSave={(v) => onPatch({ label: v })}
-            placeholder="— 点此添加章标题 —"
+            placeholder="— 点此添加标题 —"
           />
         </div>
         <div className="chapter-summary">
@@ -84,7 +84,7 @@ function SortableChapterRow({ bookId, chNode, index, onOpen, onPatch, onKey, reo
             multiline
             value={chNode.summary}
             onSave={(v) => onPatch({ summary: v })}
-            placeholder="— 点此添加章摘要 —"
+            placeholder="— 点此添加摘要 —"
           />
         </div>
       </div>
@@ -92,7 +92,7 @@ function SortableChapterRow({ bookId, chNode, index, onOpen, onPatch, onKey, reo
         className={`chapter-status label-sc ${statusClass}`}
         onClick={() => onOpen?.(chNode)}
         style={{ cursor: 'pointer' }}
-        title="打开章节工作台"
+        title="打开工作台"
       >
         {status === 'Done' && <Check size={10} style={{ marginRight: 3, verticalAlign: 'middle' }} />}
         {status} ↗
@@ -105,7 +105,7 @@ function FreeformFallback({ data }) {
   return (
     <div style={{ padding: 20 }}>
       <div style={{ background: 'var(--accent-soft)', padding: 10, marginBottom: 16, fontSize: 11, color: 'var(--ink-secondary)' }}>
-        大纲是 free-form JSON，非标准章节树。新视图不支持编辑，请用 Agent 重新生成规范 outline。
+        大纲是 free-form JSON，非标准结构树。新视图不支持编辑，请用 Agent 重新生成规范 outline。
       </div>
       <pre style={{ fontSize: 11, background: 'var(--bg-subtle)', padding: 10, overflow: 'auto', color: 'var(--ink-secondary)' }}>
         {JSON.stringify(data, null, 2)}
@@ -256,7 +256,7 @@ export function OutlineView({ currentBook, addToast, onChapterOpen, dataVersion 
     )
   }
   if (!currentBook) {
-    return <div style={{ padding: 40, textAlign: 'center', color: 'var(--ink-muted)' }}>未选择书籍</div>
+    return <div style={{ padding: 40, textAlign: 'center', color: 'var(--ink-muted)' }}>未选择项目</div>
   }
   if (!outline) {
     return <div style={{ padding: 40, color: 'var(--ink-muted)' }}>大纲为空</div>
@@ -282,11 +282,11 @@ export function OutlineView({ currentBook, addToast, onChapterOpen, dataVersion 
           <button
             className={`btn btn-sm ${reorderMode ? 'on' : ''}`}
             onClick={() => setReorderMode(!reorderMode)}
-            title="切换重排模式"
+            title="切换排序模式"
           >
             重排模式
           </button>
-          <button className="btn btn-sm" onClick={() => setRenumberOpen(true)} title="整理章节编号">
+          <button className="btn btn-sm" onClick={() => setRenumberOpen(true)} title="整理段落编号">
             <RefreshCw size={12} /> 整理编号
           </button>
           <button className="btn btn-sm" title="导出 .md"><FileText size={12} /></button>
@@ -315,7 +315,7 @@ export function OutlineView({ currentBook, addToast, onChapterOpen, dataVersion 
                 multiline
                 value={outline.synopsis}
                 onSave={(v) => patchBook({ synopsis: v })}
-                placeholder="— 点此添加全书梗概 —"
+                placeholder="— 点此添加项目梗概 —"
               />
             </p>
 
@@ -333,7 +333,7 @@ export function OutlineView({ currentBook, addToast, onChapterOpen, dataVersion 
                         <EditableField
                           value={vol.label}
                           onSave={(v) => patchVolume(volIdx, { label: v })}
-                          placeholder="（卷名）"
+                          placeholder="（剧本包名）"
                         />
                       </span>
                     </div>
@@ -342,7 +342,7 @@ export function OutlineView({ currentBook, addToast, onChapterOpen, dataVersion 
                         multiline
                         value={vol.synopsis}
                         onSave={(v) => patchVolume(volIdx, { synopsis: v })}
-                        placeholder="— 点此添加卷梗概 —"
+                        placeholder="— 点此添加剧本包梗概 —"
                       />
                     </p>
                     {(vol.children || []).map((ch, chIdx) => (
@@ -374,7 +374,7 @@ export function OutlineView({ currentBook, addToast, onChapterOpen, dataVersion 
           try {
             const r = await fetch(`/api/v1/books/${currentBook.book_id}/outline/renumber`, { method: 'POST' })
             const data = await r.json()
-            addToast?.(`已重编 ${data.renamed?.length ?? 0} 章`, 'success')
+            addToast?.(`已重编 ${data.renamed?.length ?? 0} 段`, 'success')
             const updated = await fetch(`/api/v1/books/${currentBook.book_id}/outline`).then(x => x.json())
             setOutline(updated)
           } catch (e) {

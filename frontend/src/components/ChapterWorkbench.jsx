@@ -40,7 +40,7 @@ export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, da
   const contentRef = useRef('')
   useEffect(() => { contentRef.current = content }, [content])
 
-  const chNum = parseInt(chapterId.replace(/^ch/i, ''), 10) || 0
+  const chNum = parseInt(chapterId.replace(/^ch/i, ''), 10) || null
 
   // Initial load
   useEffect(() => {
@@ -107,7 +107,7 @@ export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, da
       const data = await r.json()
       setStatus(data)
       setApprovalOpen(false)
-      addToast?.(gate === 'pre_review' ? '人审通过，可进入下一章' : '终审通过，可进入下一章', 'success')
+      addToast?.(gate === 'pre_review' ? '人审通过，可进入下一段' : '终审通过，可进入下一段', 'success')
     } catch (e) {
       addToast?.(`保存失败：${e.message}`, 'error')
     }
@@ -273,7 +273,7 @@ export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, da
     <div className="workbench" data-locked={locked}>
       {/* Left rail */}
       <aside className="workbench-rail">
-        <span className="rail-label">Ch. {toRoman(chNum)}</span>
+        <span className="rail-label">{chNum ? `Ch. ${toRoman(chNum)}` : chapterId}</span>
       </aside>
 
       {/* Main area */}
@@ -281,7 +281,7 @@ export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, da
         {/* Top bar */}
         <div className="workbench-topbar">
           <div className="workbench-title">
-            <span className="label-sc" style={{ color: 'var(--accent)' }}>Ch. {toRoman(chNum)}</span>
+            {chNum && <span className="label-sc" style={{ color: 'var(--accent)' }}>Ch. {toRoman(chNum)}</span>}
             <span className="display-heading">
               {chapterLabel}{dirty && <span style={{ color: 'var(--accent)', marginLeft: 6 }}>●</span>}
             </span>
@@ -320,7 +320,7 @@ export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, da
 
         {recentAgentEdit && (
           <div className="workbench-banner">
-            Agent 刚改了此章（第 {recentAgentEdit.rev} 版） ·
+            Agent 刚改了此段（第 {recentAgentEdit.rev} 版） ·
             <button onClick={() => setDiffOpen(true)} style={{ marginLeft: 8 }}>查看修改</button>
             <button onClick={() => setRecentAgentEdit(null)} style={{ marginLeft: 8 }}>忽略</button>
           </div>

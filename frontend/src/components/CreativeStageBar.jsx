@@ -56,8 +56,9 @@ export function CreativeStageBar({ bookId, refreshKey, loading }) {
   }, [bookId, refreshKey])
 
   const stages = useMemo(() => buildStageStates(status), [status])
-  const currentLabel = status?.label || '准备'
-  const nextAction = status?.nextAction || '等待开始创作流程。'
+  const currentStage = STAGES.find(s => s.id === status?.stage)
+  const currentLabel = currentStage?.label || '准备'
+  const nextAction = status?.description || '等待开始创作流程。'
   const blockers = status?.blockers || []
 
   return (

@@ -19,8 +19,8 @@ export function getCreativeStage(projectDir: string): CreativeStage {
 }
 
 function hasWorldBible(dir: string): boolean {
-  const chars = join(dir, '01_World_Settings', 'characters.json')
-  const lore = join(dir, '01_World_Settings', 'world_lore.json')
+  const chars = join(dir, '01_Global_Settings', 'characters.json')
+  const lore = join(dir, '01_Global_Settings', 'world_lore.json')
   return existsSync(chars) && existsSync(lore)
 }
 

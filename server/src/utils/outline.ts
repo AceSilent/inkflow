@@ -3,9 +3,9 @@
  * memory/chapter-summarizer.ts, and routes/books.ts.
  *
  * The outline is a recursive tree of `{ id, label, type, summary?, children? }`
- * where `type ∈ {book, volume, chapter, scene}`. Multiple call sites used to
- * walk it independently — this module is the single source of truth for that
- * traversal.
+ * where `type ∈ {project, story_package, stage}` (new) or `{book, volume, chapter, scene}` (legacy).
+ * Multiple call sites used to walk it independently — this module is the single
+ * source of truth for that traversal.
  *
  * Kept intentionally `unknown`-typed at the boundary because the outline
  * comes from disk (could be malformed); narrow inside.
@@ -14,7 +14,7 @@
 export interface OutlineNode {
   id?: string
   label?: string
-  type?: 'book' | 'volume' | 'chapter' | 'scene'
+  type?: 'project' | 'story_package' | 'stage' | 'book' | 'volume' | 'chapter' | 'scene'
   status?: string
   summary?: string
   children?: OutlineNode[]
@@ -26,6 +26,9 @@ export interface ChapterRecord {
   status?: string
   summary?: string
 }
+
+/** Leaf-level outline types that represent actual content units (chapters/stages). */
+const LEAF_OUTLINE_TYPES = new Set(['chapter', 'scene', 'stage'])
 
 /** True if `node` looks shaped like an outline node (defensive). */
 function isNode(node: unknown): node is OutlineNode {
@@ -55,7 +58,7 @@ export function walkOutline(root: unknown, visit: (node: OutlineNode) => void): 
 export function collectChapters(root: unknown): ChapterRecord[] {
   const out: ChapterRecord[] = []
   walkOutline(root, n => {
-    if (n.type === 'chapter' && typeof n.id === 'string') {
+    if (LEAF_OUTLINE_TYPES.has(n.type ?? '') && typeof n.id === 'string') {
       out.push({ id: n.id, label: n.label, status: n.status, summary: n.summary })
     }
   })
@@ -69,7 +72,7 @@ export function findChapterById(root: unknown, chapterId: string): ChapterRecord
   let found: ChapterRecord | null = null
   walkOutline(root, n => {
     if (found) return
-    if (n.type === 'chapter' && n.id === chapterId) {
+    if (LEAF_OUTLINE_TYPES.has(n.type ?? '') && n.id === chapterId) {
       found = { id: n.id, label: n.label, status: n.status, summary: n.summary }
     }
   })

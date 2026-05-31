@@ -9,17 +9,17 @@ describe('save_outline with epigraph + synopsis', () => {
   const ctx = { dataDir: tmpDir, bookId: 'book1', mode: 'write' as const }
   fs.mkdirSync(path.join(tmpDir, 'book1'), { recursive: true })
 
-  it('accepts book.epigraph + book.synopsis + volume.synopsis', async () => {
+  it('accepts project.epigraph + project.synopsis + story_package.synopsis', async () => {
     const outline = {
-      id: 'book1', type: 'book', label: '雨夜来信',
+      id: 'book1', type: 'project', label: '雨夜来信',
       epigraph: '记忆是…',
       synopsis: '这是一个关于…的故事',
       children: [
         {
-          id: 'vol1', type: 'volume', label: '雨夜',
+          id: 'pkg1', type: 'story_package', label: '雨夜',
           synopsis: '林舟回乡',
           children: [
-            { id: 'ch01', type: 'chapter', label: '雨夜', summary: '...' },
+            { id: 'arrival', type: 'stage', label: '雨夜', summary: '...' },
           ],
         },
       ],
@@ -38,10 +38,10 @@ describe('save_outline with epigraph + synopsis', () => {
 
   it('accepts outline without new fields (backward-compat)', async () => {
     const outline = {
-      id: 'book1', type: 'book', label: 'X',
+      id: 'book1', type: 'project', label: 'X',
       children: [
-        { id: 'vol1', type: 'volume', label: 'v', children: [
-          { id: 'ch01', type: 'chapter', label: 'c', summary: 's' },
+        { id: 'pkg1', type: 'story_package', label: 'v', children: [
+          { id: 'arrival', type: 'stage', label: 'c', summary: 's' },
         ] },
       ],
     }
@@ -52,12 +52,12 @@ describe('save_outline with epigraph + synopsis', () => {
     expect(result).toMatch(/Outline saved/)
   })
 
-  it('rejects epigraph on volume node (only book gets epigraph)', async () => {
+  it('rejects epigraph on story_package node (only project gets epigraph)', async () => {
     const outline = {
-      id: 'book1', type: 'book', label: 'X',
+      id: 'book1', type: 'project', label: 'X',
       children: [
-        { id: 'vol1', type: 'volume', label: 'v',
-          epigraph: 'bad — epigraph only on book',
+        { id: 'pkg1', type: 'story_package', label: 'v',
+          epigraph: 'bad — epigraph only on project',
           children: [] },
       ],
     }

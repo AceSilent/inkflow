@@ -13,6 +13,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
+import { stringify as yamlStringify, parse as yamlParse } from 'yaml'
 
 // Capture every prompt passed into generateText so we can assert that the
 // editorial pipeline actually injected lore + outline context into the
@@ -39,6 +40,27 @@ vi.mock('ai', async () => {
 
 let tmpDir: string
 const bookId = 'e2e-book'
+
+function writeStageToScripts(stageId: string, draftBody: string, packageId = 'pkg1') {
+  const scriptsDir = path.join(tmpDir, bookId, '03_Scripts')
+  fs.mkdirSync(scriptsDir, { recursive: true })
+  const targetPath = path.join(scriptsDir, `${packageId}.yaml`)
+
+  const lines = draftBody.split('\n').filter(l => l.trim()).map((text, i) => ({
+    id: `L${i}`, speaker: '旁白', text, type: 'narration' as const,
+  }))
+
+  let existing: any = { stages: [] }
+  if (fs.existsSync(targetPath)) {
+    existing = yamlParse(fs.readFileSync(targetPath, 'utf-8')) ?? { stages: [] }
+  }
+  const idx = existing.stages.findIndex((s: any) => s.id === stageId)
+  const stage = { id: stageId, lines }
+  if (idx >= 0) existing.stages[idx] = stage
+  else existing.stages.push(stage)
+
+  fs.writeFileSync(targetPath, yamlStringify(existing), 'utf-8')
+}
 
 beforeEach(() => {
   seenPrompts.length = 0
@@ -84,15 +106,15 @@ describe('Full chapter flow: lore → outline → draft → editorial', () => {
     // 3. save_outline
     const outline = {
       id: bookId,
-      type: 'book',
+      type: 'project',
       label: '测试小说',
       children: [{
-        id: 'vol1',
-        type: 'volume',
-        label: '第一卷',
+        id: 'pkg1',
+        type: 'story_package',
+        label: '第一故事包',
         children: [
-          { id: 'ch01', type: 'chapter', label: '重生归来', summary: '林辰带着前世记忆重生在外门第三年' },
-          { id: 'ch02', type: 'chapter', label: '初遇师妹', summary: '林辰再见苏婉，决定不重蹈前世覆辙' },
+          { id: 'arrival', type: 'stage', label: '重生归来', summary: '林辰带着前世记忆重生在外门第三年' },
+          { id: 'reunion', type: 'stage', label: '初遇师妹', summary: '林辰再见苏婉，决定不重蹈前世覆辙' },
         ],
       }],
     }
@@ -103,15 +125,12 @@ describe('Full chapter flow: lore → outline → draft → editorial', () => {
     )
     expect(outlineResult).toContain('Outline saved')
 
-    // 4. Write the draft file directly (save_draft removed; editorial requires
-    //    the file to exist and be ≥ MIN_REVIEW_DRAFT_CHARS).
+    // 4. Write the stage to 03_Scripts/ as YAML (editorial requires the stage
+    //    to exist in scripts and its text to be ≥ MIN_REVIEW_DRAFT_CHARS).
     const draftBody = '# 第一章 重生归来\n\n' +
       '林辰睁开眼，看着熟悉的茅屋顶。'.repeat(180)
     expect(draftBody.length).toBeGreaterThan(2500)
-    const draftsDir = path.join(tmpDir, bookId, '04_Drafts')
-    fs.mkdirSync(draftsDir, { recursive: true })
-    fs.writeFileSync(path.join(draftsDir, 'ch01.md'), draftBody, 'utf-8')
-    expect(fs.existsSync(path.join(tmpDir, bookId, '04_Drafts', 'ch01.md'))).toBe(true)
+    writeStageToScripts('arrival', draftBody)
 
     // 5. submit_to_editorial — this triggers the default machine reviewers
     // (lore + causality; mocked LLM).
@@ -119,7 +138,7 @@ describe('Full chapter flow: lore → outline → draft → editorial', () => {
       'submit_to_editorial',
       {
         draft_text: draftBody,
-        chapter_id: 'ch01',
+        chapter_id: 'arrival',
         pov_character: '林辰',
         setting: '外门茅屋，黎明',
         scene_target: '建立重生的紧迫感',
@@ -136,7 +155,7 @@ describe('Full chapter flow: lore → outline → draft → editorial', () => {
     expect(reviewerNames).toContain('editorial_causality')
 
     // 6. The persisted review file should have the same shape + history bookkeeping.
-    const reviewPath = path.join(tmpDir, bookId, '04_Drafts', 'review_ch01.json')
+    const reviewPath = path.join(tmpDir, bookId, '04_Drafts', 'review_arrival.json')
     expect(fs.existsSync(reviewPath)).toBe(true)
     const reviewFile = JSON.parse(fs.readFileSync(reviewPath, 'utf-8'))
     expect(reviewFile.revision_round).toBe(1)
@@ -160,24 +179,22 @@ describe('Full chapter flow: lore → outline → draft → editorial', () => {
     }, ctx)
     await registry.execute('save_outline', {
       outline_json: JSON.stringify({
-        id: bookId, type: 'book', label: 'test',
+        id: bookId, type: 'project', label: 'test',
         children: [{
-          id: 'vol1', type: 'volume', label: 'v1',
+          id: 'pkg1', type: 'story_package', label: 'pkg1',
           children: [
-            { id: 'ch01', type: 'chapter', label: '前章', summary: 'UNIQUE_OUTLINE_PREV_MARKER' },
-            { id: 'ch02', type: 'chapter', label: '本章', summary: 'UNIQUE_OUTLINE_CUR_MARKER' },
+            { id: 'prev_stage', type: 'stage', label: '前章', summary: 'UNIQUE_OUTLINE_PREV_MARKER' },
+            { id: 'cur_stage', type: 'stage', label: '本章', summary: 'UNIQUE_OUTLINE_CUR_MARKER' },
           ],
         }],
       }),
     }, ctx)
 
     const draft = '正文'.repeat(1300)
-    const draftsDir2 = path.join(tmpDir, bookId, '04_Drafts')
-    fs.mkdirSync(draftsDir2, { recursive: true })
-    fs.writeFileSync(path.join(draftsDir2, 'ch02.md'), draft, 'utf-8')
+    writeStageToScripts('cur_stage', draft)
     await registry.execute('submit_to_editorial', {
       draft_text: draft,
-      chapter_id: 'ch02',
+      chapter_id: 'cur_stage',
     }, ctx)
 
     // Default machine reviewers × 1 prompt each.
@@ -187,7 +204,7 @@ describe('Full chapter flow: lore → outline → draft → editorial', () => {
     // Lore content must reach the lore reviewer's prompt.
     expect(allPrompts).toContain('UNIQUE_LORE_MARKER_alpha_42')
     expect(allPrompts).toContain('UNIQUE_WORLD_MARKER_beta_99')
-    // Outline context for both prev (ch01) and current (ch02) should be present.
+    // Outline context for both prev and current stage should be present.
     expect(allPrompts).toContain('UNIQUE_OUTLINE_PREV_MARKER')
     expect(allPrompts).toContain('UNIQUE_OUTLINE_CUR_MARKER')
     // No raw Jinja placeholders should leak through.
@@ -216,43 +233,41 @@ describe('Full chapter flow: lore → outline → draft → editorial', () => {
     }, ctx)
     await registry.execute('save_outline', {
       outline_json: JSON.stringify({
-        id: bookId, type: 'book', label: 't',
+        id: bookId, type: 'project', label: 't',
         children: [{
-          id: 'v1', type: 'volume', label: 'v',
-          children: [{ id: 'ch01', type: 'chapter', label: '一', summary: 's' }],
+          id: 'pkg1', type: 'story_package', label: 'pkg',
+          children: [{ id: 'stage1', type: 'stage', label: '一', summary: 's' }],
         }],
       }),
     }, ctx)
     const draft = '正文'.repeat(1300)
-    const draftsDir3 = path.join(tmpDir, bookId, '04_Drafts')
-    fs.mkdirSync(draftsDir3, { recursive: true })
-    fs.writeFileSync(path.join(draftsDir3, 'ch01.md'), draft, 'utf-8')
+    writeStageToScripts('stage1', draft)
 
     // Three consecutive submissions — same canned reviewer issue → persistent
     // by round 3. The mock returns the same Tiny_Nit issue each call.
     const r1 = JSON.parse(await registry.execute('submit_to_editorial',
-      { draft_text: draft, chapter_id: 'ch01' }, ctx))
+      { draft_text: draft, chapter_id: 'stage1' }, ctx))
     expect(r1.revision_round).toBe(1)
     expect(r1.persistent_issues).toEqual([])
 
     const r2 = JSON.parse(await registry.execute('submit_to_editorial',
-      { draft_text: draft, chapter_id: 'ch01' }, ctx))
+      { draft_text: draft, chapter_id: 'stage1' }, ctx))
     expect(r2.revision_round).toBe(2)
     expect(r2.persistent_issues).toEqual([])
     expect(r2.revision_strategy.action).toBe('stop_auto_revision')
     expect(r2.revision_strategy.auto_revision.exhausted).toBe(true)
     expect(r2.summary).toContain('停止自动重写')
-    expect(r2.summary).toContain('不要继续保存草稿或再次送审')
+    expect(r2.summary).toContain('不要继续保存剧本或再次送审')
 
     const r3 = JSON.parse(await registry.execute('submit_to_editorial',
-      { draft_text: draft, chapter_id: 'ch01' }, ctx))
+      { draft_text: draft, chapter_id: 'stage1' }, ctx))
     expect(r3.revision_round).toBe(3)
     expect(r3.persistent_issues.length).toBeGreaterThan(0)
     expect(r3.summary).toContain('收敛警告')
     expect(r3.summary).toContain('request_guidance')
 
     const rReset = JSON.parse(await registry.execute('submit_to_editorial',
-      { draft_text: draft, chapter_id: 'ch01', reset_auto_revision_budget: true }, ctx))
+      { draft_text: draft, chapter_id: 'stage1', reset_auto_revision_budget: true }, ctx))
     expect(rReset.revision_round).toBe(1)
     expect(rReset.persistent_issues).toEqual([])
     expect(rReset.revision_strategy.auto_revision.current_round).toBe(1)

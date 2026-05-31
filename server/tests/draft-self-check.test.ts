@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
+import { stringify as yamlStringify } from 'yaml'
 import { runDraftSelfCheck } from '../src/tools/draft-self-check.js'
 import { createAllTools } from '../src/tools/index.js'
 
@@ -64,15 +65,17 @@ describe('draft self-check', () => {
   it('submit_to_editorial blocks severe self-check failures before slow review', async () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'draft-self-check-review-'))
     try {
-      const draftDir = path.join(tmpDir, 'book1', '04_Drafts')
-      fs.mkdirSync(draftDir, { recursive: true })
+      const scriptsDir = path.join(tmpDir, 'book1', '03_Scripts')
+      fs.mkdirSync(scriptsDir, { recursive: true })
       const content = [
         '陆辞醒来的时候，半边脸贴在潮湿的泥地上。',
         '他撑起身体，低头看手机，抬头看树，环顾四周，又盯着木屋。',
         '他停下脚步，深吸一口气，意识到事情不对。',
         '正文推进。'.repeat(900),
       ].join('\n')
-      fs.writeFileSync(path.join(draftDir, 'ch01.md'), content, 'utf8')
+      const lines = content.split('\n').map((text, i) => ({ id: `L${i}`, speaker: '旁白', text, type: 'narration' }))
+      const pkg = { stages: [{ id: 'ch01', lines }] }
+      fs.writeFileSync(path.join(scriptsDir, 'pkg1.yaml'), yamlStringify(pkg), 'utf-8')
       const registry = createAllTools()
       const result = await registry.execute('submit_to_editorial', {
         draft_text: content,

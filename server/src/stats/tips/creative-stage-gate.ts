@@ -1,9 +1,9 @@
 import path from 'path'
 import fs from 'fs'
+import { parse as yamlParse } from 'yaml'
 import { type BlockedToolCall, type ToolHooks } from '../../tools/base-tool.js'
 import { getCreativeStage } from '../../agent/creative-stage.js'
 import { type RuleContext, fireOnce } from './types.js'
-import { sanitizePathSegment } from '../../utils/path-sanitizer.js'
 
 const PLOT_NODE_LIMIT_PER_TURN = 12
 const PLOT_EDGE_LIMIT_PER_TURN = 16
@@ -16,14 +16,19 @@ function block(message: string): BlockedToolCall {
   return { block: true, message }
 }
 
-function draftExists(bookDir: string, chapterId: string): boolean {
-  const safe = sanitizePathSegment(chapterId.replace(/\.md$/i, ''), 'chapter_id')
-  const file = path.join(bookDir, '04_Drafts', `${safe}.md`)
+function stageExistsInScripts(bookDir: string, stageId: string): boolean {
+  const scriptsDir = path.join(bookDir, '03_Scripts')
+  if (!fs.existsSync(scriptsDir)) return false
   try {
-    return fs.existsSync(file) && fs.statSync(file).size > 2
-  } catch {
-    return false
-  }
+    for (const file of fs.readdirSync(scriptsDir).filter(f => f.endsWith('.yaml'))) {
+      const content = yamlParse(fs.readFileSync(path.join(scriptsDir, file), 'utf-8'))
+      if (Array.isArray(content?.stages)) {
+        const stage = content.stages.find((s: any) => s.id === stageId)
+        if (stage?.lines?.length > 0) return true
+      }
+    }
+  } catch {}
+  return false
 }
 
 function completedPlusCurrent(ctx: RuleContext, toolName: string): number {
@@ -65,14 +70,14 @@ export function creativeStageGate(ctx: RuleContext): ToolHooks {
 
       if (name === 'submit_to_editorial') {
         const bookDir = currentBookDir(ctx)
-        const chapterId = typeof args?.chapter_id === 'string' ? args.chapter_id : 'ch01'
-        if (draftExists(bookDir, chapterId)) return undefined
+        const stageId = typeof args?.chapter_id === 'string' ? args.chapter_id : 'ch01'
+        if (stageExistsInScripts(bookDir, stageId)) return undefined
         fireOnce(ctx, 'creative_stage_before_review', {
           severity: 'warning',
-          title: '送审前缺少草稿',
-          message: `当前还没有可送审的 ${chapterId} 草稿。请先完成正文并 save_script。`,
+          title: '送审前缺少剧本',
+          message: `当前还没有可送审的 stage "${stageId}" 剧本。请先完成正文并 save_script。`,
         })
-        return block(`当前还没有 ${chapterId} 草稿，不能送审。请先完成正文并 save_script。`)
+        return block(`03_Scripts 中没有找到 stage "${stageId}" 的剧本内容，不能送审。请先用 save_script(package_id, stage_id, stage_json) 保存该 stage 的剧本。`)
       }
 
       return undefined

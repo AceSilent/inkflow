@@ -5,12 +5,13 @@
 import { z } from 'zod'
 import fs from 'fs'
 import path from 'path'
-import { stringify as yamlStringify } from 'yaml'
+import { stringify as yamlStringify, parse as yamlParse } from 'yaml'
 import { type ToolDefinition } from './base-tool.js'
 import { createBackup, appendAuditLog, withFileLock } from './safety.js'
 import { ensureDir, safeReadJson } from '../utils/file-io.js'
 import { generateLineIds } from '../services/line-id.js'
 import { StoryPackageSchema } from '../schemas/index.js'
+import { StageSchema } from '../schemas/stage.js'
 import { runScriptSelfCheck } from './script-self-check.js'
 
 /**
@@ -25,37 +26,91 @@ function formatScriptSelfCheck(issues: { type: string; severity: number; message
 
 export const saveScriptTool: ToolDefinition = {
   name: 'save_script',
-  description: '保存故事剧本为 YAML 文件到 03_Scripts/{package_id}.yaml。自动为每个 stage 的 lines 生成行 ID，校验 StoryPackage schema，并运行自检规则报告潜在问题。',
+  description: [
+    '保存剧本到 03_Scripts/{package_id}.yaml。必须传 stage_id + stage_json 逐 stage 写入。',
+    'script_json 仅用于首次创建故事包（YAML 不存在时）；已有文件时会被拒绝。',
+    '自动生成行 ID，校验 schema，运行自检规则。',
+  ].join('\n'),
   parameters: z.object({
     package_id: z.string().describe('故事包 ID，用作文件名（不含扩展名）'),
-    script_json: z.string().describe('StoryPackage JSON 字符串'),
+    script_json: z.string().optional().describe('完整 StoryPackage JSON 字符串（整包写入模式）'),
+    stage_id: z.string().optional().describe('要合并的 stage ID（单 stage 模式）'),
+    stage_json: z.string().optional().describe('单个 Stage JSON 字符串（单 stage 模式，与 stage_id 配合）'),
   }),
   permissionLevel: 'write',
   category: '写入',
-  execute: async ({ package_id, script_json }, ctx) => {
-    let rawScript: unknown
-    try {
-      rawScript = JSON.parse(script_json)
-    } catch (e) {
-      return `Error: Invalid JSON — ${e}`
-    }
-
-    // Assign line IDs before schema validation so the schema sees complete data.
-    const scriptWithIds = assignLineIds(package_id, rawScript)
-
-    const parseResult = StoryPackageSchema.safeParse(scriptWithIds)
-    if (!parseResult.success) {
-      const errorLines = parseResult.error.issues.map(i => `- ${i.path.join('.')}: ${i.message}`)
-      return `Error: Schema validation failed:\n${errorLines.join('\n')}`
-    }
-
-    const pkg = parseResult.data
+  execute: async ({ package_id, script_json, stage_id, stage_json }, ctx) => {
     const bookDir = path.join(ctx.dataDir, ctx.bookId)
     const scriptsDir = ensureDir(path.join(bookDir, '03_Scripts'))
     const target = path.resolve(scriptsDir, `${package_id}.yaml`)
 
     if (!target.startsWith(path.resolve(bookDir))) {
-      return 'Error: Access denied — path outside book directory.'
+      return 'Error: Access denied — path outside project directory.'
+    }
+
+    let pkg: any
+
+    if (stage_id && stage_json) {
+      // Single-stage merge mode
+      let rawStage: unknown
+      try {
+        rawStage = JSON.parse(stage_json)
+      } catch (e) {
+        return `Error: Invalid stage_json — ${e}`
+      }
+
+      if (!fs.existsSync(target)) {
+        return `Error: 03_Scripts/${package_id}.yaml not found. First use script_json to create the package, then use stage_id+stage_json to update individual stages.`
+      }
+
+      const existing = yamlParse(fs.readFileSync(target, 'utf-8'))
+      if (!existing?.stages || !Array.isArray(existing.stages)) {
+        return `Error: Existing YAML has no stages array.`
+      }
+
+      // Assign line IDs for the incoming stage
+      const stageWithIds = assignSingleStageLineIds(package_id, stage_id, rawStage)
+      const stageResult = StageSchema.safeParse(stageWithIds)
+      if (!stageResult.success) {
+        const errorLines = stageResult.error.issues.map(i => `- ${i.path.join('.')}: ${i.message}`)
+        return `Error: Stage schema validation failed:\n${errorLines.join('\n')}`
+      }
+
+      const idx = existing.stages.findIndex((s: any) => s.id === stage_id)
+      if (idx >= 0) {
+        existing.stages[idx] = stageResult.data
+      } else {
+        existing.stages.push(stageResult.data)
+      }
+
+      const fullResult = StoryPackageSchema.safeParse(existing)
+      if (!fullResult.success) {
+        const errorLines = fullResult.error.issues.map(i => `- ${i.path.join('.')}: ${i.message}`)
+        return `Error: Merged package schema validation failed:\n${errorLines.join('\n')}`
+      }
+      pkg = fullResult.data
+    } else if (script_json) {
+      // Full package write — only allowed when YAML doesn't exist yet
+      if (fs.existsSync(target)) {
+        return 'Error: 03_Scripts/' + package_id + '.yaml already exists. Use stage_id + stage_json to update individual stages. Full-package overwrite is blocked to prevent accidental data loss.'
+      }
+
+      let rawScript: unknown
+      try {
+        rawScript = JSON.parse(script_json)
+      } catch (e) {
+        return `Error: Invalid JSON — ${e}`
+      }
+
+      const scriptWithIds = assignLineIds(package_id, rawScript)
+      const parseResult = StoryPackageSchema.safeParse(scriptWithIds)
+      if (!parseResult.success) {
+        const errorLines = parseResult.error.issues.map(i => `- ${i.path.join('.')}: ${i.message}`)
+        return `Error: Schema validation failed:\n${errorLines.join('\n')}`
+      }
+      pkg = parseResult.data
+    } else {
+      return 'Error: Must provide stage_id + stage_json. Full-package script_json is only allowed for initial creation.'
     }
 
     const selfCheck = runScriptSelfCheck(pkg)
@@ -68,11 +123,20 @@ export const saveScriptTool: ToolDefinition = {
       fs.writeFileSync(target, yamlStringify(pkg), 'utf-8')
 
       const logFile = path.join(bookDir, 'audit_log.jsonl')
-      appendAuditLog(logFile, 'save_script', { package_id }, `saved ${package_id}.yaml`, true)
+      const detail = stage_id ? `merged stage ${stage_id} into ${package_id}.yaml` : `saved ${package_id}.yaml`
+      appendAuditLog(logFile, 'save_script', { package_id, stage_id }, detail, true)
 
-      return `Script saved to 03_Scripts/${package_id}.yaml${selfCheckSection}`
+      const prefix = stage_id ? `Stage '${stage_id}' merged into` : 'Script saved to'
+      return `${prefix} 03_Scripts/${package_id}.yaml${selfCheckSection}`
     })
   },
+}
+
+function assignSingleStageLineIds(packageId: string, stageId: string, raw: unknown): unknown {
+  if (typeof raw !== 'object' || raw === null) return raw
+  const s = raw as { id?: string; lines?: unknown[] }
+  if (!Array.isArray(s.lines)) return raw
+  return { ...s, id: stageId, lines: generateLineIds(packageId, stageId, s.lines as any) }
 }
 
 function assignLineIds(packageId: string, raw: unknown): unknown {
@@ -94,15 +158,15 @@ function assignLineIds(packageId: string, raw: unknown): unknown {
 export const saveOutlineTool: ToolDefinition = {
   name: 'save_outline',
   description: [
-    '保存/更新书籍大纲。outline_json 必须是规范章节树结构：',
-    "{ id: <bookId>, label: '...', type: 'book', children: [",
-    "  { id: 'vol1', type: 'volume', label: '...', children: [",
-    "    { id: 'ch01', type: 'chapter', label: '...', summary: '...' }, ...",
+    '保存/更新项目大纲。outline_json 必须是规范三层结构：',
+    "{ id: <projectId>, label: '...', type: 'project', children: [",
+    "  { id: 'pkg1', type: 'story_package', label: '...', children: [",
+    "    { id: 'arrival', type: 'stage', label: '...', summary: '...' }, ...",
     '  ]}, ...',
     ']}',
-    "type 必须是 'book'/'volume'/'chapter'/'scene' 之一。chapter 的 id 必须是 'ch{N}' 形式（与 save_draft 的 ch{N}.md 对齐，UI 才能配对）。",
-    '不要塞 free-form JSON（title/intro/characters/worldview 这些是设定，应走 save_lore）。',
-    '可选字段：book 节点 epigraph（题词）与 synopsis（全书梗概）；volume 节点 synopsis（卷梗概）；chapter 节点 summary（章摘要）。',
+    "type 必须是 'project'/'story_package'/'stage'/'scene' 之一。stage 的 id 使用有意义的英文短名（如 arrival, branch_calm_wit, convergence）。",
+    '不要塞 free-form JSON（世界观/角色/系统设定这些应走 save_lore）。',
+    '可选字段：project 节点 synopsis（项目梗概）；story_package 节点 synopsis（故事包梗概）；stage 节点 summary（stage 摘要）。',
   ].join('\n'),
   parameters: z.object({
     outline_json: z.string().describe('大纲 JSON 字符串，必须是规范章节树（见 description）'),
@@ -126,8 +190,8 @@ export const saveOutlineTool: ToolDefinition = {
       return [
         'Error: outline_json schema invalid.',
         validation,
-        "Required shape: { id, label, type:'book', children:[{ id, type:'volume', children:[{ id:'chXX', type:'chapter', label, summary }] }] }.",
-        '世界观/角色/题材这类设定信息请用 save_lore 保存，不要塞进 outline。',
+        "Required shape: { id, label, type:'project', children:[{ id, type:'story_package', children:[{ id, type:'stage', label, summary }] }] }.",
+        '世界观/角色/系统设定这类信息请用 save_lore 保存，不要塞进 outline。',
       ].join('\n')
     }
 
@@ -145,7 +209,7 @@ export const saveOutlineTool: ToolDefinition = {
   },
 }
 
-const VALID_OUTLINE_TYPES = new Set(['book', 'volume', 'chapter', 'scene'])
+const VALID_OUTLINE_TYPES = new Set(['project', 'story_package', 'stage', 'scene'])
 
 /** Returns null if `node` is a valid outline subtree, else an error string. */
 function validateOutlineNode(node: any, where: string): string | null {
@@ -153,29 +217,26 @@ function validateOutlineNode(node: any, where: string): string | null {
     return `${where}: must be an object, got ${Array.isArray(node) ? 'array' : typeof node}`
   }
   if (typeof node.type !== 'string' || !VALID_OUTLINE_TYPES.has(node.type)) {
-    return `${where}: missing or invalid 'type' (got ${JSON.stringify(node.type)}); must be one of book/volume/chapter/scene`
+    return `${where}: missing or invalid 'type' (got ${JSON.stringify(node.type)}); must be one of project/story_package/stage/scene`
   }
-  if (where === 'root' && node.type !== 'book') {
-    return `root: type must be 'book', got '${node.type}'`
+  if (where === 'root' && node.type !== 'project') {
+    return `root: type must be 'project', got '${node.type}'`
   }
   if (typeof node.id !== 'string' || node.id.length === 0) {
     return `${where}: missing 'id' string`
   }
-  if (node.type === 'chapter' && !/^ch\d{1,4}$/i.test(node.id)) {
-    return `${where} (chapter): id must be 'ch{N}' (e.g. 'ch01'), got '${node.id}' — must align with save_draft's ch{N}.md`
-  }
   // Optional narrative fields — scoped by node type.
   if (node.epigraph !== undefined) {
-    if (node.type !== 'book') {
-      return `${where}: 'epigraph' only allowed on book type, got ${node.type}`
+    if (node.type !== 'project') {
+      return `${where}: 'epigraph' only allowed on project, got ${node.type}`
     }
     if (typeof node.epigraph !== 'string') {
       return `${where}: 'epigraph' must be a string`
     }
   }
   if (node.synopsis !== undefined) {
-    if (node.type !== 'book' && node.type !== 'volume') {
-      return `${where}: 'synopsis' only allowed on book or volume, got ${node.type}`
+    if (node.type !== 'project' && node.type !== 'story_package') {
+      return `${where}: 'synopsis' only allowed on project or story_package, got ${node.type}`
     }
     if (typeof node.synopsis !== 'string') {
       return `${where}: 'synopsis' must be a string`
@@ -245,9 +306,9 @@ export const saveLoreTool: ToolDefinition = {
 
 export const readOutlineTool: ToolDefinition = {
   name: 'read_outline',
-  description: "读取书籍大纲，可选筛选卷号。大纲是当前标准 children 树：book.children[] 为 volume，volume.children[] 为 chapter。",
+  description: "读取项目大纲，可选筛选故事包序号。大纲是当前标准 children 树：project.children[] 为 story_package，story_package.children[] 为 stage。",
   parameters: z.object({
-    volume: z.number().optional().describe('卷号（可选）'),
+    volume: z.number().optional().describe('故事包序号（可选，1-based）'),
   }),
   permissionLevel: 'read',
   category: '读取',
@@ -256,8 +317,9 @@ export const readOutlineTool: ToolDefinition = {
     if (!data) return 'Error: Outline file not found or unreadable.'
 
     if (volume !== undefined) {
+      // Support both legacy 'volume' and new 'story_package' node types
       const volumes = Array.isArray(data.children)
-        ? data.children.filter((v: any) => v?.type === 'volume')
+        ? data.children.filter((v: any) => v?.type === 'volume' || v?.type === 'story_package')
         : []
       const volIndex = Number(volume) - 1
       const found = volumes.find((v: any, index: number) =>

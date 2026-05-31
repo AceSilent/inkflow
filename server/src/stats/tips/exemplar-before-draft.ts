@@ -19,7 +19,7 @@ export function exemplarBeforeDraft(ctx: RuleContext): ToolHooks {
       fireOnce(ctx, 'exemplar_before_draft', {
         severity: 'warning',
         title: '建议先研读范文',
-        message: '正在写正文，但本书还没有调用过 load_skill(exemplar_study)。先研读优秀范文，再下笔会更稳。',
+        message: '正在写正文，但本项目还没有调用过 load_skill(exemplar_study)。先研读优秀范文，再下笔会更稳。',
       })
     },
   }

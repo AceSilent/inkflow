@@ -44,8 +44,8 @@ describe('buildSystemPrompt', () => {
 describe('buildAuthorPrompt', () => {
   it('should include core identity', () => {
     const prompt = buildAuthorPrompt({})
-    expect(prompt).toContain('核心创作引擎')
-    expect(prompt).toContain('load_skill')
+    expect(prompt).toContain('编剧')
+    expect(prompt).toContain('list_skills')
   })
 
   it('should include memory when provided', () => {
@@ -76,12 +76,12 @@ describe('buildAuthorPrompt', () => {
 
   it('should front-load common AI-tone prohibitions before drafting', () => {
     const prompt = buildAuthorPrompt({})
-    expect(prompt).toContain('正文生成硬门槛')
-    expect(prompt).toContain('密集镜头编排')
-    expect(prompt).toContain('破折号')
-    expect(prompt).toContain('强排比')
-    expect(prompt).toContain('后置说明')
-    expect(prompt).toContain('行动链')
+    expect(prompt).toContain('剧本编写硬门槛')
+    expect(prompt).toContain('台词')
+    expect(prompt).toContain('旁白')
+    expect(prompt).toContain('选项')
+    expect(prompt).toContain('direction')
+    expect(prompt).toContain('emotion')
   })
 })
 

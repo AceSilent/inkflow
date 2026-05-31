@@ -113,7 +113,7 @@ export async function handleCommand(
 
     case 'list':
     case '列表':
-    case '书籍': {
+    case '项目': {
       const books = listBooksMeta(ctx.dataDir)
       return { type: 'card', cardJson: buildBookListCard(books) }
     }
@@ -126,22 +126,22 @@ export async function handleCommand(
       const genre = parts[1]
       const tone = parts[2]
       const book = createBook(ctx.dataDir, title, genre, tone)
-      if (!book) return { type: 'text', content: '创建书籍失败，请稍后重试。' }
+      if (!book) return { type: 'text', content: '创建项目失败，请稍后重试。' }
       // Auto-select the new book
       setSession(ctx.dataDir, ctx.sessionKey, {
         type: ctx.sessionKey.startsWith('group:') ? 'group' : 'user',
         currentBookId: book.book_id,
         lastActiveAt: new Date().toISOString(),
       })
-      return { type: 'text', content: `书籍「${book.title}」已创建并自动选中。\nID: ${book.book_id}` }
+      return { type: 'text', content: `项目「${book.title}」已创建并自动选中。\nID: ${book.book_id}` }
     }
 
     case 'select':
     case '选择': {
       const bookId = args.trim()
-      if (!bookId) return { type: 'text', content: '用法: /select <bookId>\n发送 /list 查看所有书籍。' }
+      if (!bookId) return { type: 'text', content: '用法: /select <projectId>\n发送 /list 查看所有项目。' }
       const book = getBookMeta(ctx.dataDir, bookId)
-      if (!book) return { type: 'text', content: `未找到书籍: ${bookId}` }
+      if (!book) return { type: 'text', content: `未找到项目: ${bookId}` }
       setSession(ctx.dataDir, ctx.sessionKey, {
         type: ctx.sessionKey.startsWith('group:') ? 'group' : 'user',
         currentBookId: bookId,
@@ -153,16 +153,16 @@ export async function handleCommand(
     case 'current':
     case '当前': {
       const session = getSession(ctx.dataDir, ctx.sessionKey)
-      if (!session?.currentBookId) return { type: 'text', content: '未选择书籍。发送 /list 查看书列表。' }
+      if (!session?.currentBookId) return { type: 'text', content: '未选择项目。发送 /list 查看项目列表。' }
       const book = getBookMeta(ctx.dataDir, session.currentBookId)
-      if (!book) return { type: 'text', content: '当前书籍不存在，请重新选择。' }
+      if (!book) return { type: 'text', content: '当前项目不存在，请重新选择。' }
       return { type: 'card', cardJson: buildBookInfoCard(book as any) }
     }
 
     case 'outline':
     case '大纲': {
       const session = getSession(ctx.dataDir, ctx.sessionKey)
-      if (!session?.currentBookId) return { type: 'text', content: '请先选择书籍。' }
+      if (!session?.currentBookId) return { type: 'text', content: '请先选择项目。' }
       const outline = readOutline(ctx.dataDir, session.currentBookId)
       return { type: 'card', cardJson: buildOutlineCard(outline) }
     }
@@ -170,7 +170,7 @@ export async function handleCommand(
     case 'lore':
     case '设定': {
       const session = getSession(ctx.dataDir, ctx.sessionKey)
-      if (!session?.currentBookId) return { type: 'text', content: '请先选择书籍。' }
+      if (!session?.currentBookId) return { type: 'text', content: '请先选择项目。' }
       const lore = readLore(ctx.dataDir, session.currentBookId)
       return { type: 'card', cardJson: buildLoreCard(lore) }
     }
@@ -178,7 +178,7 @@ export async function handleCommand(
     case 'chapters':
     case '章节': {
       const session = getSession(ctx.dataDir, ctx.sessionKey)
-      if (!session?.currentBookId) return { type: 'text', content: '请先选择书籍。' }
+      if (!session?.currentBookId) return { type: 'text', content: '请先选择项目。' }
       const chapters = listChapters(ctx.dataDir, session.currentBookId)
       return { type: 'card', cardJson: buildChapterListCard(chapters) }
     }
@@ -186,9 +186,9 @@ export async function handleCommand(
     case 'review':
     case '审稿': {
       const chapterId = args.trim()
-      if (!chapterId) return { type: 'text', content: '用法: /review <chapterId>\n发送 /chapters 查看章节列表。' }
+      if (!chapterId) return { type: 'text', content: '用法: /review <stageId>\n发送 /chapters 查看段落列表。' }
       const session = getSession(ctx.dataDir, ctx.sessionKey)
-      if (!session?.currentBookId) return { type: 'text', content: '请先选择书籍。' }
+      if (!session?.currentBookId) return { type: 'text', content: '请先选择项目。' }
       const review = readReview(ctx.dataDir, session.currentBookId, chapterId)
       if (!review) return { type: 'text', content: `未找到审稿结果: ${chapterId}` }
       return { type: 'card', cardJson: buildReviewCard(review) }
@@ -197,7 +197,7 @@ export async function handleCommand(
     case 'clear':
     case '清空': {
       const session = getSession(ctx.dataDir, ctx.sessionKey)
-      if (!session?.currentBookId) return { type: 'text', content: '请先选择书籍。' }
+      if (!session?.currentBookId) return { type: 'text', content: '请先选择项目。' }
       const { saveHistory } = await import('../routes/chat-history.js')
       saveHistory(ctx.dataDir, session.currentBookId, [])
       return { type: 'text', content: '对话历史已清空。' }
@@ -206,7 +206,7 @@ export async function handleCommand(
     case 'history':
     case '历史': {
       const session = getSession(ctx.dataDir, ctx.sessionKey)
-      if (!session?.currentBookId) return { type: 'text', content: '请先选择书籍。' }
+      if (!session?.currentBookId) return { type: 'text', content: '请先选择项目。' }
       const { loadHistoryFull } = await import('../routes/chat-history.js')
       const history = loadHistoryFull(ctx.dataDir, session.currentBookId)
       return { type: 'text', content: `当前对话: ${history.length} 条消息` }

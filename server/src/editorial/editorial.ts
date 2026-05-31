@@ -5,11 +5,12 @@
  *
  * Returns structured JSON feedback that the Author can use
  * to self-revise in the same agent loop.
- * Results are auto-persisted to 04_Drafts/review_{chapterId}.json.
+ * Results are auto-persisted to 04_Drafts/review_{chapter_id}.json.
  */
 import { z } from 'zod'
 import fs from 'fs'
 import path from 'path'
+import { parse as yamlParse } from 'yaml'
 import { type ToolDefinition, type ToolProgressEvent } from '../tools/base-tool.js'
 import {
   runEditorialPipeline,
@@ -76,7 +77,7 @@ export interface RunEditorialPipelineForChapterArgs {
  *   - On pass, updates project memory via persistChapterSummary
  *
  * Does NOT:
- *   - Enforce the save_draft-first guard (caller decides — the tool wants it,
+ *   - Enforce the save_script-first guard (caller decides — the tool wants it,
  *     the workbench route has already verified the draft file exists)
  *   - Format the Author-facing summary string (that's tool-specific UX)
  */
@@ -183,31 +184,48 @@ export async function runEditorialPipelineForChapter(
   }
 }
 
+function readStageTextFromScripts(bookDir: string, stageId: string): string | null {
+  const scriptsDir = path.join(bookDir, '03_Scripts')
+  if (!fs.existsSync(scriptsDir)) return null
+  try {
+    for (const file of fs.readdirSync(scriptsDir).filter(f => f.endsWith('.yaml'))) {
+      const content = yamlParse(fs.readFileSync(path.join(scriptsDir, file), 'utf-8'))
+      if (Array.isArray(content?.stages)) {
+        const stage = content.stages.find((s: any) => s.id === stageId)
+        if (stage?.lines?.length > 0) {
+          return stage.lines.map((l: any) => l.text ?? '').join('\n')
+        }
+      }
+    }
+  } catch {}
+  return null
+}
+
 export const submitToEditorialTool: ToolDefinition = {
   name: 'submit_to_editorial',
   description: [
-    '将草稿提交给机器慢审。默认只跑两个审稿人：设定考据（editorial_lore）与逻辑审核（editorial_causality）。',
+    '将剧本提交给机器慢审。默认只跑两个审稿人：设定考据（editorial_lore）与逻辑审核（editorial_causality）。',
     '慢审只负责设定和因果风险，不评判网文性、AI味、节奏或人物魅力；这些由人类在工作台拍板。',
-    '初审默认 full；轻微小修后可用 failed_only 只复审上轮未过的设定/逻辑审稿人，系统会与上一轮结果合并。最终章节定稿仍需要人类在工作台明确通过。',
+    '初审默认 full；轻微小修后可用 failed_only 只复审上轮未过的设定/逻辑审稿人，系统会与上一轮结果合并。最终 stage 定稿仍需要人类在工作台明确通过。',
     '审核结果包含各审稿人的pass/fail状态、具体问题列表和修改指令。',
-    '审核结果自动保存到 04_Drafts/review_{chapterId}.json。',
-    `硬性篇幅门槛：draft_text 与已保存草稿都必须至少 ${MIN_REVIEW_DRAFT_CHARS} 字；不足时不要送审，先局部扩写或重写。`,
-    '收到反馈后，你应该根据反馈自主修改草稿。',
+    '审核结果自动保存到 04_Drafts/review_{chapter_id}.json。',
+    `硬性篇幅门槛：draft_text 与已保存剧本都必须至少 ${MIN_REVIEW_DRAFT_CHARS} 字；不足时不要送审，先局部扩写或重写。`,
+    '收到反馈后，你应该根据反馈自主修改剧本。',
   ].join('\n'),
   parameters: z.object({
-    draft_text: z.string().describe('要审核的草稿文本'),
+    draft_text: z.string().describe('要审核的剧本文本'),
     chapter_id: z.string()
-      .regex(/^ch\d{1,4}$/i, "chapter_id 必须是 'ch{N}' 形式（如 ch01）。和 save_draft 的 ch{N}.md 文件名对齐，review 才会保存到 review_ch{N}.json，前端章节卡片才能配对显示审稿结果。")
-      .describe("章节 ID，必须是 'ch{N}' 形式（如 ch01, ch02）。审稿结果保存到 04_Drafts/review_{chapter_id}.json"),
-    book_tone: z.string().optional().describe('书籍基调，如"热血玄幻"'),
-    book_genre: z.string().optional().describe('书籍类型，如"玄幻"'),
+      .regex(/^[a-zA-Z0-9_\-]+$/, "chapter_id 必须是合法标识符（字母/数字/下划线/连字符，如 ch01 或 arrival）。和剧本文件名对齐，review 才会保存到 review_{chapter_id}.json，前端才能配对显示审稿结果。")
+      .describe("Stage ID（如 ch01 或 arrival）。审稿结果保存到 04_Drafts/review_{chapter_id}.json；剧本从 03_Scripts/ YAML 中读取"),
+    book_tone: z.string().optional().describe('项目基调，如"热血玄幻"'),
+    book_genre: z.string().optional().describe('项目类型，如"玄幻"'),
     pov_character: z.string().optional().describe('本场景主视角角色名；帮助设定审稿人聚焦角色一致性'),
     setting: z.string().optional().describe('本场景地点/时空/环境一句话描述'),
     scene_target: z.string().optional().describe('本场景叙事目标，例如"点燃男主复仇动机"'),
     logic_chain: z.string().optional().describe('本场景核心因果链，可留空'),
     emotional_arc: z.string().optional().describe('本场景情绪起落路径，可留空'),
     focus_point: z.string().optional().describe('本场景重点描写对象，可留空'),
-    review_scope: z.enum(['full', 'failed_only', 'targeted']).optional().describe('审核范围。full=默认设定/逻辑两审；failed_only=只复审上一轮未过审稿人并合并旧结果；targeted=只跑 reviewers 指定的审稿人。章节最终定稿必须由人类在工作台通过。'),
+    review_scope: z.enum(['full', 'failed_only', 'targeted']).optional().describe('审核范围。full=默认设定/逻辑两审；failed_only=只复审上一轮未过审稿人并合并旧结果；targeted=只跑 reviewers 指定的审稿人。Stage 最终定稿必须由人类在工作台通过。'),
     reviewers: z.array(z.enum([
       'editorial_lore',
       'editorial_causality',
@@ -225,34 +243,33 @@ export const submitToEditorialTool: ToolDefinition = {
     if (draft_text.length < MIN_REVIEW_DRAFT_CHARS) {
       return [
         `Error: draft_text 只有 ${draft_text.length} 字，少于送审最低要求 ${MIN_REVIEW_DRAFT_CHARS} 字。`,
-        '先用 load_skill("chapter_edit") 进行局部扩写，或 load_skill("chapter_rewrite") 整章重写；补足动作、环境、对话、内心和冲突收束后，再 save_draft 并重新送审。',
+        '先用 load_skill("stage_edit") 进行局部扩写，或 load_skill("stage_rewrite") 整个 stage 重写；补足动作、环境、对话、内心和冲突收束后，再 save_script 并重新送审。',
       ].join('\n')
     }
 
-    // Guard 2: the corresponding saved draft must exist. This forces the flow
-    // save_draft → submit_to_editorial and blocks submitting un-persisted text.
+    // Guard 2: the corresponding saved stage must exist in 03_Scripts/.
+    // Forces save_script → submit_to_editorial flow.
     const bookDir = path.join(ctx.dataDir, ctx.bookId)
-    const draftPath = path.join(bookDir, '04_Drafts', `${chapter_id}.md`)
-    if (!fs.existsSync(draftPath)) {
-      return `Error: 未找到 04_Drafts/${chapter_id}.md。先用 save_draft 保存 ${chapter_id} 的正文，再调 submit_to_editorial——不要绕过 save_draft 直接送审。`
+    const savedStageText = readStageTextFromScripts(bookDir, chapter_id)
+    if (!savedStageText) {
+      return `Error: 03_Scripts 中未找到 stage "${chapter_id}" 的剧本内容。先用 save_script(package_id, stage_id, stage_json) 保存该 stage，再调 submit_to_editorial。`
     }
-    const savedDraftText = fs.readFileSync(draftPath, 'utf8')
-    if (savedDraftText.length < MIN_REVIEW_DRAFT_CHARS) {
+    if (savedStageText.length < MIN_REVIEW_DRAFT_CHARS) {
       return [
-        `Error: 已保存草稿 04_Drafts/${chapter_id}.md 只有 ${savedDraftText.length} 字，少于送审最低要求 ${MIN_REVIEW_DRAFT_CHARS} 字。`,
-        '先扩写并再次 save_draft，确保磁盘草稿与送审文本都达标，再调用 submit_to_editorial。',
+        `Error: 已保存的 stage "${chapter_id}" 剧本只有 ${savedStageText.length} 字，少于送审最低要求 ${MIN_REVIEW_DRAFT_CHARS} 字。`,
+        '先扩写并再次 save_script，确保磁盘剧本与送审文本都达标，再调用 submit_to_editorial。',
       ].join('\n')
     }
-    const selfCheck = runDraftSelfCheck(savedDraftText, {
+    const selfCheck = runDraftSelfCheck(savedStageText, {
       minReviewChars: MIN_REVIEW_DRAFT_CHARS,
       bookDir,
     })
     if (selfCheck.blockEditorial) {
       return [
-        'Error: 保存草稿未通过本地快速自检，暂不进入慢审稿。',
+        'Error: 保存剧本未通过本地快速自检，暂不进入慢审稿。',
         formatDraftSelfCheck(selfCheck),
         '',
-        '请先 load_skill("chapter_edit")，按自检问题快速删改、压缩或补桥段，再 save_draft。自检严重项清掉后再 submit_to_editorial。',
+        '请先 load_skill("stage_edit")，按自检问题快速删改、压缩或补桥段，再 save_script。自检严重项清掉后再 submit_to_editorial。',
       ].join('\n')
     }
 

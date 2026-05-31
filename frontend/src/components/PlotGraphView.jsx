@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Loader, Plus } from 'lucide-react'
 import { useI18n } from '../hooks/useI18n'
-import { toRoman } from '../utils/roman'
+
 import { AddNodeModal } from './plotgraph/AddNodeModal'
 import { NodeDetailDrawer } from './plotgraph/NodeDetailDrawer'
 import { UnresolvedSetupsPopover } from './plotgraph/UnresolvedSetupsPopover'
@@ -16,9 +16,10 @@ const NODE_COLORS = {
   convergence: 'var(--reviewer-pacing)',
 }
 
-function chRefToOrder(chId) {
-  const n = parseInt(String(chId).replace(/^ch/i, ''), 10)
-  return Number.isNaN(n) ? 9999 : n
+function flattenStages(node, out = []) {
+  if (node.type === 'stage' || node.type === 'chapter') out.push(node)
+  if (Array.isArray(node.children)) node.children.forEach(c => flattenStages(c, out))
+  return out
 }
 
 export function PlotGraphView({ currentBook, addToast, onChapterOpen, dataVersion }) {
@@ -26,6 +27,7 @@ export function PlotGraphView({ currentBook, addToast, onChapterOpen, dataVersio
   const [graph, setGraph] = useState(null)
   const [loading, setLoading] = useState(true)
   const [unresolved, setUnresolved] = useState([])
+  const [stageMap, setStageMap] = useState({})
   const [detailNodeId, setDetailNodeId] = useState(null)
   const [addNodeOpen, setAddNodeOpen] = useState(false)
   const [unresolvedPopoverOpen, setUnresolvedPopoverOpen] = useState(false)
@@ -35,12 +37,18 @@ export function PlotGraphView({ currentBook, addToast, onChapterOpen, dataVersio
     if (!currentBook) { setLoading(false); return }
     setLoading(true)
     try {
-      const [g, u] = await Promise.all([
+      const [g, u, outline] = await Promise.all([
         fetch(`/api/v1/books/${currentBook.book_id}/plot-graph`).then(r => r.json()),
         fetch(`/api/v1/books/${currentBook.book_id}/plot-graph/unresolved-setups`).then(r => r.json()),
+        fetch(`/api/v1/books/${currentBook.book_id}/outline`).then(r => r.ok ? r.json() : null).catch(() => null),
       ])
       setGraph(g)
       setUnresolved(Array.isArray(u) ? u : [])
+      const map = {}
+      if (outline) {
+        flattenStages(outline).forEach((s, i) => { map[s.id] = { label: s.label, order: i } })
+      }
+      setStageMap(map)
     } catch (err) {
       if (addToast) addToast(err?.message || String(err), 'error')
     } finally {
@@ -50,18 +58,21 @@ export function PlotGraphView({ currentBook, addToast, onChapterOpen, dataVersio
 
   useEffect(() => { reload() }, [reload, dataVersion])
 
+  const stageOrder = useCallback((id) => stageMap[id]?.order ?? 9999, [stageMap])
+  const stageLabel = useCallback((id) => stageMap[id]?.label ?? id, [stageMap])
+
   const columns = useMemo(() => {
     if (!graph?.nodes) return []
     const byCh = {}
     for (const node of Object.values(graph.nodes)) {
       const refs = Array.isArray(node.references) ? [...node.references].sort() : []
-      const ch = refs[0] ?? 'ch00'
+      const ch = refs[0] ?? '_unlinked'
       if (!byCh[ch]) byCh[ch] = []
       byCh[ch].push(node)
     }
     return Object.entries(byCh)
-      .sort(([a], [b]) => chRefToOrder(a) - chRefToOrder(b))
-  }, [graph])
+      .sort(([a], [b]) => stageOrder(a) - stageOrder(b))
+  }, [graph, stageOrder])
 
   if (loading) {
     return (
@@ -111,9 +122,9 @@ export function PlotGraphView({ currentBook, addToast, onChapterOpen, dataVersio
             <div key={chId} className="plot-col" data-ch={chId}>
               <div
                 className="plot-col-head label-sc"
-                onClick={() => onChapterOpen && onChapterOpen({ id: chId, label: `Ch. ${toRoman(chRefToOrder(chId))}` })}
+                onClick={() => onChapterOpen && onChapterOpen({ id: chId, label: stageLabel(chId) })}
               >
-                Ch. {toRoman(chRefToOrder(chId))}
+                {stageLabel(chId)}
               </div>
               {nodes.map(n => (
                 <div

@@ -19,7 +19,7 @@ export const scriptValidateTool: ToolDefinition = {
     const yamlPath = path.resolve(bookDir, '03_Scripts', `${args.package_id}.yaml`)
 
     if (!yamlPath.startsWith(path.resolve(bookDir))) {
-      return 'Error: Access denied — path outside book directory.'
+      return 'Error: Access denied — path outside project directory.'
     }
 
     if (!fs.existsSync(yamlPath)) {

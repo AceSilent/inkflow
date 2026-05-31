@@ -10,9 +10,9 @@ const MAX_FILE_CHARS = 10_000
 
 export const readFileTool: ToolDefinition = {
   name: 'read_file',
-  description: '读取书籍目录中的文件。支持 .md, .json, .txt 等格式。',
+  description: '读取项目目录中的文件。支持 .md, .json, .txt 等格式。',
   parameters: z.object({
-    relative_path: z.string().describe('相对于书籍目录的文件路径'),
+    relative_path: z.string().describe('相对于项目目录的文件路径'),
   }),
   permissionLevel: 'read',
   category: '读取',
@@ -22,7 +22,7 @@ export const readFileTool: ToolDefinition = {
 
     // Path traversal check
     if (!target.startsWith(path.resolve(bookDir))) {
-      return 'Error: Access denied — path outside book directory.'
+      return 'Error: Access denied — path outside project directory.'
     }
 
     if (!fs.existsSync(target)) {

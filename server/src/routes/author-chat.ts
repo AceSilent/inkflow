@@ -64,14 +64,21 @@ export async function authorChatRoutes(app: FastifyInstance) {
     }
   )
 
-  // DELETE history
+  // DELETE history — clears chat + resets context state for a fresh start
   app.delete<{ Params: { bookId: string } }>(
     '/api/v1/author-chat/:bookId/history',
     async (request, reply) => {
       try {
         const bookId = sanitizePathSegment(request.params.bookId, 'bookId')
         const { dataDir } = loadConfig()
+        const bookDir = path.join(dataDir, bookId)
         saveHistory(dataDir, bookId, [])
+        // Reset context tracking so UI shows 0% after clear
+        const usageFile = path.join(bookDir, 'last_usage.json')
+        const logFile = path.join(bookDir, 'context_log.jsonl')
+        if (fs.existsSync(usageFile)) fs.unlinkSync(usageFile)
+        if (fs.existsSync(logFile)) fs.unlinkSync(logFile)
+        resetBreaker(bookDir)
         return { status: 'ok' }
       } catch (err: any) {
         reply.code(400)

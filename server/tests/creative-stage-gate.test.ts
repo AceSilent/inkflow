@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
+import { stringify as yamlStringify } from 'yaml'
 import { creativeStageGate } from '../src/stats/tips/creative-stage-gate.js'
 import { type RuleContext } from '../src/stats/tips/types.js'
 
@@ -25,19 +26,21 @@ describe('creativeStageGate', () => {
     expect(result?.message).toContain('正文阶段条件不足')
   })
 
-  it('blocks review when no first draft exists', () => {
+  it('blocks review when no stage exists in scripts', () => {
     const ctx = makeCtx()
     const result = creativeStageGate(ctx).interceptToolCall?.('submit_to_editorial', { chapter_id: 'ch01' }, { dataDir: ctx.dataDir, bookId: ctx.bookId })
     expect(result).toMatchObject({ block: true })
-    expect(result?.message).toContain('没有 ch01 草稿')
+    expect(result?.message).toContain('ch01')
   })
 
-  it('blocks review for the requested chapter when a previous draft exists', () => {
+  it('blocks review for a missing stage when another stage exists', () => {
     const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'creative-stage-gate-'))
     try {
       const bookDir = path.join(dataDir, 'book1')
-      fs.mkdirSync(path.join(bookDir, '04_Drafts'), { recursive: true })
-      fs.writeFileSync(path.join(bookDir, '04_Drafts', 'ch01.md'), '正文')
+      const scriptsDir = path.join(bookDir, '03_Scripts')
+      fs.mkdirSync(scriptsDir, { recursive: true })
+      const pkg = { stages: [{ id: 'ch01', lines: [{ id: 'L1', speaker: '旁白', text: '正文', type: 'narration' }] }] }
+      fs.writeFileSync(path.join(scriptsDir, 'pkg1.yaml'), yamlStringify(pkg), 'utf-8')
       const ctx = makeCtx({ dataDir, bookId: 'book1' })
 
       const result = creativeStageGate(ctx).interceptToolCall?.(
@@ -47,7 +50,7 @@ describe('creativeStageGate', () => {
       )
 
       expect(result).toMatchObject({ block: true })
-      expect(result?.message).toContain('没有 ch02 草稿')
+      expect(result?.message).toContain('ch02')
     } finally {
       fs.rmSync(dataDir, { recursive: true, force: true })
     }

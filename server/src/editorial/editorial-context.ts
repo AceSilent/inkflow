@@ -41,10 +41,10 @@ function formatOutlineContext(outline: unknown, chapterId: string): string {
   const parts: string[] = []
   if (idx > 0) {
     const prev = chapters[idx - 1]
-    parts.push(`【前一章 ${prev.id}${prev.label ? ' · ' + prev.label : ''}】\n${prev.summary ?? '(无摘要)'}`)
+    parts.push(`【前一阶段 ${prev.id}${prev.label ? ' · ' + prev.label : ''}】\n${prev.summary ?? '(无摘要)'}`)
   }
   const cur = chapters[idx]
-  parts.push(`【本章 ${cur.id}${cur.label ? ' · ' + cur.label : ''}】\n${cur.summary ?? '(无摘要)'}`)
+  parts.push(`【当前阶段 ${cur.id}${cur.label ? ' · ' + cur.label : ''}】\n${cur.summary ?? '(无摘要)'}`)
   return parts.join('\n\n')
 }
 
