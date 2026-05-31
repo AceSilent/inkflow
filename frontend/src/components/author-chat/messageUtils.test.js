@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   editableUserMessageContent,
+  isCheckpointEditorActiveForMessage,
   languageForAttachmentName,
   messageDisplayParts,
   persistDraftInput,
@@ -29,6 +30,12 @@ describe('author chat message utils', () => {
       { role: 'user', id: 'm1', content: 'first' },
       { role: 'assistant', id: 'a1', content: 'reply' },
     ])
+  })
+
+  it('does not treat an unsaved optimistic message as checkpoint editing', () => {
+    expect(isCheckpointEditorActiveForMessage(null, { role: 'user', content: '刚发送' })).toBe(false)
+    expect(isCheckpointEditorActiveForMessage({ messageId: 'm1' }, { role: 'user', id: undefined, content: '刚发送' })).toBe(false)
+    expect(isCheckpointEditorActiveForMessage({ messageId: 'm1' }, { role: 'user', id: 'm1', content: '历史消息' })).toBe(true)
   })
 
   it('uses a bounded preview for long pasted user documents', () => {

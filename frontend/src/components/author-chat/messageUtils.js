@@ -164,3 +164,7 @@ export function truncateMessagesBeforeCheckpoint(messages, messageId) {
   if (index < 0) return messages
   return messages.slice(0, index)
 }
+
+export function isCheckpointEditorActiveForMessage(checkpointEditor, message) {
+  return Boolean(checkpointEditor?.messageId && message?.id && checkpointEditor.messageId === message.id)
+}

@@ -7,6 +7,7 @@ import { MessageBubble, OptionsCard, StreamingToolCard, ThinkingCard } from './a
 import {
   DATA_MUTATING_TOOLS,
   editableUserMessageContent,
+  isCheckpointEditorActiveForMessage,
   persistDraftInput,
   restoreChatMessages,
   restoreDraftInput,
@@ -755,7 +756,7 @@ export function AuthorChatPanel({
           if (msg.role === 'system_notice') {
             return <div key={msg.id || i} className="context-notice">{msg.content}</div>
           }
-          const isEditingCheckpoint = checkpointEditor?.messageId === msg.id
+          const isEditingCheckpoint = isCheckpointEditorActiveForMessage(checkpointEditor, msg)
           return (
             <div key={msg.id || i} style={{ display: 'contents' }}>
               <MessageBubble
