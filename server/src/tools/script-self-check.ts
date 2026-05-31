@@ -1,4 +1,5 @@
 import type { StoryPackage } from '../schemas/index.js'
+import { detectIdCollisions } from '../services/line-id.js'
 
 export enum ScriptSelfCheckType {
   EmptyLines = 'Empty_Lines',
@@ -10,6 +11,7 @@ export enum ScriptSelfCheckType {
   DirectionAssetMissing = 'Direction_Asset_Missing',
   StageTooLong = 'Stage_Too_Long',
   ChoiceLabelTooLong = 'Choice_Label_Too_Long',
+  DuplicateLineId = 'Duplicate_Line_Id',
 }
 
 export interface ScriptSelfCheckIssue {
@@ -28,6 +30,10 @@ export interface ScriptSelfCheckResult {
 export function runScriptSelfCheck(pkg: StoryPackage): ScriptSelfCheckResult {
   const issues: ScriptSelfCheckIssue[] = []
   const stageIds = new Set(pkg.stages.map(stage => stage.id))
+  const duplicateLineIds = detectIdCollisions(pkg.stages.flatMap(stage => stage.lines.map(line => ({ id: line.id }))))
+  for (const duplicateId of duplicateLineIds) {
+    issues.push({ type: ScriptSelfCheckType.DuplicateLineId, severity: 5, message: `Duplicate line id '${duplicateId}' found` })
+  }
 
   for (const stage of pkg.stages) {
     if (!stage.lines || stage.lines.length === 0) {
@@ -98,4 +104,3 @@ function checkOrphanStages(pkg: StoryPackage, issues: ScriptSelfCheckIssue[]) {
     }
   }
 }
-

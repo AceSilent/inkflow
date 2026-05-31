@@ -7,6 +7,7 @@
 /docs/*
 !/docs/design/
 !/docs/design/creative-flow-preview.html
+!/docs/design/*.md
 
 # Python
 __pycache__/

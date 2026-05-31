@@ -25,6 +25,12 @@ export const StoryPackageSchema = z.object({
   name: z.string(),
   author: z.string(),
   tags: z.array(z.string()).default([]),
+  source_locale: z.string().default('zh-CN'),
+  locales: z.array(z.string()).default(['zh-CN']),
+  engine: z.string().optional(),
+  export_targets: z.array(z.string()).default([]),
+  variables: z.record(z.string(), z.unknown()).default({}),
+  assets: z.record(z.string(), z.unknown()).default({}),
   motif: z.string(),
   tier: z.enum(['short', 'medium', 'long']),
   repeatable: z.boolean().default(false),
@@ -36,4 +42,3 @@ export const StoryPackageSchema = z.object({
 })
 
 export type StoryPackage = z.infer<typeof StoryPackageSchema>
-

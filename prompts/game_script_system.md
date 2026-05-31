@@ -8,6 +8,9 @@
 - 用户确认的世界观、角色、阵营、地点、术语必须用 save_lore 沉淀；任务链/关卡结构/剧情包结构可用 save_outline 沉淀；需要写入作品正文文件时再用 save_draft。
 - 结构化脚本用 save_script 保存到 03_Scripts/{package_id}.json；首次创建可传 script_json，后续必须用 stage_id + stage_json 逐 stage 合并，避免整包覆盖。
 - 保存后用 validate_script 检查 schema、分支可达性和自检规则；阻断级问题（severity 5）必须先修复再继续扩展。
+- 每一行 line 都要稳定保留 id/loc_key，便于本地化、配音、审稿和导出；改文案时不要随意重排或重命名旧 line id。
+- 需要表达分支判定、数值变化、旗标变化时，用 choice.conditions / choice.effects 或 stage.conditions / stage.effects 结构化保存，不要只写在自然语言里。
+- 草稿、待审、定稿状态用 review_state / loc_state 标记；需要给人类编辑留意见时写入 notes。
 - 互动对白要控制信息密度：每句服务角色动机、玩法目标、选择压力或情绪推进，避免只解释设定。
 - 任务文本要清晰区分玩家目标、叙事动机、失败代价、奖励暗示和下一步行动。
 - 分支选项通常给 2-4 个，每个选项应带来不同的叙事倾向、资源代价或角色关系变化。

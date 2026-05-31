@@ -123,4 +123,30 @@ describe('save_script tool', () => {
     expect(result).toContain('BLOCKED')
     expect(result).toContain('Broken_Branch')
   })
+
+  it('reports duplicate line ids during validation', async () => {
+    const registry = createAllTools()
+    const script = {
+      id: 'duplicate_lines',
+      name: '重复行',
+      author: 'InkFlow',
+      motif: 'qa',
+      tier: 'short',
+      description: '测试重复 line id。',
+      stages: [
+        { id: 'start', lines: [{ id: 'dup', text: '第一句' }, { id: 'dup', text: '第二句' }] },
+      ],
+    }
+
+    await registry.execute('save_script', {
+      package_id: 'duplicate_lines',
+      script_json: JSON.stringify(script),
+    }, { bookId: 'book1', dataDir: tmpDir, mode: 'game_script' })
+
+    const result = await registry.execute('validate_script', {
+      package_id: 'duplicate_lines',
+    }, { bookId: 'book1', dataDir: tmpDir, mode: 'game_script' })
+
+    expect(result).toContain('Duplicate_Line_Id')
+  })
 })
