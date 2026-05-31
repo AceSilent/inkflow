@@ -7,6 +7,7 @@ import {
   messageDisplayParts,
   persistDraftInput,
   restoreDraftInput,
+  shouldSubmitComposerKey,
   truncateMessagesBeforeCheckpoint,
   visibleUserMessageContent,
 } from './messageUtils'
@@ -42,6 +43,13 @@ describe('author chat message utils', () => {
     expect(hasAssistantReplyAfterUser(messages, '只回复两个字：可用')).toBe(true)
     expect(hasAssistantReplyAfterUser(messages, '另一条消息')).toBe(false)
     expect(hasAssistantReplyAfterUser(null, '只回复两个字：可用')).toBe(false)
+  })
+
+  it('does not submit while an input method composition is active', () => {
+    expect(shouldSubmitComposerKey({ key: 'Enter', shiftKey: false }, false)).toBe(true)
+    expect(shouldSubmitComposerKey({ key: 'Enter', shiftKey: true }, false)).toBe(false)
+    expect(shouldSubmitComposerKey({ key: 'Enter', shiftKey: false, nativeEvent: { isComposing: true } }, false)).toBe(false)
+    expect(shouldSubmitComposerKey({ key: 'Enter', shiftKey: false }, true)).toBe(false)
   })
 
   it('does not treat an unsaved optimistic message as checkpoint editing', () => {

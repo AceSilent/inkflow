@@ -6,7 +6,7 @@ function cleanBase(base) {
 
 export function isTauriRuntime() {
   if (typeof window === 'undefined') return false
-  return Boolean(window.__TAURI_INTERNALS__ || window.__TAURI__)
+  return window.location?.protocol === 'tauri:' || Boolean(window.__TAURI_INTERNALS__ || window.__TAURI__)
 }
 
 export function apiBase(options = {}) {

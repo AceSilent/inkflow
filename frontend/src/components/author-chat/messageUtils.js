@@ -64,6 +64,13 @@ export function hasAssistantReplyAfterUser(messages = [], userContent = '') {
   return messages.slice(userIndex + 1).some(message => message?.role === 'assistant')
 }
 
+export function shouldSubmitComposerKey(event, composing = false) {
+  return event?.key === 'Enter'
+    && !event.shiftKey
+    && !event.nativeEvent?.isComposing
+    && !composing
+}
+
 export function editableUserMessageContent(message) {
   if (!message?.content) return ''
   return String(message.content ?? '')

@@ -35,6 +35,21 @@ import { extractMemories, ingestExtracted } from '../memory/extractor.js'
 const loadConfig = loadAuthorChatConfig
 export { persistUsageBestEffort }
 
+export function buildSseHeaders(origin?: string | string[]): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  }
+  const requestOrigin = Array.isArray(origin) ? origin[0] : origin
+  if (requestOrigin) {
+    headers['Access-Control-Allow-Origin'] = requestOrigin
+    headers.Vary = 'Origin'
+  }
+  return headers
+}
+
 function toModelMessage(message: ChatHistoryMessage): ModelMessage {
   const {
     thinking: _thinking,
@@ -117,12 +132,7 @@ export async function authorChatRoutes(app: FastifyInstance) {
       const modelUserMessage = renderUserMessageForModel(message, attachments)
       const { llmConfig, dataDir } = loadConfig()
 
-      reply.raw.writeHead(200, {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-        'X-Accel-Buffering': 'no',
-      })
+      reply.raw.writeHead(200, buildSseHeaders(request.headers.origin))
       const sse = (data: unknown) => reply.raw.write(`data: ${JSON.stringify(data)}\n\n`)
 
       const abortController = new AbortController()
@@ -361,12 +371,7 @@ export async function authorChatRoutes(app: FastifyInstance) {
       const checkpointMessage = summarizeAttachmentsForCheckpoint(message, attachments)
       const { llmConfig, dataDir } = loadConfig()
 
-      reply.raw.writeHead(200, {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-        'X-Accel-Buffering': 'no',
-      })
+      reply.raw.writeHead(200, buildSseHeaders(request.headers.origin))
 
       const sse = (data: unknown) =>
         reply.raw.write(`data: ${JSON.stringify(data)}\n\n`)

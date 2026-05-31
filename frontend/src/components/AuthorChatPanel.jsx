@@ -12,6 +12,7 @@ import {
   persistDraftInput,
   restoreDraftInput,
   sentHistoryFromMessages,
+  shouldSubmitComposerKey,
   truncateMessagesBeforeCheckpoint,
 } from './author-chat/messageUtils'
 import { fetchChatHistory } from './author-chat/historyLoader'
@@ -132,6 +133,7 @@ export function NoBookChatStarter({
   const [draft, setDraft] = useState('')
   const [attachments, setAttachments] = useState([])
   const fileInputRef = useRef(null)
+  const composingRef = useRef(false)
 
   const submit = () => {
     const text = draft.trim()
@@ -185,8 +187,10 @@ export function NoBookChatStarter({
           <textarea
             value={draft}
             onChange={event => setDraft(event.target.value)}
+            onCompositionStart={() => { composingRef.current = true }}
+            onCompositionEnd={() => { composingRef.current = false }}
             onKeyDown={event => {
-              if (event.key === 'Enter' && !event.shiftKey) {
+              if (shouldSubmitComposerKey(event, composingRef.current)) {
                 event.preventDefault()
                 submit()
               }
@@ -681,8 +685,7 @@ export function AuthorChatPanel({
   }
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      if (e.nativeEvent?.isComposing || composingRef.current) return
+    if (shouldSubmitComposerKey(e, composingRef.current)) {
       e.preventDefault()
       handleSend()
       return
