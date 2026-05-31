@@ -107,5 +107,7 @@ describe('Game Script Prompt', () => {
     expect(prompt).toContain('任务文本')
     expect(prompt).toContain('用户喜欢克制的对白')
     expect(prompt).toContain('save_lore')
+    expect(prompt).toContain('save_script')
+    expect(prompt).toContain('validate_script')
   })
 })

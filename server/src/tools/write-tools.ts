@@ -10,12 +10,151 @@ import { createBackup, appendAuditLog, withFileLock } from './safety.js'
 import { archivePriorDraft } from './draft-history.js'
 import { ensureDir, safeReadJson } from '../utils/file-io.js'
 import { formatDraftSelfCheck, runDraftSelfCheck } from './draft-self-check.js'
+import { generateLineIds } from '../services/line-id.js'
+import { StoryPackageSchema } from '../schemas/index.js'
+import { StageSchema } from '../schemas/stage.js'
+import { runScriptSelfCheck } from './script-self-check.js'
 
 /**
  * Target lower bound for a reviewable novel chapter. We allow saving shorter
  * drafts as work-in-progress, but editorial submission must clear this floor.
  */
 export const MIN_REVIEW_DRAFT_CHARS = 2500
+
+function formatScriptSelfCheck(issues: { type: string; severity: number; message: string; stageId?: string }[]): string {
+  return issues.map(issue => `[sev${issue.severity}] ${issue.type}: ${issue.message}`).join('\n')
+}
+
+export const saveScriptTool: ToolDefinition = {
+  name: 'save_script',
+  description: [
+    '保存游戏文案脚本到 03_Scripts/{package_id}.json，仅供 game_script 模式使用。',
+    '首次创建传 script_json；已有文件后必须传 stage_id + stage_json 逐 stage 合并，避免整包覆盖。',
+    '自动补 line.id，校验 story package / stage schema，并运行 validate_script 同源的自检规则。',
+  ].join('\n'),
+  parameters: z.object({
+    package_id: z.string().regex(/^[A-Za-z0-9_-]{1,80}$/).describe('故事包 ID，用作文件名（不含扩展名）'),
+    script_json: z.string().optional().describe('完整 StoryPackage JSON 字符串，仅用于首次创建'),
+    stage_id: z.string().regex(/^[A-Za-z0-9_-]{1,80}$/).optional().describe('要合并的 stage ID'),
+    stage_json: z.string().optional().describe('单个 Stage JSON 字符串，与 stage_id 配合'),
+  }),
+  permissionLevel: 'write',
+  category: '写入',
+  execute: async ({ package_id, script_json, stage_id, stage_json }, ctx) => {
+    if (ctx.mode !== 'game_script') {
+      return 'Error: save_script is only available in game_script mode. Use save_draft for novel chapters.'
+    }
+
+    const bookDir = path.join(ctx.dataDir, ctx.bookId)
+    const scriptsDir = ensureDir(path.join(bookDir, '03_Scripts'))
+    const scriptsRoot = path.resolve(scriptsDir)
+    const target = path.resolve(scriptsRoot, `${package_id}.json`)
+
+    if (!target.startsWith(scriptsRoot + path.sep)) {
+      return 'Error: Access denied — path outside book directory.'
+    }
+
+    let pkg: any
+
+    if (stage_id && stage_json) {
+      if (!fs.existsSync(target)) {
+        return `Error: 03_Scripts/${package_id}.json not found. First use script_json to create the package, then use stage_id + stage_json to update individual stages.`
+      }
+
+      let rawStage: unknown
+      try {
+        rawStage = JSON.parse(stage_json)
+      } catch (e) {
+        return `Error: Invalid stage_json — ${e}`
+      }
+
+      let existing: any
+      try {
+        existing = JSON.parse(fs.readFileSync(target, 'utf-8'))
+      } catch (e) {
+        return `Error: Existing script JSON cannot be parsed — ${e}`
+      }
+      if (!Array.isArray(existing?.stages)) return 'Error: Existing script has no stages array.'
+
+      const stageWithIds = assignSingleStageLineIds(package_id, stage_id, rawStage)
+      const stageResult = StageSchema.safeParse(stageWithIds)
+      if (!stageResult.success) {
+        const errorLines = stageResult.error.issues.map(issue => `- ${issue.path.join('.')}: ${issue.message}`)
+        return `Error: Stage schema validation failed:\n${errorLines.join('\n')}`
+      }
+
+      const idx = existing.stages.findIndex((stage: any) => stage.id === stage_id)
+      if (idx >= 0) existing.stages[idx] = stageResult.data
+      else existing.stages.push(stageResult.data)
+
+      const fullResult = StoryPackageSchema.safeParse(existing)
+      if (!fullResult.success) {
+        const errorLines = fullResult.error.issues.map(issue => `- ${issue.path.join('.')}: ${issue.message}`)
+        return `Error: Merged package schema validation failed:\n${errorLines.join('\n')}`
+      }
+      pkg = fullResult.data
+    } else if (script_json) {
+      if (fs.existsSync(target)) {
+        return `Error: 03_Scripts/${package_id}.json already exists. Use stage_id + stage_json to update individual stages. Full-package overwrite is blocked.`
+      }
+
+      let rawScript: unknown
+      try {
+        rawScript = JSON.parse(script_json)
+      } catch (e) {
+        return `Error: Invalid JSON — ${e}`
+      }
+
+      const scriptWithIds = assignLineIds(package_id, rawScript)
+      const parseResult = StoryPackageSchema.safeParse(scriptWithIds)
+      if (!parseResult.success) {
+        const errorLines = parseResult.error.issues.map(issue => `- ${issue.path.join('.')}: ${issue.message}`)
+        return `Error: Schema validation failed:\n${errorLines.join('\n')}`
+      }
+      pkg = parseResult.data
+    } else {
+      return 'Error: Must provide stage_id + stage_json. Full-package script_json is only allowed for initial creation.'
+    }
+
+    const selfCheck = runScriptSelfCheck(pkg)
+    const selfCheckSection = selfCheck.issues.length > 0
+      ? `\n\n${selfCheck.blockReview ? 'BLOCKED' : 'WARNINGS'}:\n${formatScriptSelfCheck(selfCheck.issues)}`
+      : ''
+
+    return withFileLock(target, () => {
+      createBackup(target)
+      fs.writeFileSync(target, JSON.stringify(pkg, null, 2), 'utf-8')
+
+      const logFile = path.join(bookDir, 'audit_log.jsonl')
+      const detail = stage_id ? `merged stage ${stage_id} into ${package_id}.json` : `saved ${package_id}.json`
+      appendAuditLog(logFile, 'save_script', { package_id, stage_id }, detail, true)
+
+      const prefix = stage_id ? `Stage '${stage_id}' merged into` : 'Script saved to'
+      return `${prefix} 03_Scripts/${package_id}.json${selfCheckSection}`
+    })
+  },
+}
+
+function assignSingleStageLineIds(packageId: string, stageId: string, raw: unknown): unknown {
+  if (typeof raw !== 'object' || raw === null) return raw
+  const stage = raw as { id?: string; lines?: unknown[] }
+  if (!Array.isArray(stage.lines)) return raw
+  return { ...stage, id: stageId, lines: generateLineIds(packageId, stageId, stage.lines as any) }
+}
+
+function assignLineIds(packageId: string, raw: unknown): unknown {
+  if (typeof raw !== 'object' || raw === null || !Array.isArray((raw as any).stages)) return raw
+  const pkg = raw as { stages: unknown[] }
+  return {
+    ...pkg,
+    stages: pkg.stages.map((stage: unknown) => {
+      if (typeof stage !== 'object' || stage === null) return stage
+      const item = stage as { id?: string; lines?: unknown[] }
+      if (!item.id || !Array.isArray(item.lines)) return stage
+      return { ...item, lines: generateLineIds(packageId, item.id, item.lines as any) }
+    }),
+  }
+}
 
 export const saveDraftTool: ToolDefinition = {
   name: 'save_draft',

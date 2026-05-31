@@ -5,7 +5,8 @@
 import { ToolRegistry } from './base-tool.js'
 import { readFileTool } from './read-file.js'
 import { searchLoreTool } from './search-lore.js'
-import { saveDraftTool, saveOutlineTool, saveLoreTool, readOutlineTool } from './write-tools.js'
+import { saveDraftTool, saveOutlineTool, saveLoreTool, saveScriptTool, readOutlineTool } from './write-tools.js'
+import { scriptValidateTool } from './script-validate.js'
 import {
   readGraphTool,
   addPlotNodeTool,
@@ -29,9 +30,11 @@ export function createAllTools(): ToolRegistry {
   registry.register(readFileTool)
   registry.register(searchLoreTool)
   registry.register(readOutlineTool)
+  registry.register(scriptValidateTool)
 
   // Write tools
   registry.register(createBookTool)
+  registry.register(saveScriptTool)
   registry.register(saveDraftTool)
   registry.register(saveOutlineTool)
   registry.register(saveLoreTool)

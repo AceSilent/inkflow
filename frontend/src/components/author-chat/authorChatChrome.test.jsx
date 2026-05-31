@@ -6,7 +6,7 @@ import { AuthorChatPanel } from '../AuthorChatPanel'
 
 const labels = {
   'authorChat.agentTitle': '作者 Agent',
-  'authorChat.toolSummary': '23 tools · streaming',
+  'authorChat.toolSummary': '25 tools · streaming',
   'authorChat.clear': '清空',
   'authorChat.directChat': '直接和作者 Agent 讨论',
   'authorChat.capabilities': '可以写正文、改大纲、查设定。',
