@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   editableUserMessageContent,
+  hasAssistantReplyAfterUser,
   isCheckpointEditorActiveForMessage,
   languageForAttachmentName,
   messageDisplayParts,
@@ -30,6 +31,17 @@ describe('author chat message utils', () => {
       { role: 'user', id: 'm1', content: 'first' },
       { role: 'assistant', id: 'a1', content: 'reply' },
     ])
+  })
+
+  it('detects when a failed stream can be recovered from persisted history', () => {
+    const messages = [
+      { role: 'user', content: '只回复两个字：可用' },
+      { role: 'assistant', content: '可用' },
+    ]
+
+    expect(hasAssistantReplyAfterUser(messages, '只回复两个字：可用')).toBe(true)
+    expect(hasAssistantReplyAfterUser(messages, '另一条消息')).toBe(false)
+    expect(hasAssistantReplyAfterUser(null, '只回复两个字：可用')).toBe(false)
   })
 
   it('does not treat an unsaved optimistic message as checkpoint editing', () => {

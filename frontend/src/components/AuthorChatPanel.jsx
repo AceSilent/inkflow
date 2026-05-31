@@ -7,13 +7,14 @@ import { MessageBubble, OptionsCard, StreamingToolCard, ThinkingCard } from './a
 import {
   DATA_MUTATING_TOOLS,
   editableUserMessageContent,
+  hasAssistantReplyAfterUser,
   isCheckpointEditorActiveForMessage,
   persistDraftInput,
-  restoreChatMessages,
   restoreDraftInput,
   sentHistoryFromMessages,
   truncateMessagesBeforeCheckpoint,
 } from './author-chat/messageUtils'
+import { fetchChatHistory } from './author-chat/historyLoader'
 import { parseSlashCommand } from './author-chat/slashCommands'
 import { agentLifecycleState } from './author-chat/agentState'
 
@@ -284,16 +285,15 @@ export function AuthorChatPanel({
 
   const loadChatHistory = useCallback(() => {
     if (!bookId && !activeSessionId) return
-    fetch(historyEndpoint)
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (!data?.messages) return
-        const restored = restoreChatMessages(data.messages)
+    return fetchChatHistory(historyEndpoint)
+      .then(restored => {
+        if (!restored) return null
         setMessages(restored)
         sentHistory.current = sentHistoryFromMessages(restored)
         setHistIdx(null)
+        return restored
       })
-      .catch(() => {})
+      .catch(() => null)
   }, [activeSessionId, bookId, historyEndpoint])
 
   useEffect(() => { loadChatHistory() }, [loadChatHistory])
@@ -422,6 +422,10 @@ export function AuthorChatPanel({
         }),
         signal: abortRef.current.signal,
       })
+      if (!resp.ok || !resp.body) {
+        const detail = await resp.text().catch(() => '')
+        throw new Error(detail || `HTTP ${resp.status}`)
+      }
 
       const reader = resp.body.getReader()
       const decoder = new TextDecoder()
@@ -566,14 +570,19 @@ export function AuthorChatPanel({
       }])
       if (createdBookFromStream?.book_id) {
         onBookCreated?.(createdBookFromStream)
+      } else {
+        await loadChatHistory()
       }
 
     } catch (e) {
       if (e.name === 'AbortError') {
         addToast?.(t('authorChat.cancelledSaved'), 'info')
-        loadChatHistory()  // pick up the server-side aborted message
+        await loadChatHistory()  // pick up the server-side aborted message
       } else {
-        addToast?.(t('authorChat.sendFailed') + ': ' + e.message, 'error')
+        const recovered = await loadChatHistory()
+        if (!hasAssistantReplyAfterUser(recovered, userMsg)) {
+          addToast?.(t('authorChat.sendFailed') + ': ' + e.message, 'error')
+        }
       }
     } finally {
       abortRef.current = null
@@ -739,7 +748,7 @@ export function AuthorChatPanel({
       />
 
       {/* Messages */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
         {messages.length === 0 && !streamingMsg && (
           <div style={{ textAlign: 'center', color: 'var(--ink-muted)', marginTop: 40, fontSize: 13, lineHeight: 2 }}>
             <PenTool size={32} style={{ marginBottom: 8, color: 'var(--accent)' }} />

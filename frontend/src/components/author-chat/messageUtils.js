@@ -53,6 +53,17 @@ export function sentHistoryFromMessages(messages) {
     .map(message => String(message.content ?? ''))
 }
 
+export function hasAssistantReplyAfterUser(messages = [], userContent = '') {
+  if (!Array.isArray(messages)) return false
+  const needle = String(userContent ?? '')
+  if (!needle) return false
+  const userIndex = messages.findIndex(message =>
+    message?.role === 'user' && String(message.content ?? '') === needle
+  )
+  if (userIndex < 0) return false
+  return messages.slice(userIndex + 1).some(message => message?.role === 'assistant')
+}
+
 export function editableUserMessageContent(message) {
   if (!message?.content) return ''
   return String(message.content ?? '')
