@@ -9,6 +9,7 @@ const labels = {
   'workspace.chapter': '章节',
   'workspace.outline': '大纲',
   'workspace.plot': '剧情图',
+  'workspace.game': '游戏文案',
 }
 
 describe('WorkspaceTabs', () => {
@@ -21,6 +22,7 @@ describe('WorkspaceTabs', () => {
           chapter={<div>chapter</div>}
           outline={<div>outline</div>}
           plot={<div>plot</div>}
+          game={<div>game</div>}
         />
       </I18nContext.Provider>
     )
@@ -28,6 +30,7 @@ describe('WorkspaceTabs', () => {
     expect(html).toContain('章节')
     expect(html).toContain('大纲')
     expect(html).toContain('剧情图')
+    expect(html).toContain('游戏文案')
     expect(html).not.toContain('workspace-flow-slot')
     expect(html).not.toContain('流程图')
   })

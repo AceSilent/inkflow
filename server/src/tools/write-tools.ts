@@ -14,6 +14,7 @@ import { generateLineIds } from '../services/line-id.js'
 import { StoryPackageSchema } from '../schemas/index.js'
 import { StageSchema } from '../schemas/stage.js'
 import { runScriptSelfCheck } from './script-self-check.js'
+import { defaultGameOutline, validateGameOutlineRoot } from '../game-outline.js'
 
 /**
  * Target lower bound for a reviewable novel chapter. We allow saving shorter
@@ -23,6 +24,67 @@ export const MIN_REVIEW_DRAFT_CHARS = 2500
 
 function formatScriptSelfCheck(issues: { type: string; severity: number; message: string; stageId?: string }[]): string {
   return issues.map(issue => `[sev${issue.severity}] ${issue.type}: ${issue.message}`).join('\n')
+}
+
+export const saveGameOutlineTool: ToolDefinition = {
+  name: 'save_game_outline',
+  description: [
+    '保存/更新游戏文案结构到 02_Outlines/game_outline.json，仅供 game_script 模式使用。',
+    'outline_json 必须是规范游戏结构树：game_project -> arc -> story_package -> stage。',
+    "节点 type 必须是 'game_project'/'arc'/'story_package'/'stage'；story_package 可带 package_id，stage 可带 stage_id。",
+  ].join('\n'),
+  parameters: z.object({
+    outline_json: z.string().describe('游戏文案结构 JSON 字符串'),
+  }),
+  permissionLevel: 'write',
+  category: '写入',
+  execute: async ({ outline_json }, ctx) => {
+    if (ctx.mode !== 'game_script') {
+      return 'Error: save_game_outline is only available in game_script mode. Use save_outline for novel chapters.'
+    }
+
+    const bookDir = path.join(ctx.dataDir, ctx.bookId)
+    const outlineFile = path.join(ensureDir(path.join(bookDir, '02_Outlines')), 'game_outline.json')
+
+    let data: unknown
+    try {
+      data = JSON.parse(outline_json)
+    } catch (e) {
+      return `Error: Invalid JSON — ${e}`
+    }
+
+    const validation = validateGameOutlineRoot(data)
+    if (validation) {
+      return [
+        'Error: game outline schema invalid.',
+        validation,
+        "Required shape: { id, label, type:'game_project', children:[{ id, type:'arc', children:[{ id, type:'story_package', package_id, children:[{ id, type:'stage', stage_id }] }] }] }.",
+      ].join('\n')
+    }
+
+    return withFileLock(outlineFile, () => {
+      createBackup(outlineFile)
+      fs.writeFileSync(outlineFile, JSON.stringify(data, null, 2), 'utf-8')
+
+      const logFile = path.join(bookDir, 'audit_log.jsonl')
+      appendAuditLog(logFile, 'save_game_outline', {}, `saved ${outline_json.length} chars`, true)
+
+      return `Game outline saved (${outline_json.length} chars)`
+    })
+  },
+}
+
+export const readGameOutlineTool: ToolDefinition = {
+  name: 'read_game_outline',
+  description: '读取游戏文案结构树，文件为 02_Outlines/game_outline.json；不存在时返回空 game_project。',
+  parameters: z.object({}),
+  permissionLevel: 'read',
+  category: '读取',
+  execute: async (_args, ctx) => {
+    const data = safeReadJson<any>(path.join(ctx.dataDir, ctx.bookId, '02_Outlines', 'game_outline.json'))
+      ?? defaultGameOutline(ctx.bookId)
+    return JSON.stringify(data, null, 2)
+  },
 }
 
 export const saveScriptTool: ToolDefinition = {

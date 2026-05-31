@@ -1,6 +1,6 @@
 export const WORKSPACE_MIN_WIDTH = 320
 export const WORKSPACE_DEFAULT_WIDTH = 460
-export const WORKSPACE_TAB_IDS = ['chapter', 'outline', 'plot']
+export const WORKSPACE_TAB_IDS = ['chapter', 'outline', 'plot', 'game']
 
 export const defaultWorkspaceLayout = {
   collapsed: true,

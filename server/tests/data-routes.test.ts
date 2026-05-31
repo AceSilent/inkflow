@@ -4,9 +4,13 @@ import path from 'path'
 import {
   readOutline,
   readLore,
+  readGameOutline,
   listChapters,
+  listScriptPackages,
+  readScriptPackage,
   getChapterDetail,
   writeOutline,
+  writeGameOutline,
   readReview,
   writeReview,
 } from '../src/routes/data.js'
@@ -61,6 +65,50 @@ describe('Data read endpoints', () => {
     expect(result.label).toBe('Test Novel')
     expect(result.children).toHaveLength(1)
     expect(result.children[0].id).toBe('ch1')
+  })
+
+  it('readGameOutline returns default when no file exists', () => {
+    const result = readGameOutline(TEST_DIR, 'game-book')
+    expect(result).toEqual({
+      id: 'game-book',
+      label: '',
+      type: 'game_project',
+      children: [],
+    })
+  })
+
+  it('writeGameOutline creates an isolated game outline file', () => {
+    const outline = {
+      id: 'game-book',
+      label: '灵境奇谭',
+      type: 'game_project',
+      children: [
+        {
+          id: 'arc01',
+          label: '第一幕',
+          type: 'arc',
+          children: [
+            {
+              id: 'pkg_intro',
+              label: '入门剧情包',
+              type: 'story_package',
+              package_id: 'pkg_intro',
+              children: [
+                { id: 'st_start', label: '进入山门', type: 'stage', stage_id: 'start' },
+              ],
+            },
+          ],
+        },
+      ],
+    }
+
+    writeGameOutline(TEST_DIR, 'game-book', outline)
+
+    expect(fs.existsSync(path.join(TEST_DIR, 'game-book', '02_Outlines', 'game_outline.json'))).toBe(true)
+    expect(fs.existsSync(path.join(TEST_DIR, 'game-book', '02_Outlines', 'outline.json'))).toBe(false)
+    const result = readGameOutline(TEST_DIR, 'game-book')
+    expect(result.children[0].type).toBe('arc')
+    expect(result.children[0].children[0].type).toBe('story_package')
   })
 
   it('readLore returns structured data with meta and null for missing files', () => {
@@ -121,6 +169,71 @@ describe('Data read endpoints', () => {
 
     const result = readOutline(TEST_DIR, 'overwrite-book')
     expect(result.label).toBe('New Title')
+  })
+
+  it('listScriptPackages returns compact game package summaries', () => {
+    const scriptsDir = path.join(TEST_DIR, 'script-book', '03_Scripts')
+    fs.mkdirSync(scriptsDir, { recursive: true })
+    fs.writeFileSync(
+      path.join(scriptsDir, 'pkg_intro.json'),
+      JSON.stringify({
+        id: 'pkg_intro',
+        name: '入门剧情包',
+        author: '测试作者',
+        motif: '误入旧城',
+        tier: 'short',
+        description: '玩家进入第一张地图。',
+        source_locale: 'zh-CN',
+        stages: [
+          {
+            id: 'start',
+            summary: '开场',
+            review_state: 'review',
+            lines: [
+              { id: 'pkg_intro.start.0001', text: '风从旧城吹来。' },
+              { id: 'pkg_intro.start.0002', speaker: '阿岚', text: '别回头。' },
+            ],
+            choices: [{ id: 'go', label: '继续', next_stage: 'end' }],
+          },
+          {
+            id: 'end',
+            summary: '收束',
+            review_state: 'approved',
+            lines: [{ id: 'pkg_intro.end.0001', text: '门在身后合上。' }],
+            choices: [],
+            is_terminal: true,
+          },
+        ],
+      }),
+      'utf-8'
+    )
+
+    const result = listScriptPackages(TEST_DIR, 'script-book')
+    expect(result).toEqual([
+      {
+        package_id: 'pkg_intro',
+        name: '入门剧情包',
+        source_locale: 'zh-CN',
+        stage_count: 2,
+        line_count: 3,
+        choice_count: 1,
+        review_states: { approved: 1, draft: 0, review: 1 },
+      },
+    ])
+  })
+
+  it('readScriptPackage reads a package and blocks invalid package ids', () => {
+    const scriptsDir = path.join(TEST_DIR, 'script-book', '03_Scripts')
+    fs.mkdirSync(scriptsDir, { recursive: true })
+    fs.writeFileSync(
+      path.join(scriptsDir, 'pkg_intro.json'),
+      JSON.stringify({ id: 'pkg_intro', name: '入门剧情包', stages: [] }),
+      'utf-8'
+    )
+
+    expect(readScriptPackage(TEST_DIR, 'script-book', 'pkg_intro')?.name).toBe('入门剧情包')
+    expect(readScriptPackage(TEST_DIR, 'script-book', '../pkg_intro')).toBeNull()
+    expect(readScriptPackage(TEST_DIR, 'script-book', 'missing')).toBeNull()
   })
 
   it('readReview returns null when no review exists', () => {

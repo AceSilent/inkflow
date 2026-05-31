@@ -5,9 +5,10 @@ const tabs = [
   { id: 'chapter', labelKey: 'workspace.chapter' },
   { id: 'outline', labelKey: 'workspace.outline' },
   { id: 'plot', labelKey: 'workspace.plot' },
+  { id: 'game', labelKey: 'workspace.game' },
 ]
 
-export function WorkspaceTabs({ activeTab, onTabChange, chapter, outline, plot }) {
+export function WorkspaceTabs({ activeTab, onTabChange, chapter, outline, plot, game }) {
   const { t } = useI18n()
   const tabSetId = useId()
   const panelId = `${tabSetId}-panel`
@@ -40,7 +41,7 @@ export function WorkspaceTabs({ activeTab, onTabChange, chapter, outline, plot }
         role="tabpanel"
         aria-labelledby={`${tabSetId}-${activeTab}`}
       >
-        {activeTab === 'chapter' ? chapter : activeTab === 'outline' ? outline : plot}
+        {activeTab === 'chapter' ? chapter : activeTab === 'outline' ? outline : activeTab === 'plot' ? plot : game}
       </div>
     </div>
   )
