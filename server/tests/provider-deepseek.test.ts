@@ -206,3 +206,30 @@ describe('Gemini OpenAI-compatible tool-call compatibility', () => {
     expect(requests[1].messages[1].tool_calls[0].extra_content).toEqual(extraContent)
   })
 })
+
+describe('LLM provider proxy transport', () => {
+  it('routes model requests through the configured proxy fetch', async () => {
+    const directFetch: typeof globalThis.fetch = async () => {
+      throw new Error('direct fetch should not be used when proxy is configured')
+    }
+    const proxyCalls: Array<{ proxyUrl: string; url: string }> = []
+    const proxyFetchFactory = (proxyUrl: string): typeof globalThis.fetch => async (url) => {
+      proxyCalls.push({ proxyUrl, url: String(url) })
+      return new Response('ok', {
+        headers: { 'content-type': 'application/json' },
+      })
+    }
+
+    const compatFetch = createReasoningFetch('gemini-3.5-flash', undefined, directFetch, {
+      proxyUrl: 'http://127.0.0.1:7890',
+      proxyFetchFactory,
+    })
+
+    await compatFetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions')
+
+    expect(proxyCalls).toEqual([{
+      proxyUrl: 'http://127.0.0.1:7890',
+      url: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+    }])
+  })
+})

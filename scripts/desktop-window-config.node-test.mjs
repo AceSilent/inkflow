@@ -5,6 +5,7 @@ import { test } from 'node:test'
 const config = JSON.parse(await readFile(new URL('../src-tauri/tauri.conf.json', import.meta.url), 'utf8'))
 const capability = JSON.parse(await readFile(new URL('../src-tauri/capabilities/default.json', import.meta.url), 'utf8'))
 const cargo = await readFile(new URL('../src-tauri/Cargo.toml', import.meta.url), 'utf8')
+const tauriLib = await readFile(new URL('../src-tauri/src/lib.rs', import.meta.url), 'utf8')
 const pkgSidecarConfig = await readFile(new URL('../scripts/pkg-sidecar.config.cjs', import.meta.url), 'utf8')
 
 test('macOS desktop window uses native traffic lights over a rounded transparent shell', () => {
@@ -28,6 +29,11 @@ test('desktop capability explicitly allows native titlebar dragging', () => {
   assert.ok(capability.permissions.includes('core:default'))
   assert.ok(capability.permissions.includes('core:window:allow-start-dragging'))
   assert.ok(capability.permissions.includes('core:window:allow-set-position'))
+})
+
+test('desktop drag is limited to explicit frontend titlebar regions', () => {
+  assert.doesNotMatch(tauriLib, /setMovableByWindowBackground/)
+  assert.doesNotMatch(tauriLib, /enable_macos_window_background_drag/)
 })
 
 test('desktop production build refreshes backend sidecar before bundling', async () => {

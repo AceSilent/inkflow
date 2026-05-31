@@ -35,6 +35,7 @@ describe('Settings route helpers', () => {
     expect(settings.providers).toEqual([])
     expect(settings.authorModel).toBe('')
     expect(settings.editorModel).toBe('')
+    expect(settings.networkProxy).toEqual({ enabled: false, url: '' })
   })
 
   it('should save and load settings roundtrip', () => {
@@ -54,6 +55,10 @@ describe('Settings route helpers', () => {
         editorial_lore: 'deepseek/deepseek-reasoner',
         editorial_ai_tone: 'dashscope/qwen3.6-plus',
       },
+      networkProxy: {
+        enabled: true,
+        url: 'http://127.0.0.1:7890',
+      },
     }
 
     saveSettings(TEST_DIR, original)
@@ -69,6 +74,10 @@ describe('Settings route helpers', () => {
     expect(loaded.editorModel).toBe('deepseek-reasoner')
     expect(loaded.reviewerModels?.editorial_lore).toBe('deepseek/deepseek-reasoner')
     expect(loaded.reviewerModels?.editorial_ai_tone).toBe('dashscope/qwen3.6-plus')
+    expect(loaded.networkProxy).toEqual({
+      enabled: true,
+      url: 'http://127.0.0.1:7890',
+    })
   })
 
   it('should mask API keys in GET response', () => {

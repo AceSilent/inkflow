@@ -33,11 +33,6 @@ pub fn run() {
                 }
             });
 
-            #[cfg(target_os = "macos")]
-            if let Some(window) = app.get_webview_window("main") {
-                enable_macos_window_background_drag(&window);
-            }
-
             Ok(())
         })
         .build(tauri::generate_context!())
@@ -59,28 +54,7 @@ pub fn stop_sidecar(app: &tauri::AppHandle) {
 }
 
 pub fn handle_run_event(app: &tauri::AppHandle, event: &RunEvent) {
-    #[cfg(target_os = "macos")]
-    if matches!(event, RunEvent::Ready) {
-        if let Some(window) = app.get_webview_window("main") {
-            enable_macos_window_background_drag(&window);
-        }
-    }
-
     if matches!(event, RunEvent::ExitRequested { .. } | RunEvent::Exit) {
         stop_sidecar(app);
-    }
-}
-
-#[cfg(target_os = "macos")]
-fn enable_macos_window_background_drag(window: &tauri::WebviewWindow) {
-    use objc2_app_kit::NSWindow;
-
-    let Ok(ns_window_ptr) = window.ns_window() else {
-        return;
-    };
-
-    unsafe {
-        let ns_window = &*ns_window_ptr.cast::<NSWindow>();
-        ns_window.setMovableByWindowBackground(true);
     }
 }

@@ -29,6 +29,11 @@ export interface ContextBudgetCustom {
   orange?: number
 }
 
+export interface NetworkProxySettings {
+  enabled: boolean
+  url: string
+}
+
 export interface AppSettings {
   providers: ProviderConfig[]
   authorModel: string
@@ -36,6 +41,7 @@ export interface AppSettings {
   reviewerModels?: Record<string, string>
   contextManager?: ContextManagerMode
   contextBudgetCustom?: ContextBudgetCustom
+  networkProxy?: NetworkProxySettings
 }
 
 type RuntimeSettingsEnv = Partial<Record<
@@ -51,6 +57,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   authorModel: '',
   editorModel: '',
   contextManager: 'auto',
+  networkProxy: { enabled: false, url: '' },
 }
 
 const RECOMMENDED_PROVIDERS: ProviderConfig[] = [
@@ -98,8 +105,22 @@ export function getSettings(dataDir: string): AppSettings {
     editorModel: raw.editorModel ?? '',
     reviewerModels: raw.reviewerModels ?? {},
     contextManager: raw.contextManager ?? 'auto',
+    networkProxy: normalizeNetworkProxy(raw.networkProxy),
     ...(raw.contextBudgetCustom ? { contextBudgetCustom: raw.contextBudgetCustom } : {}),
   }
+}
+
+function normalizeNetworkProxy(proxy: Partial<NetworkProxySettings> | undefined): NetworkProxySettings {
+  return {
+    enabled: proxy?.enabled === true,
+    url: typeof proxy?.url === 'string' ? proxy.url : '',
+  }
+}
+
+export function activeNetworkProxyUrl(settings: Pick<AppSettings, 'networkProxy'>): string | undefined {
+  if (!settings.networkProxy?.enabled) return undefined
+  const url = settings.networkProxy.url.trim()
+  return url || undefined
 }
 
 export function saveSettings(dataDir: string, settings: AppSettings): void {

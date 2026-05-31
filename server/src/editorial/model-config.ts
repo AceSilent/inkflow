@@ -1,15 +1,16 @@
 import { type LLMConfig } from '../llm/provider.js'
-import { getSettings } from '../routes/settings.js'
+import { activeNetworkProxyUrl, getSettings } from '../routes/settings.js'
 import { EDITORIAL_REVIEWERS, type EditorialReviewerName } from './pipeline.js'
 
 function modelConfigFromSelector(dataDir: string, modelSelector: string): LLMConfig | undefined {
   const settings = getSettings(dataDir)
+  const proxyUrl = activeNetworkProxyUrl(settings)
   if (modelSelector.includes('/')) {
     const [providerId, ...modelParts] = modelSelector.split('/')
     const model = modelParts.join('/')
     const provider = settings.providers.find(p => p.id === providerId)
     if (provider) {
-      return { apiKey: provider.apiKey, baseURL: provider.baseUrl, model }
+      return { apiKey: provider.apiKey, baseURL: provider.baseUrl, model, ...(proxyUrl ? { proxyUrl } : {}) }
     }
   }
   return undefined
@@ -20,11 +21,13 @@ export function editorialLLMConfig(dataDir: string): LLMConfig {
   const modelSelector = settings.editorModel || settings.authorModel || ''
   const configured = modelConfigFromSelector(dataDir, modelSelector)
   if (configured) return configured
+  const proxyUrl = activeNetworkProxyUrl(settings)
 
   return {
     apiKey: process.env.LLM_API_KEY || '',
     baseURL: process.env.LLM_BASE_URL,
     model: process.env.EDITORIAL_MODEL || process.env.LLM_MODEL || '',
+    ...(proxyUrl ? { proxyUrl } : {}),
   }
 }
 

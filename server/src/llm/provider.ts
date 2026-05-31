@@ -3,11 +3,16 @@
  * Supports OpenAI, DeepSeek, DashScope, Kimi, ZhipuAI — any OpenAI-compatible endpoint.
  */
 import { createOpenAI } from '@ai-sdk/openai'
+import http from 'node:http'
+import https from 'node:https'
+import { Readable } from 'node:stream'
+import createHttpsProxyAgent from 'https-proxy-agent'
 
 export interface LLMConfig {
   apiKey: string
   baseURL?: string
   model: string
+  proxyUrl?: string
 }
 
 /**
@@ -34,6 +39,11 @@ export const REASONING_CLOSE = '\u0002__autonovel_reasoning_close__\u0002'
 export type ProviderProgressEvent =
   | { type: 'retry'; attempt: number; delayMs: number; status: number; reason: string }
 export type ProviderProgressCallback = (evt: ProviderProgressEvent) => void
+
+export interface ReasoningFetchOptions {
+  proxyUrl?: string
+  proxyFetchFactory?: (proxyUrl: string) => typeof globalThis.fetch
+}
 
 const RETRYABLE_STATUSES = new Set([408, 425, 429, 500, 502, 503, 504])
 const MAX_RETRIES = 5
@@ -81,6 +91,82 @@ async function fetchWithRetry(
       }
     })
     delay = Math.min(delay * 2, MAX_DELAY_MS)
+  }
+}
+
+function requestBodyToNodeBody(body: RequestInit['body'] | null | undefined): string | Buffer | Uint8Array | undefined {
+  if (body == null) return undefined
+  if (typeof body === 'string' || Buffer.isBuffer(body) || body instanceof Uint8Array) return body
+  if (body instanceof URLSearchParams) return body.toString()
+  throw new TypeError('Proxy fetch only supports string, URLSearchParams, or byte request bodies')
+}
+
+function requestHeadersToNodeHeaders(input: ConstructorParameters<typeof Headers>[0] | Headers | undefined): http.OutgoingHttpHeaders {
+  const headers = new Headers(input)
+  const out: http.OutgoingHttpHeaders = {}
+  headers.forEach((value, key) => {
+    out[key] = value
+  })
+  return out
+}
+
+function requestInputToParts(input: Parameters<typeof globalThis.fetch>[0], init: RequestInit | undefined) {
+  if (typeof Request !== 'undefined' && input instanceof Request) {
+    const headers = new Headers(input.headers)
+    if (init?.headers) {
+      new Headers(init.headers).forEach((value, key) => headers.set(key, value))
+    }
+    return {
+      url: input.url,
+      method: init?.method ?? input.method,
+      headers: requestHeadersToNodeHeaders(headers),
+      body: init?.body ?? null,
+    }
+  }
+
+  return {
+    url: String(input),
+    method: init?.method ?? 'GET',
+    headers: requestHeadersToNodeHeaders(init?.headers),
+    body: init?.body ?? null,
+  }
+}
+
+export function createNodeProxyFetch(proxyUrl: string): typeof globalThis.fetch {
+  const agent = createHttpsProxyAgent(proxyUrl)
+
+  return async (input, init) => {
+    const request = requestInputToParts(input, init)
+    const target = new URL(request.url)
+    const body = requestBodyToNodeBody(request.body)
+    const transport = target.protocol === 'http:' ? http : https
+
+    return await new Promise<Response>((resolve, reject) => {
+      const req = transport.request(target, {
+        method: request.method,
+        headers: request.headers,
+        agent: agent as any,
+        signal: init?.signal as AbortSignal | undefined,
+      }, (res) => {
+        const responseHeaders = new Headers()
+        for (const [key, value] of Object.entries(res.headers)) {
+          if (Array.isArray(value)) {
+            for (const item of value) responseHeaders.append(key, item)
+          } else if (value !== undefined) {
+            responseHeaders.set(key, String(value))
+          }
+        }
+
+        resolve(new Response(Readable.toWeb(res) as ReadableStream<Uint8Array>, {
+          status: res.statusCode ?? 502,
+          statusText: res.statusMessage,
+          headers: responseHeaders,
+        }))
+      })
+
+      req.on('error', reject)
+      req.end(body)
+    })
   }
 }
 
@@ -201,11 +287,16 @@ export function createReasoningFetch(
   model: string,
   onProgress?: ProviderProgressCallback,
   fetchImpl: typeof globalThis.fetch = globalThis.fetch,
+  options: ReasoningFetchOptions = {},
 ): typeof globalThis.fetch {
   const needsEnableThinking = requiresEnableThinkingFlag(model)
   const needsDeepSeekThinking = isDeepSeekThinkingModel(model)
   const deepSeekReasoningTurns: DeepSeekReasoningTurn[] = []
   const openAICompatToolCallExtras = new Map<string, unknown>()
+  const proxyUrl = options.proxyUrl?.trim()
+  const transportFetch = proxyUrl
+    ? (options.proxyFetchFactory?.(proxyUrl) ?? createNodeProxyFetch(proxyUrl))
+    : fetchImpl
 
   const customFetch: typeof globalThis.fetch = async (url, init) => {
     // DashScope Qwen3 opt-in to thinking mode: add enable_thinking at the top
@@ -228,7 +319,7 @@ export function createReasoningFetch(
       } catch { /* non-JSON body — leave alone */ }
     }
 
-    const response = await fetchWithRetry(url, init, onProgress, fetchImpl)
+    const response = await fetchWithRetry(url, init, onProgress, transportFetch)
     const contentType = response.headers.get('content-type') || ''
     if (!response.body || !contentType.includes('text/event-stream')) {
       return response
@@ -336,7 +427,9 @@ export function createReasoningFetch(
 }
 
 export function createProvider(config: LLMConfig, onProgress?: ProviderProgressCallback) {
-  const customFetch = createReasoningFetch(config.model, onProgress)
+  const customFetch = createReasoningFetch(config.model, onProgress, globalThis.fetch, {
+    proxyUrl: config.proxyUrl,
+  })
 
   const provider = createOpenAI({
     apiKey: config.apiKey,

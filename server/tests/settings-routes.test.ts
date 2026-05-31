@@ -59,6 +59,34 @@ describe('Settings Zod Validation', () => {
     expect(result.success).toBe(true)
   })
 
+  it('should accept a configured HTTP proxy', () => {
+    const body = {
+      providers: [validProvider],
+      authorModel: 'deepseek/deepseek-chat',
+      editorModel: 'deepseek/deepseek-chat',
+      networkProxy: {
+        enabled: true,
+        url: 'http://127.0.0.1:7890',
+      },
+    }
+    const result = saveSettingsBody.safeParse(body)
+    expect(result.success).toBe(true)
+  })
+
+  it('should reject an enabled proxy without an HTTP URL', () => {
+    const body = {
+      providers: [],
+      authorModel: '',
+      editorModel: '',
+      networkProxy: {
+        enabled: true,
+        url: '127.0.0.1:7890',
+      },
+    }
+    const result = saveSettingsBody.safeParse(body)
+    expect(result.success).toBe(false)
+  })
+
   it('should reject settings with more than 10 providers', () => {
     const body = {
       providers: Array(11).fill(validProvider),
@@ -129,6 +157,10 @@ describe('Settings Save/Load with Validated Data', () => {
       reviewerModels: {
         editorial_lore: 'test-provider/model-b',
       },
+      networkProxy: {
+        enabled: true,
+        url: 'http://127.0.0.1:7890',
+      },
     }
 
     saveSettings(TEST_DIR, settings)
@@ -139,6 +171,10 @@ describe('Settings Save/Load with Validated Data', () => {
     expect(loaded.providers[0].apiKey).toBe('sk-test-key-12345')
     expect(loaded.authorModel).toBe('test-provider/model-a')
     expect(loaded.reviewerModels?.editorial_lore).toBe('test-provider/model-b')
+    expect(loaded.networkProxy).toEqual({
+      enabled: true,
+      url: 'http://127.0.0.1:7890',
+    })
   })
 
   it('should mask API keys correctly for display', () => {

@@ -6,7 +6,7 @@ import { parseCommand, handleCommand } from './commands.js'
 import { resolveBookId, resolveSessionKey, setSession } from './session.js'
 import { handleAgentChat } from './agent-bridge.js'
 import { type FeishuConfig } from './types.js'
-import { getSettings } from '../routes/settings.js'
+import { activeNetworkProxyUrl, getSettings } from '../routes/settings.js'
 import { type LLMConfig } from '../llm/provider.js'
 
 // Dedup incoming messages (Feishu may re-push within 3s)
@@ -27,13 +27,14 @@ function loadLLMConfig(): { llmConfig: LLMConfig; dataDir: string } {
   const dataDir = process.env.AUTONOVEL_DATA_DIR || 'books'
   const settings = getSettings(dataDir)
   const modelSelector = settings.authorModel || ''
+  const proxyUrl = activeNetworkProxyUrl(settings)
 
   if (modelSelector.includes('/')) {
     const [providerId, ...modelParts] = modelSelector.split('/')
     const model = modelParts.join('/')
     const provider = settings.providers.find(p => p.id === providerId)
     if (provider) {
-      return { llmConfig: { apiKey: provider.apiKey, baseURL: provider.baseUrl, model }, dataDir }
+      return { llmConfig: { apiKey: provider.apiKey, baseURL: provider.baseUrl, model, ...(proxyUrl ? { proxyUrl } : {}) }, dataDir }
     }
   }
 
@@ -42,6 +43,7 @@ function loadLLMConfig(): { llmConfig: LLMConfig; dataDir: string } {
       apiKey: process.env.LLM_API_KEY || '',
       baseURL: process.env.LLM_BASE_URL,
       model: process.env.LLM_MODEL || 'gpt-4o',
+      ...(proxyUrl ? { proxyUrl } : {}),
     },
     dataDir,
   }

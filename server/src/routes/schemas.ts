@@ -49,12 +49,38 @@ export const providerSchema = z.object({
   kind: z.enum(['openai-compatible', 'gemini-openai-compatible']).optional(),
 })
 
+export const networkProxySchema = z.object({
+  enabled: z.boolean(),
+  url: z.string().max(500),
+}).superRefine((proxy, ctx) => {
+  if (!proxy.enabled) return
+  const url = proxy.url.trim()
+  if (!/^https?:\/\//i.test(url)) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['url'],
+      message: 'enabled proxy requires an http:// or https:// URL',
+    })
+    return
+  }
+  try {
+    new URL(url)
+  } catch {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['url'],
+      message: 'invalid proxy URL',
+    })
+  }
+})
+
 export const saveSettingsBody = z.object({
   providers: z.array(providerSchema).max(10),
   authorModel: z.string().max(200),
   editorModel: z.string().max(200),
   reviewerModels: z.record(z.string().max(100), z.string().max(200)).optional(),
   contextManager: z.enum(['auto', 'decay_only', 'disabled']).optional(),
+  networkProxy: networkProxySchema.optional(),
   contextBudgetCustom: z.object({
     green: z.number().min(0).max(1).optional(),
     yellow: z.number().min(0).max(1).optional(),

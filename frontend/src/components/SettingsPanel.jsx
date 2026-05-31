@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Save, Languages, Plus, Trash2, Key, Globe, Box, Check } from 'lucide-react'
+import { Save, Languages, Plus, Trash2, Key, Globe, Box, Check, Network } from 'lucide-react'
 import { useI18n } from '../hooks/useI18n'
 import { themePalettes } from '../theme/palettes'
 
@@ -28,6 +28,7 @@ function withRecommendedProviders(data) {
     providers,
     authorModel: data.authorModel || 'gemini/gemini-3.5-flash',
     editorModel: data.editorModel || 'deepseek/deepseek-v4-pro',
+    networkProxy: data.networkProxy || { enabled: false, url: '' },
     reviewerModels: {
       editorial_lore: data.reviewerModels?.editorial_lore || 'deepseek/deepseek-v4-pro',
       editorial_causality: data.reviewerModels?.editorial_causality || 'deepseek/deepseek-v4-pro',
@@ -141,6 +142,18 @@ export function SettingsPanel({ addToast, theme, toggleTheme, currentBook }) {
     setSettings({ ...settings, providers: newProviders })
   }
 
+  const updateNetworkProxy = (patch) => {
+    setSettings({
+      ...settings,
+      networkProxy: {
+        enabled: false,
+        url: '',
+        ...(settings.networkProxy || {}),
+        ...patch,
+      },
+    })
+  }
+
   if (loading || !settings) {
     return <div style={{ padding: 40, textAlign: 'center' }}>{t('settings.loading')}</div>
   }
@@ -195,6 +208,37 @@ export function SettingsPanel({ addToast, theme, toggleTheme, currentBook }) {
           <button className="btn btn-secondary" onClick={addProvider} style={{ display: 'flex', justifyContent: 'center', borderStyle: 'dashed' }}>
             <Plus size={14} /> {t('settings.addProvider')}
           </button>
+        </div>
+      </Section>
+
+      <Section title={t('settings.network')}>
+        <div className="settings-proxy-card">
+          <div className="settings-proxy-row">
+            <div className="settings-proxy-heading">
+              <Network size={14} />
+              <span>{t('settings.proxyEnable')}</span>
+            </div>
+            <button
+              type="button"
+              className={`settings-switch ${settings.networkProxy?.enabled ? 'active' : ''}`}
+              role="switch"
+              aria-checked={settings.networkProxy?.enabled ? 'true' : 'false'}
+              onClick={() => updateNetworkProxy({ enabled: !settings.networkProxy?.enabled })}
+            >
+              <span />
+            </button>
+          </div>
+          <div className="field">
+            <label className="field-label">{t('settings.proxyUrl')}</label>
+            <input
+              className="input"
+              value={settings.networkProxy?.url || ''}
+              placeholder="http://127.0.0.1:7890"
+              disabled={!settings.networkProxy?.enabled}
+              onChange={e => updateNetworkProxy({ url: e.target.value })}
+            />
+          </div>
+          <div className="settings-help">{t('settings.proxyHint')}</div>
         </div>
       </Section>
 

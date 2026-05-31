@@ -3,7 +3,7 @@ import path from 'path'
 import { type LLMConfig } from '../llm/provider.js'
 import { clearRunTimeline } from '../runs/run-timeline.js'
 import { saveHistory } from './chat-history.js'
-import { getSettings } from './settings.js'
+import { activeNetworkProxyUrl, getSettings } from './settings.js'
 
 export const USAGE_PERSIST_TIMEOUT_MS = 2000
 const usagePersistTimedOut = Symbol('usagePersistTimedOut')
@@ -12,6 +12,7 @@ export function loadAuthorChatConfig(dataDirOverride?: string): { llmConfig: LLM
   const dataDir = dataDirOverride || process.env.AUTONOVEL_DATA_DIR || 'books'
   const settings = getSettings(dataDir)
   const modelSelector = settings.authorModel || ''
+  const proxyUrl = activeNetworkProxyUrl(settings)
 
   if (modelSelector.includes('/')) {
     const [providerId, ...modelParts] = modelSelector.split('/')
@@ -23,6 +24,7 @@ export function loadAuthorChatConfig(dataDirOverride?: string): { llmConfig: LLM
           apiKey: provider.apiKey,
           baseURL: provider.baseUrl,
           model,
+          ...(proxyUrl ? { proxyUrl } : {}),
         },
         dataDir,
       }
@@ -34,6 +36,7 @@ export function loadAuthorChatConfig(dataDirOverride?: string): { llmConfig: LLM
       apiKey: process.env.LLM_API_KEY || '',
       baseURL: process.env.LLM_BASE_URL,
       model: process.env.LLM_MODEL || 'gpt-4o',
+      ...(proxyUrl ? { proxyUrl } : {}),
     },
     dataDir,
   }
