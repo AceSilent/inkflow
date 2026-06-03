@@ -137,6 +137,13 @@ describe('sendChatBody', () => {
     })
   })
 
+  it('accepts message with game script mode', () => {
+    expect(sendChatBody.parse({ message: 'Hello', mode: 'game_script' })).toEqual({
+      message: 'Hello',
+      mode: 'game_script',
+    })
+  })
+
   it('accepts checkpoint resend replacement ids', () => {
     expect(sendChatBody.parse({ message: 'Hello', replace_message_id: 'm1' })).toEqual({
       message: 'Hello',

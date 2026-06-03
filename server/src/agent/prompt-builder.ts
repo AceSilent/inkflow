@@ -125,11 +125,54 @@ export const BRAINSTORM_SECTIONS: PromptSection[] = [
   },
 ]
 
+export const GAME_SCRIPT_SECTIONS: PromptSection[] = [
+  {
+    title: '身份',
+    contentFn: () => readPromptFile('game_script_system.md'),
+  },
+  {
+    title: '游戏文案自检',
+    content: [
+      '- 交付前检查每段文案是否服务玩家目标、情绪推进或系统反馈',
+      '- 对话要能被配音/本地化/分支条件复用，避免过长独白',
+      '- 任务文本要明确“为什么做、做什么、做到什么程度、下一步去哪”',
+      '- 如果用户在讨论阶段，不要急着保存；只有确认沉淀后再调用写入工具',
+    ].join('\n'),
+  },
+  {
+    title: '工具箱',
+    contentFn: (ctx) => {
+      const summary = ctx.toolSummary as string | undefined
+      return summary ?? ''
+    },
+    condition: (ctx) => !!ctx.toolSummary,
+  },
+  {
+    title: '剧情账本',
+    contentFn: (ctx) => (ctx.plotLedger as string | undefined) ?? '',
+    condition: (ctx) => !!ctx.plotLedger,
+  },
+  {
+    title: '文风控制面',
+    contentFn: (ctx) => (ctx.styleProfile as string | undefined) ?? '',
+    condition: (ctx) => !!ctx.styleProfile,
+  },
+  {
+    title: '记忆',
+    contentFn: (ctx) => ctx.memory ?? '',
+    condition: (ctx) => !!ctx.memory,
+  },
+]
+
 /**
  * Build the Brainstorm Mode system prompt.
  */
 export function buildBrainstormPrompt(ctx: PromptContext): string {
   return buildSystemPrompt(BRAINSTORM_SECTIONS, ctx)
+}
+
+export function buildGameScriptPrompt(ctx: PromptContext): string {
+  return buildSystemPrompt(GAME_SCRIPT_SECTIONS, ctx)
 }
 
 /**

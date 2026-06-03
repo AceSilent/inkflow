@@ -9,6 +9,11 @@ const labels = {
   'authorChat.noBookBody': '讨论成熟后再创建作品。',
   'authorChat.noBookPlaceholder': '描述你的作品、主角或一个场面...',
   'authorChat.attachFile': '添加文件',
+  'authorChat.openTools': '打开输入工具',
+  'authorChat.closeTools': '收起输入工具',
+  'authorChat.mode.author': '小说创作',
+  'authorChat.mode.gameScript': '游戏文案',
+  'authorChat.modeGroup': '创作模式',
   'authorChat.send': '发送',
   'authorChat.suggestion1': '我想写一座会改写记忆的城市',
   'authorChat.suggestion2': '帮我比较复仇和救赎两条主线',
@@ -30,6 +35,7 @@ describe('NoBookChatStarter', () => {
 
     expect(html).toContain('chat-tool-button')
     expect(html).toContain('chat-send-button')
+    expect(html).toContain('aria-label="打开输入工具"')
     expect(html).toContain('aria-label="发送"')
     expect(html).toContain('描述你的作品、主角或一个场面...')
     expect(html).toContain('我想写一座会改写记忆的城市')

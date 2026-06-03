@@ -18,6 +18,7 @@ import { loadStats } from '../stats/tool-stats.js'
 import { archivePriorDraft } from '../tools/draft-history.js'
 import { createBackup } from '../tools/safety.js'
 import { getCreativeStageStatus } from '../agent/creative-stage.js'
+import { defaultGameOutline, validateGameOutlineRoot } from '../game-outline.js'
 
 // ── Helper functions (exported for direct testing) ──
 
@@ -27,6 +28,15 @@ import { getCreativeStageStatus } from '../agent/creative-stage.js'
 export function readOutline(dataDir: string, bookId: string): any {
   return safeReadJson(path.join(dataDir, bookId, '02_Outlines', 'outline.json'))
     ?? { id: bookId, label: '', type: 'book', children: [] }
+}
+
+/**
+ * Read the game-copywriting outline. This intentionally uses a separate file
+ * from the novel chapter outline so arcs/packages/stages never collide with chapters.
+ */
+export function readGameOutline(dataDir: string, bookId: string): any {
+  return safeReadJson(path.join(dataDir, bookId, '02_Outlines', 'game_outline.json'))
+    ?? defaultGameOutline(bookId)
 }
 
 /**
@@ -134,6 +144,60 @@ export function writeOutline(dataDir: string, bookId: string, outline: any): voi
 }
 
 /**
+ * Write game_outline.json to 02_Outlines/. Creates directory if needed.
+ */
+export function writeGameOutline(dataDir: string, bookId: string, outline: any): void {
+  const error = validateGameOutlineRoot(outline)
+  if (error) throw new Error(error)
+  writeJson(path.join(dataDir, bookId, '02_Outlines', 'game_outline.json'), outline)
+}
+
+export function listScriptPackages(dataDir: string, bookId: string): any[] {
+  const scriptsDir = path.join(dataDir, bookId, '03_Scripts')
+  if (!fs.existsSync(scriptsDir)) return []
+
+  return fs.readdirSync(scriptsDir)
+    .filter(file => file.endsWith('.json'))
+    .sort((a, b) => a.localeCompare(b))
+    .map(file => {
+      const packageId = file.replace(/\.json$/i, '')
+      const data = safeReadJson<any>(path.join(scriptsDir, file)) ?? {}
+      const stages = Array.isArray(data.stages) ? data.stages : []
+      const reviewStates = { approved: 0, draft: 0, review: 0 }
+      let lineCount = 0
+      let choiceCount = 0
+
+      for (const stage of stages) {
+        const state = stage?.review_state
+        if (state === 'approved') {
+          reviewStates.approved += 1
+        } else if (state === 'review') {
+          reviewStates.review += 1
+        } else {
+          reviewStates.draft += 1
+        }
+        lineCount += Array.isArray(stage?.lines) ? stage.lines.length : 0
+        choiceCount += Array.isArray(stage?.choices) ? stage.choices.length : 0
+      }
+
+      return {
+        package_id: typeof data.id === 'string' && data.id.length > 0 ? data.id : packageId,
+        name: typeof data.name === 'string' && data.name.length > 0 ? data.name : packageId,
+        source_locale: typeof data.source_locale === 'string' && data.source_locale.length > 0 ? data.source_locale : 'zh-CN',
+        stage_count: stages.length,
+        line_count: lineCount,
+        choice_count: choiceCount,
+        review_states: reviewStates,
+      }
+    })
+}
+
+export function readScriptPackage(dataDir: string, bookId: string, packageId: string): any | null {
+  if (!/^[A-Za-z0-9_-]{1,80}$/.test(packageId)) return null
+  return safeReadJson(path.join(dataDir, bookId, '03_Scripts', `${packageId}.json`))
+}
+
+/**
  * Read review results for a chapter. Reviews are stored as JSON in 04_Drafts/.
  */
 export function readReview(dataDir: string, bookId: string, chapterId: string): any {
@@ -181,6 +245,35 @@ export async function dataRoutes(app: FastifyInstance): Promise<void> {
     }
   )
 
+  // GET /api/v1/books/:bookId/game-outline
+  app.get<{ Params: { bookId: string } }>(
+    '/api/v1/books/:bookId/game-outline',
+    async (request) => {
+      const bookId = sanitizePathSegment(request.params.bookId, 'bookId')
+      return readGameOutline(dataDir(), bookId)
+    }
+  )
+
+  // PUT /api/v1/books/:bookId/game-outline
+  app.put<{ Params: { bookId: string } }>(
+    '/api/v1/books/:bookId/game-outline',
+    async (request, reply) => {
+      try {
+        const bookId = sanitizePathSegment(request.params.bookId, 'bookId')
+        const error = validateGameOutlineRoot(request.body)
+        if (error) {
+          reply.code(400)
+          return { error }
+        }
+        writeGameOutline(dataDir(), bookId, request.body)
+        return { status: 'ok' }
+      } catch (err: any) {
+        reply.code(400)
+        return { error: err.message }
+      }
+    }
+  )
+
   // GET /api/v1/books/:bookId/lore
   app.get<{ Params: { bookId: string } }>(
     '/api/v1/books/:bookId/lore',
@@ -197,6 +290,30 @@ export async function dataRoutes(app: FastifyInstance): Promise<void> {
       const bookId = sanitizePathSegment(request.params.bookId, 'bookId')
       const bookDir = path.join(dataDir(), bookId)
       return getCreativeStageStatus(bookDir)
+    }
+  )
+
+  // GET /api/v1/books/:bookId/scripts
+  app.get<{ Params: { bookId: string } }>(
+    '/api/v1/books/:bookId/scripts',
+    async (request) => {
+      const bookId = sanitizePathSegment(request.params.bookId, 'bookId')
+      return { scripts: listScriptPackages(dataDir(), bookId) }
+    }
+  )
+
+  // GET /api/v1/books/:bookId/scripts/:packageId
+  app.get<{ Params: { bookId: string; packageId: string } }>(
+    '/api/v1/books/:bookId/scripts/:packageId',
+    async (request, reply) => {
+      const bookId = sanitizePathSegment(request.params.bookId, 'bookId')
+      const packageId = sanitizePathSegment(request.params.packageId, 'packageId')
+      const pkg = readScriptPackage(dataDir(), bookId, packageId)
+      if (!pkg) {
+        reply.code(404)
+        return { error: 'Script package not found' }
+      }
+      return pkg
     }
   )
 

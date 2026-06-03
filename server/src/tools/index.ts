@@ -5,7 +5,16 @@
 import { ToolRegistry } from './base-tool.js'
 import { readFileTool } from './read-file.js'
 import { searchLoreTool } from './search-lore.js'
-import { saveDraftTool, saveOutlineTool, saveLoreTool, readOutlineTool } from './write-tools.js'
+import {
+  saveDraftTool,
+  saveOutlineTool,
+  saveLoreTool,
+  saveScriptTool,
+  readOutlineTool,
+  readGameOutlineTool,
+  saveGameOutlineTool,
+} from './write-tools.js'
+import { scriptValidateTool } from './script-validate.js'
 import {
   readGraphTool,
   addPlotNodeTool,
@@ -34,9 +43,13 @@ export function createAllTools(options: CreateAllToolsOptions = {}): ToolRegistr
   registry.register(readFileTool)
   registry.register(searchLoreTool)
   registry.register(readOutlineTool)
+  registry.register(readGameOutlineTool)
+  registry.register(scriptValidateTool)
 
   // Write tools
   if (includeCreateBook) registry.register(createBookTool)
+  registry.register(saveGameOutlineTool)
+  registry.register(saveScriptTool)
   registry.register(saveDraftTool)
   registry.register(saveOutlineTool)
   registry.register(saveLoreTool)

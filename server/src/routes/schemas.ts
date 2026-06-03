@@ -31,7 +31,7 @@ export const chatAttachmentSchema = z.object({
 export const sendChatBody = z.object({
   message: z.string().max(50000),
   attachments: z.array(chatAttachmentSchema).max(10).optional(),
-  mode: z.enum(['brainstorm', 'author']).optional(),
+  mode: z.enum(['brainstorm', 'author', 'game_script']).optional(),
   replace_message_id: z.string().min(1).max(200).optional(),
 }).refine(
   value => value.message.trim().length > 0 || (value.attachments?.length ?? 0) > 0,

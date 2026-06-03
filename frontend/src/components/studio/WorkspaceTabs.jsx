@@ -1,14 +1,15 @@
 import { useId } from 'react'
-import { ListTree, NotebookTabs, Waypoints } from 'lucide-react'
+import { Gamepad2, ListTree, NotebookTabs, Waypoints } from 'lucide-react'
 import { useI18n } from '../../hooks/useI18n'
 
 const tabs = [
   { id: 'chapter', labelKey: 'workspace.chapter', icon: NotebookTabs },
   { id: 'outline', labelKey: 'workspace.outline', icon: ListTree },
   { id: 'plot', labelKey: 'workspace.plot', icon: Waypoints },
+  { id: 'game', labelKey: 'workspace.game', icon: Gamepad2 },
 ]
 
-export function WorkspaceTabs({ activeTab, onTabChange, chapter, outline, plot }) {
+export function WorkspaceTabs({ activeTab, onTabChange, chapter, outline, plot, game }) {
   const { t } = useI18n()
   const tabSetId = useId()
   const panelId = `${tabSetId}-panel`
@@ -43,7 +44,7 @@ export function WorkspaceTabs({ activeTab, onTabChange, chapter, outline, plot }
         role="tabpanel"
         aria-labelledby={`${tabSetId}-${activeTab}`}
       >
-        {activeTab === 'chapter' ? chapter : activeTab === 'outline' ? outline : plot}
+        {activeTab === 'chapter' ? chapter : activeTab === 'outline' ? outline : activeTab === 'plot' ? plot : game}
       </div>
     </div>
   )

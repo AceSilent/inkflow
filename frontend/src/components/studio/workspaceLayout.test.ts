@@ -24,6 +24,7 @@ describe('workspace layout helpers', () => {
     expect(isWorkspaceTab('chapter')).toBe(true)
     expect(isWorkspaceTab('outline')).toBe(true)
     expect(isWorkspaceTab('plot')).toBe(true)
+    expect(isWorkspaceTab('game')).toBe(true)
     expect(isWorkspaceTab('settings')).toBe(false)
     expect(isWorkspaceTab(undefined)).toBe(false)
   })

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { type PromptSection, buildSystemPrompt, buildAuthorPrompt, buildBrainstormPrompt } from '../src/agent/prompt-builder.js'
+import { type PromptSection, buildSystemPrompt, buildAuthorPrompt, buildBrainstormPrompt, buildGameScriptPrompt } from '../src/agent/prompt-builder.js'
 
 describe('buildSystemPrompt', () => {
   it('should concatenate sections', () => {
@@ -103,5 +103,18 @@ describe('Brainstorm Prompt', () => {
   it('should include memory section when provided', () => {
     const prompt = buildBrainstormPrompt({ memory: '之前的设定内容' })
     expect(prompt).toContain('之前的设定内容')
+  })
+})
+
+describe('Game Script Prompt', () => {
+  it('should build a game copywriting prompt without replacing the novel author prompt', () => {
+    const prompt = buildGameScriptPrompt({ memory: '用户喜欢克制的对白' })
+    expect(prompt).toContain('游戏文案')
+    expect(prompt).toContain('互动对白')
+    expect(prompt).toContain('任务文本')
+    expect(prompt).toContain('用户喜欢克制的对白')
+    expect(prompt).toContain('save_lore')
+    expect(prompt).toContain('save_script')
+    expect(prompt).toContain('validate_script')
   })
 })

@@ -10,6 +10,10 @@ describe('Tool Registration', () => {
     expect(registry.listNames().length).toBeGreaterThanOrEqual(13)
     expect(registry.get('read_file')).toBeDefined()
     expect(registry.get('save_draft')).toBeDefined()
+    expect(registry.get('read_game_outline')).toBeDefined()
+    expect(registry.get('save_game_outline')).toBeDefined()
+    expect(registry.get('save_script')).toBeDefined()
+    expect(registry.get('validate_script')).toBeDefined()
     expect(registry.get('read_graph')).toBeDefined()
     expect(registry.get('submit_for_review')).toBeDefined()
     expect(registry.get('present_options')).toBeDefined()
@@ -18,10 +22,11 @@ describe('Tool Registration', () => {
   })
 
   it('can build a bound-book tool registry without create_book', () => {
+    const defaultRegistry = createAllTools()
     const registry = createAllTools({ includeCreateBook: false })
 
     expect(registry.get('create_book')).toBeUndefined()
-    expect(registry.listNames()).toHaveLength(22)
+    expect(registry.listNames()).toHaveLength(defaultRegistry.listNames().length - 1)
     expect(registry.getToolSummary()).not.toContain('create_book')
   })
 
@@ -29,11 +34,15 @@ describe('Tool Registration', () => {
     const registry = createAllTools()
     const writeTools = registry.getWriteTools()
     expect(writeTools).toContain('save_draft')
+    expect(writeTools).toContain('save_game_outline')
+    expect(writeTools).toContain('save_script')
     expect(writeTools).toContain('save_lore')
     expect(writeTools).toContain('save_outline')
     expect(writeTools).toContain('submit_for_review')
     expect(writeTools).toContain('analyze_style_profile')
     expect(writeTools).not.toContain('read_file')
+    expect(writeTools).not.toContain('read_game_outline')
+    expect(writeTools).not.toContain('validate_script')
     expect(writeTools).not.toContain('search_lore')
     expect(writeTools).not.toContain('browse_examples')
   })
@@ -252,6 +261,59 @@ describe('Write Tools', () => {
     const result = await registry.execute('save_outline', { outline_json: outline }, { bookId: 'test-book', dataDir: tmpDir })
     expect(result).toContain('Error')
     expect(result).toContain('schema invalid')
+  })
+
+  it('save_game_outline should persist a valid game project tree only in game mode', async () => {
+    const registry = createAllTools()
+    const outline = JSON.stringify({
+      id: 'test-book',
+      type: 'game_project',
+      label: '测试游戏',
+      children: [
+        {
+          id: 'arc01',
+          type: 'arc',
+          label: '第一幕',
+          children: [
+            {
+              id: 'pkg_intro',
+              type: 'story_package',
+              label: '入门剧情包',
+              package_id: 'pkg_intro',
+              children: [
+                { id: 'stage_start', type: 'stage', label: '开场', stage_id: 'start' },
+              ],
+            },
+          ],
+        },
+      ],
+    })
+
+    const rejected = await registry.execute('save_game_outline', { outline_json: outline }, { bookId: 'test-book', dataDir: tmpDir })
+    expect(rejected).toContain('only available in game_script mode')
+
+    const result = await registry.execute('save_game_outline', { outline_json: outline }, { bookId: 'test-book', dataDir: tmpDir, mode: 'game_script' })
+    expect(result).toContain('Game outline saved')
+    expect(fs.existsSync(path.join(tmpDir, 'test-book', '02_Outlines', 'game_outline.json'))).toBe(true)
+    expect(fs.existsSync(path.join(tmpDir, 'test-book', '02_Outlines', 'outline.json'))).toBe(false)
+  })
+
+  it('read_game_outline should return the stored game tree', async () => {
+    const registry = createAllTools()
+    const outline = JSON.stringify({
+      id: 'test-book',
+      type: 'game_project',
+      label: '测试游戏',
+      children: [
+        { id: 'arc01', type: 'arc', label: '第一幕', children: [] },
+      ],
+    })
+
+    await registry.execute('save_game_outline', { outline_json: outline }, { bookId: 'test-book', dataDir: tmpDir, mode: 'game_script' })
+
+    const result = await registry.execute('read_game_outline', {}, { bookId: 'test-book', dataDir: tmpDir, mode: 'game_script' })
+    expect(result).toContain('"type": "game_project"')
+    expect(result).toContain('"id": "arc01"')
   })
 
   it('save_lore should reject invalid category', async () => {

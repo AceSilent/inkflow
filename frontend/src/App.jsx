@@ -15,6 +15,7 @@ import { StudioShell } from './components/studio/StudioShell'
 import { ChapterWorkspace } from './components/studio/ChapterWorkspace'
 import { OutlineWorkspace } from './components/studio/OutlineWorkspace'
 import { PlotGraphWorkspace } from './components/studio/PlotGraphWorkspace'
+import { GameScriptWorkspace } from './components/studio/GameScriptWorkspace'
 import { createBookFromDraft } from './components/books/createBookFromDraft'
 
 function createDraftSessionId() {
@@ -192,6 +193,12 @@ export default function App() {
             addToast={addToast}
             dataVersion={dataVersion}
             onChapterOpen={(ch) => handleSceneSelect({ type: 'chapter', id: ch.id, label: ch.label })}
+          />
+        }
+        game={
+          <GameScriptWorkspace
+            currentBook={currentBook}
+            dataVersion={dataVersion}
           />
         }
       />

@@ -42,6 +42,7 @@ export function StudioShell({
   chapter,
   outline,
   plot,
+  game,
   activeWorkspaceTab,
   onWorkspaceTabChange,
 }) {
@@ -222,6 +223,7 @@ export function StudioShell({
             chapter={chapter}
             outline={outline}
             plot={plot}
+            game={game}
           />
         </WorkspacePane>
       </main>
