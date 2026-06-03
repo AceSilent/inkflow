@@ -17,6 +17,7 @@ describe('tool activity presentation', () => {
     expect(grouped).toEqual([
       {
         type: 'tool_group',
+        kind: 'read',
         segments: [
           { type: 'tool_call', name: 'read_file', argsPreview: '{"relative_path":"agent-loop.ts"}' },
           { type: 'tool_call', name: 'read_file', argsPreview: '{"relative_path":"package.json"}' },
@@ -25,11 +26,24 @@ describe('tool activity presentation', () => {
       { type: 'content', text: '看完了。' },
       {
         type: 'tool_group',
+        kind: 'edit',
         segments: [
           { type: 'tool_call', name: 'save_draft', argsPreview: '{"file_path":"04_Drafts/ch01.md"}' },
         ],
       },
     ])
+  })
+
+  it('splits consecutive tool groups by activity kind', () => {
+    const grouped = groupAssistantSegments([
+      { type: 'tool_call', name: 'read_file', argsPreview: '{"relative_path":"outline.md"}' },
+      { type: 'tool_call', name: 'save_outline', argsPreview: '{"file_path":"outline.md"}' },
+      { type: 'tool_call', name: 'save_draft', argsPreview: '{"file_path":"ch01.md"}' },
+      { type: 'tool_call', name: 'terminal', argsPreview: '{}' },
+    ])
+
+    expect(grouped.map(group => group.kind)).toEqual(['read', 'edit', 'call'])
+    expect(grouped[1].segments).toHaveLength(2)
   })
 
   it('summarizes read and edit groups in a compact Chinese label', () => {

@@ -104,6 +104,12 @@ function isEditTool(segment) {
   return EDIT_TOOLS.has(segment.name)
 }
 
+function toolActivityKind(segment) {
+  if (isReadTool(segment)) return 'read'
+  if (isEditTool(segment)) return 'edit'
+  return 'call'
+}
+
 function formatWithCount(key, count, t) {
   const template = t ? t(key) : SUMMARY_FALLBACKS[key]
   return (template || SUMMARY_FALLBACKS[key]).replace('{count}', count)
@@ -122,8 +128,9 @@ export function groupAssistantSegments(segments = []) {
 
   for (const segment of segments) {
     if (segment.type === 'tool_call') {
-      if (!currentToolGroup) {
-        currentToolGroup = { type: 'tool_group', segments: [] }
+      const kind = toolActivityKind(segment)
+      if (!currentToolGroup || currentToolGroup.kind !== kind) {
+        currentToolGroup = { type: 'tool_group', kind, segments: [] }
         grouped.push(currentToolGroup)
       }
       currentToolGroup.segments.push(segment)

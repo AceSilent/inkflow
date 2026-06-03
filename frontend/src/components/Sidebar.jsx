@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react'
 import {
-  BookMarked,
+  BookOpenText,
   BookPlus,
   ChevronRight,
   FilePenLine,
+  FileStack,
   Files,
-  Layers3,
-  ScrollText,
+  NotebookTabs,
   Search,
   Settings,
   Smartphone,
@@ -52,9 +52,9 @@ const bottomIcons = {
 }
 
 const treeIcons = {
-  book: BookMarked,
-  volume: Layers3,
-  chapter: ScrollText,
+  book: BookOpenText,
+  volume: FileStack,
+  chapter: NotebookTabs,
   draft: FilePenLine,
   scene: Files,
 }
@@ -177,7 +177,6 @@ export function Sidebar({ activePanel, addToast, onSelect, onBookSelect, onNewCo
             >
               <Icon size={18} />
               <span>{action.label}</span>
-              {action.shortcut && <kbd>{action.shortcut}</kbd>}
             </button>
           )
         })}

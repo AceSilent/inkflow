@@ -1,11 +1,11 @@
 import { useId } from 'react'
-import { FilePenLine, GitBranch, ListTree } from 'lucide-react'
+import { ListTree, NotebookTabs, Waypoints } from 'lucide-react'
 import { useI18n } from '../../hooks/useI18n'
 
 const tabs = [
-  { id: 'chapter', labelKey: 'workspace.chapter', icon: FilePenLine },
+  { id: 'chapter', labelKey: 'workspace.chapter', icon: NotebookTabs },
   { id: 'outline', labelKey: 'workspace.outline', icon: ListTree },
-  { id: 'plot', labelKey: 'workspace.plot', icon: GitBranch },
+  { id: 'plot', labelKey: 'workspace.plot', icon: Waypoints },
 ]
 
 export function WorkspaceTabs({ activeTab, onTabChange, chapter, outline, plot }) {

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Loader, ChevronDown, ChevronRight, Brain, User, PenTool, FileText, Pencil, SquareTerminal } from 'lucide-react'
+import { Loader, ChevronDown, ChevronRight, User, PenTool, FileText, Pencil, SquareTerminal } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { useI18n } from '../../hooks/useI18n'
 import { messageDisplayParts, visibleUserMessageContent } from './messageUtils'
@@ -11,11 +11,11 @@ function resultLooksBad(result) {
 
 export function ToolActivityGroup({ segments }) {
   const { t } = useI18n()
-  const [expanded, setExpanded] = useState(segments.length <= 3)
+  const [expanded, setExpanded] = useState(false)
   const running = segments.some(segment => segment.status === 'running')
 
   return (
-    <div className={`tool-activity-group ${expanded ? 'is-expanded' : ''}`}>
+    <div className={`tool-activity-group ${expanded ? 'is-expanded' : ''} ${running ? 'is-running' : ''}`}>
       <button
         type="button"
         className="tool-activity-summary"
@@ -50,6 +50,7 @@ export function ThinkingCard({ segment, t }) {
   const live = !!segment.streaming
   const [expanded, setExpanded] = useState(false)
   const len = segment.text?.length ?? 0
+  const token = live ? 'thinking...' : 'thought'
   return (
     <div className={`thinking-card ${live ? 'is-live' : ''}`}>
       <button
@@ -59,9 +60,9 @@ export function ThinkingCard({ segment, t }) {
         aria-expanded={expanded}
       >
         {expanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
-        <Brain size={11} />
-        <span>{t('authorChat.thinkingCollapsed')} ({len} {t('authorChat.chars')})</span>
-        {live && <span className="agent-shimmer thinking-token">thinking</span>}
+        <span className="thinking-pulse-dot" aria-hidden="true" />
+        <span className={`thinking-token ${live ? 'agent-shimmer' : ''}`}>{token}</span>
+        <span className="thinking-detail">{t('authorChat.thinkingCollapsed')} · {len} {t('authorChat.chars')}</span>
       </button>
       {expanded && (
         <div className="thinking-body">

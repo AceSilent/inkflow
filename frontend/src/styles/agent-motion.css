@@ -88,7 +88,8 @@
 @media (prefers-reduced-motion: reduce) {
   .agent-shimmer,
   .agent-breathe,
-  .agent-state-dot::after {
+  .agent-state-dot::after,
+  .thinking-pulse-dot::after {
     animation: none;
   }
 }

@@ -4,7 +4,11 @@
 /.agents/
 /AGENTS.md
 /CLAUDE.md
-/docs/
+/docs/*
+!/docs/design/
+!/docs/design/creative-flow-preview.html
+!/docs/design/*.md
+/.stitch/
 
 # Python
 __pycache__/
@@ -101,6 +105,7 @@ temp/
 
 # Local Claude config / book data
 /.claude/
+/books/
 /server/books/
 /server/global/
 

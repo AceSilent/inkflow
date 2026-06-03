@@ -69,9 +69,9 @@
   --ambient-a: oklch(31% 0.062 255 / 0.16);
   --ambient-b: oklch(40% 0.052 285 / 0.08);
   --ambient-c: oklch(16% 0.012 260 / 0.68);
-  --ambient-star-opacity: 0.18;
-  --ambient-star-twinkle-opacity: 0.075;
-  --ambient-star-glow-opacity: 0.16;
+  --ambient-star-opacity: 0.24;
+  --ambient-star-twinkle-opacity: 0.085;
+  --ambient-star-glow-opacity: 0.2;
   --ambient-layer-opacity: 0.44;
   --ambient-sheen-opacity: 0.055;
   --ambient-streak-opacity: 0.018;
@@ -112,9 +112,9 @@
   --ambient-a: oklch(38% 0.034 205 / 0.10);
   --ambient-b: oklch(34% 0.022 15 / 0.055);
   --ambient-c: oklch(22% 0.008 255 / 0.72);
-  --ambient-star-opacity: 0.14;
-  --ambient-star-twinkle-opacity: 0.06;
-  --ambient-star-glow-opacity: 0.12;
+  --ambient-star-opacity: 0.2;
+  --ambient-star-twinkle-opacity: 0.074;
+  --ambient-star-glow-opacity: 0.17;
   --ambient-layer-opacity: 0.34;
   --ambient-sheen-opacity: 0.04;
   --ambient-streak-opacity: 0.014;
@@ -2061,7 +2061,7 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
 
 .studio-sidebar-action {
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) auto;
+  grid-template-columns: 22px minmax(0, 1fr);
   align-items: center;
   gap: 10px;
   min-height: 42px;
@@ -2087,22 +2087,6 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
 
 .studio-sidebar-action svg {
   color: currentColor;
-}
-
-.studio-sidebar-action kbd {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 42px;
-  height: 28px;
-  padding: 0 8px;
-  color: var(--ink-muted);
-  background: color-mix(in oklch, var(--bg-elevated) 56%, transparent);
-  border: 1px solid var(--glass-border);
-  border-radius: 12px;
-  font-family: var(--font-body);
-  font-size: 13px;
-  font-weight: 600;
 }
 
 .studio-sidebar-search {
@@ -2209,7 +2193,7 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
     radial-gradient(circle at 90% 72%, oklch(78% 0.07 250 / 0.76) 0 0.9px, transparent 1.4px),
     radial-gradient(circle at 20% 62%, oklch(95% 0.032 235 / 0.78) 0 0.75px, transparent 1.25px);
   background-size: 210px 210px, 290px 290px, 350px 350px, 260px 260px, 420px 420px;
-  opacity: calc(var(--ambient-star-opacity) * 0.82);
+  opacity: calc(var(--ambient-star-opacity) * 1.08);
   filter: drop-shadow(0 0 5px oklch(92% 0.05 255 / var(--ambient-star-glow-opacity)));
   mix-blend-mode: var(--ambient-blend, normal);
   animation: starDrift 58s linear infinite, starTwinkle 7.5s ease-in-out infinite alternate;
@@ -2416,6 +2400,11 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   line-height: 1.55;
 }
 
+.tool-activity-group {
+  --activity-muted: color-mix(in oklch, var(--ink-muted) 76%, transparent);
+  --activity-hover: color-mix(in oklch, var(--ink-secondary) 92%, var(--accent) 8%);
+}
+
 .tool-activity-summary,
 .thinking-toggle {
   width: fit-content;
@@ -2426,7 +2415,7 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: var(--ink-muted);
+  color: var(--activity-muted, var(--ink-muted));
   font: inherit;
   font-size: 12px;
   font-weight: 520;
@@ -2442,8 +2431,8 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
 
 .tool-activity-summary:hover,
 .thinking-toggle:hover {
-  color: var(--ink-secondary);
-  background: color-mix(in oklch, var(--bg-elevated) 32%, transparent);
+  color: var(--activity-hover, var(--ink-secondary));
+  background: color-mix(in oklch, var(--bg-elevated) 24%, transparent);
 }
 
 .tool-activity-summary:active,
@@ -2477,7 +2466,7 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   display: flex;
   flex-direction: column;
   gap: 4px;
-  margin: 5px 0 4px 25px;
+  margin: 4px 0 4px 25px;
   color: var(--ink-muted);
   animation: toolActivityReveal 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
@@ -2494,6 +2483,7 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: color-mix(in oklch, var(--ink-muted) 82%, transparent);
 }
 
 .tool-activity-result {
@@ -2522,7 +2512,35 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
 
 .thinking-token {
   margin-left: 2px;
+  font-family: var(--font-label);
+  font-size: 11px;
   font-weight: 700;
+  letter-spacing: 0;
+}
+
+.thinking-detail {
+  color: color-mix(in oklch, var(--ink-muted) 84%, transparent);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.thinking-pulse-dot {
+  position: relative;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--thinking) 82%, var(--ink-muted));
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--thinking) 13%, transparent);
+  flex: 0 0 auto;
+}
+
+.thinking-card.is-live .thinking-pulse-dot::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border-radius: inherit;
+  border: 1px solid color-mix(in oklch, var(--thinking) 30%, transparent);
+  animation: agent-state-pulse 1.7s ease-out infinite;
 }
 
 .thinking-body {
