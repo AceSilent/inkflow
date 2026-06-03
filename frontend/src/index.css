@@ -51,6 +51,8 @@
   --ambient-b: oklch(88% 0.058 155 / 0.42);
   --ambient-c: oklch(98% 0.014 255 / 0.34);
   --ambient-star-opacity: 0.045;
+  --ambient-star-twinkle-opacity: 0.018;
+  --ambient-star-glow-opacity: 0.045;
   --ambient-layer-opacity: 0.92;
   --ambient-sheen-opacity: 0.24;
   --ambient-streak-opacity: 0.08;
@@ -67,7 +69,9 @@
   --ambient-a: oklch(31% 0.062 255 / 0.16);
   --ambient-b: oklch(40% 0.052 285 / 0.08);
   --ambient-c: oklch(16% 0.012 260 / 0.68);
-  --ambient-star-opacity: 0.08;
+  --ambient-star-opacity: 0.18;
+  --ambient-star-twinkle-opacity: 0.075;
+  --ambient-star-glow-opacity: 0.16;
   --ambient-layer-opacity: 0.44;
   --ambient-sheen-opacity: 0.055;
   --ambient-streak-opacity: 0.018;
@@ -101,13 +105,16 @@
   --ambient-b: oklch(88% 0.05 145 / 0.18);
   --ambient-c: oklch(99% 0.01 86 / 0.58);
   --ambient-star-opacity: 0.035;
+  --ambient-star-twinkle-opacity: 0.014;
 }
 
 [data-theme="graphite"] {
   --ambient-a: oklch(38% 0.034 205 / 0.10);
   --ambient-b: oklch(34% 0.022 15 / 0.055);
   --ambient-c: oklch(22% 0.008 255 / 0.72);
-  --ambient-star-opacity: 0.035;
+  --ambient-star-opacity: 0.14;
+  --ambient-star-twinkle-opacity: 0.06;
+  --ambient-star-glow-opacity: 0.12;
   --ambient-layer-opacity: 0.34;
   --ambient-sheen-opacity: 0.04;
   --ambient-streak-opacity: 0.014;
@@ -182,14 +189,18 @@ html, body, #root {
   z-index: 0;
   pointer-events: none;
   background-image:
-    radial-gradient(circle at 12% 18%, oklch(100% 0 0 / 0.95) 0 0.8px, transparent 1.2px),
-    radial-gradient(circle at 38% 82%, oklch(88% 0.05 250 / 0.75) 0 0.7px, transparent 1.1px),
-    radial-gradient(circle at 76% 28%, oklch(100% 0 0 / 0.88) 0 0.9px, transparent 1.3px),
-    radial-gradient(circle at 88% 74%, oklch(80% 0.08 250 / 0.72) 0 0.8px, transparent 1.2px);
-  background-size: 220px 220px, 300px 300px, 360px 360px, 260px 260px;
+    radial-gradient(circle at 12% 18%, oklch(100% 0 0 / 0.98) 0 1px, transparent 1.55px),
+    radial-gradient(circle at 38% 82%, oklch(88% 0.05 250 / 0.82) 0 0.85px, transparent 1.35px),
+    radial-gradient(circle at 76% 28%, oklch(100% 0 0 / 0.94) 0 1.05px, transparent 1.6px),
+    radial-gradient(circle at 88% 74%, oklch(80% 0.08 250 / 0.78) 0 0.95px, transparent 1.45px),
+    radial-gradient(circle at 18% 66%, oklch(96% 0.035 235 / 0.82) 0 0.78px, transparent 1.25px),
+    radial-gradient(circle at 62% 12%, oklch(86% 0.052 285 / 0.72) 0 0.75px, transparent 1.25px),
+    radial-gradient(circle at 54% 52%, oklch(100% 0 0 / 0.76) 0 0.9px, transparent 1.35px);
+  background-size: 220px 220px, 300px 300px, 360px 360px, 260px 260px, 410px 410px, 520px 520px, 470px 470px;
   opacity: var(--ambient-star-opacity);
   mix-blend-mode: var(--ambient-blend, normal);
-  animation: starDrift 42s linear infinite;
+  filter: drop-shadow(0 0 4px oklch(92% 0.05 255 / var(--ambient-star-glow-opacity)));
+  animation: starDrift 52s linear infinite, starTwinkle 6.5s ease-in-out infinite alternate;
 }
 
 #root > [data-theme] > .studio-shell,
@@ -205,8 +216,19 @@ html, body, #root {
 }
 
 @keyframes starDrift {
-  from { background-position: 0 0, 0 0, 0 0, 0 0; }
-  to { background-position: 220px 160px, -300px 260px, 360px -240px, -260px -180px; }
+  from { background-position: 0 0, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0; }
+  to { background-position: 220px 160px, -300px 260px, 360px -240px, -260px -180px, 410px 320px, -520px 220px, 470px -260px; }
+}
+
+@keyframes starTwinkle {
+  0%, 100% {
+    opacity: var(--ambient-star-opacity);
+    filter: brightness(1) saturate(1);
+  }
+  46% {
+    opacity: calc(var(--ambient-star-opacity) + var(--ambient-star-twinkle-opacity));
+    filter: brightness(1.22) saturate(1.08);
+  }
 }
 
 @keyframes frostGrain {
@@ -219,7 +241,8 @@ html, body, #root {
 @media (prefers-reduced-motion: reduce) {
   #root > [data-theme]::before,
   #root > [data-theme]::after,
-  .studio-shell::after {
+  .studio-shell::after,
+  .studio-chat::before {
     animation: none;
   }
 }
@@ -711,6 +734,28 @@ button:active:not(:disabled) {
 @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 @keyframes cursor-blink { 0%, 50% { opacity: 1; } 51%, 100% { opacity: 0; } }
+@keyframes messageLiftIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0) scale(0.985);
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    filter: blur(0);
+  }
+}
+@keyframes toolActivityReveal {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -3px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
 
 .anim-fade { animation: fade-in 0.2s ease; }
 .anim-scale { animation: scale-in 0.2s ease; }
@@ -2142,11 +2187,37 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
+  position: relative;
+  isolation: isolate;
   overflow: auto;
   background:
     linear-gradient(180deg, color-mix(in oklch, var(--bg-elevated) 42%, transparent), color-mix(in oklch, var(--bg) 48%, transparent)),
     radial-gradient(circle at 50% -6%, color-mix(in oklch, var(--glass-highlight) 54%, transparent), transparent 44%);
   backdrop-filter: blur(26px) saturate(1.12);
+}
+
+.studio-chat::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle at 12% 20%, oklch(100% 0 0 / 0.96) 0 1px, transparent 1.55px),
+    radial-gradient(circle at 35% 78%, oklch(84% 0.055 252 / 0.8) 0 0.85px, transparent 1.35px),
+    radial-gradient(circle at 78% 24%, oklch(100% 0 0 / 0.9) 0 1px, transparent 1.55px),
+    radial-gradient(circle at 90% 72%, oklch(78% 0.07 250 / 0.76) 0 0.9px, transparent 1.4px),
+    radial-gradient(circle at 20% 62%, oklch(95% 0.032 235 / 0.78) 0 0.75px, transparent 1.25px);
+  background-size: 210px 210px, 290px 290px, 350px 350px, 260px 260px, 420px 420px;
+  opacity: calc(var(--ambient-star-opacity) * 0.82);
+  filter: drop-shadow(0 0 5px oklch(92% 0.05 255 / var(--ambient-star-glow-opacity)));
+  mix-blend-mode: var(--ambient-blend, normal);
+  animation: starDrift 58s linear infinite, starTwinkle 7.5s ease-in-out infinite alternate;
+}
+
+.studio-chat > * {
+  position: relative;
+  z-index: 1;
 }
 
 .workspace-splitter {
@@ -2220,6 +2291,7 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   min-width: 64px;
   height: 30px;
   padding: 0 12px;
@@ -2244,6 +2316,13 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   box-shadow: inset 0 1px 0 var(--glass-highlight), 0 1px 2px oklch(0% 0 0 / 0.04);
 }
 
+.workspace-tab-icon {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  stroke-width: 1.9;
+}
+
 .workspace-tab-panel {
   flex: 1 1 auto;
   min-width: 0;
@@ -2256,6 +2335,211 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   display: flex;
   flex-direction: column;
   height: 100%;
+}
+
+.chat-message-row {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  transform-origin: left bottom;
+  will-change: opacity, transform, filter;
+}
+
+.chat-message-row.is-user {
+  align-items: flex-end;
+  transform-origin: right bottom;
+}
+
+.chat-message-enter {
+  animation: messageLiftIn var(--motion-smooth) both;
+}
+
+.chat-message-meta {
+  min-height: 14px;
+  margin-bottom: 2px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--ink-muted);
+  font-size: 10px;
+}
+
+.streaming-message-shell {
+  align-items: flex-start;
+}
+
+.streaming-segments {
+  width: 100%;
+  max-width: 85%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.assistant-message-bubble,
+.streaming-content-bubble {
+  padding: 10px 14px;
+  border-radius: 12px;
+  border-bottom-left-radius: 4px;
+  color: var(--ink);
+  background:
+    linear-gradient(180deg, color-mix(in oklch, var(--glass-highlight) 32%, transparent), transparent 74%),
+    var(--bg-elevated);
+  font-size: 13px;
+  line-height: 1.6;
+  word-break: break-word;
+  box-shadow: 0 1px 0 color-mix(in oklch, var(--glass-highlight) 40%, transparent) inset;
+}
+
+.streaming-content-bubble {
+  animation: messageLiftIn 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.typewriter-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  border-radius: 999px;
+  vertical-align: -0.14em;
+  background: color-mix(in oklch, var(--accent) 84%, white);
+  box-shadow: 0 0 10px color-mix(in oklch, var(--accent) 38%, transparent);
+  animation: cursor-blink 0.95s step-end infinite;
+}
+
+.tool-activity-group,
+.thinking-card {
+  width: 100%;
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.tool-activity-summary,
+.thinking-toggle {
+  width: fit-content;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 520;
+  line-height: 1.4;
+  padding: 2px 5px 2px 0;
+  cursor: pointer;
+  transition:
+    color var(--motion-fast),
+    background var(--motion-fast),
+    transform var(--motion-fast),
+    opacity var(--motion-fast);
+}
+
+.tool-activity-summary:hover,
+.thinking-toggle:hover {
+  color: var(--ink-secondary);
+  background: color-mix(in oklch, var(--bg-elevated) 32%, transparent);
+}
+
+.tool-activity-summary:active,
+.thinking-toggle:active {
+  transform: translateY(1px);
+}
+
+.tool-activity-summary svg,
+.thinking-toggle svg {
+  flex: 0 0 auto;
+  color: currentColor;
+  stroke-width: 1.85;
+}
+
+.tool-activity-chevron {
+  transform: rotate(-90deg);
+  opacity: 0.7;
+  transition: transform var(--motion-smooth), opacity var(--motion-fast);
+}
+
+.tool-activity-group.is-expanded .tool-activity-chevron {
+  transform: rotate(0deg);
+  opacity: 1;
+}
+
+.tool-activity-spinner {
+  animation: spin 1.5s linear infinite;
+}
+
+.tool-activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 5px 0 4px 25px;
+  color: var(--ink-muted);
+  animation: toolActivityReveal 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.tool-activity-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.tool-activity-line {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-activity-result {
+  min-width: 0;
+  max-width: min(460px, 55vw);
+  overflow: hidden;
+  color: color-mix(in oklch, var(--ink-muted) 78%, transparent);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-activity-result.is-warning {
+  color: var(--warning);
+}
+
+.thinking-toggle {
+  gap: 5px;
+  font-size: 11px;
+}
+
+.thinking-card.is-live .thinking-toggle {
+  color: color-mix(in oklch, var(--thinking) 60%, var(--ink-muted));
+}
+
+.thinking-token {
+  margin-left: 2px;
+  font-weight: 700;
+}
+
+.thinking-body {
+  max-height: 300px;
+  overflow-y: auto;
+  margin: 5px 0 4px 21px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in oklch, var(--thinking) 15%, var(--border-subtle));
+  border-radius: 8px;
+  background: color-mix(in oklch, var(--bg-elevated) 54%, transparent);
+  color: var(--ink-muted);
+  font-size: 11px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+  box-shadow: inset 0 1px 0 color-mix(in oklch, var(--glass-highlight) 24%, transparent);
+  animation: toolActivityReveal 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .author-chat-header {

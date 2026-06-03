@@ -78,7 +78,7 @@ function toModelMessage(message: ChatHistoryMessage): ModelMessage {
 }
 
 export async function authorChatRoutes(app: FastifyInstance) {
-  const toolRegistry = createAllTools()
+  const toolRegistry = createAllTools({ includeCreateBook: false })
   const sessionToolRegistry = new ToolRegistry()
   sessionToolRegistry.register(createBookTool)
 

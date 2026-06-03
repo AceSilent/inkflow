@@ -22,8 +22,13 @@ import { analyzeStyleProfileTool, browseExamplesTool } from './examples.js'
 import { submitToEditorialTool } from '../editorial/editorial.js'
 import { createBookTool } from './create-book.js'
 
-export function createAllTools(): ToolRegistry {
+export interface CreateAllToolsOptions {
+  includeCreateBook?: boolean
+}
+
+export function createAllTools(options: CreateAllToolsOptions = {}): ToolRegistry {
   const registry = new ToolRegistry()
+  const includeCreateBook = options.includeCreateBook ?? true
 
   // Read tools
   registry.register(readFileTool)
@@ -31,7 +36,7 @@ export function createAllTools(): ToolRegistry {
   registry.register(readOutlineTool)
 
   // Write tools
-  registry.register(createBookTool)
+  if (includeCreateBook) registry.register(createBookTool)
   registry.register(saveDraftTool)
   registry.register(saveOutlineTool)
   registry.register(saveLoreTool)

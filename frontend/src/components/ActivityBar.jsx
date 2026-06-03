@@ -1,13 +1,13 @@
-import { FolderOpen, Lightbulb, PenTool, ListTree, BookOpen, GitBranch, Brain, Settings } from 'lucide-react'
+import { Brain, GitBranch, LibraryBig, Lightbulb, ListTree, NotebookPen, ScrollText, Settings } from 'lucide-react'
 import { useI18n } from '../hooks/useI18n'
 
 const items = [
-  { id: 'explorer', icon: FolderOpen, labelKey: 'nav.explorer' },
+  { id: 'explorer', icon: LibraryBig, labelKey: 'nav.explorer' },
   { id: 'brainstorm', icon: Lightbulb, labelKey: 'nav.brainstorm' },
-  { id: 'author-chat', icon: PenTool, labelKey: 'nav.authorChat' },
+  { id: 'author-chat', icon: NotebookPen, labelKey: 'nav.authorChat' },
   { id: 'outline', icon: ListTree, labelKey: 'nav.outline' },
   { id: 'plot-graph', icon: GitBranch, labelKey: 'nav.plotGraph' },
-  { id: 'chapter', icon: BookOpen, labelKey: 'nav.chapter' },
+  { id: 'chapter', icon: ScrollText, labelKey: 'nav.chapter' },
   { id: 'memory-library', icon: Brain, labelKey: 'nav.memoryLibrary' },
 ]
 

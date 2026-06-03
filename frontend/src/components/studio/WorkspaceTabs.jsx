@@ -1,10 +1,11 @@
 import { useId } from 'react'
+import { FilePenLine, GitBranch, ListTree } from 'lucide-react'
 import { useI18n } from '../../hooks/useI18n'
 
 const tabs = [
-  { id: 'chapter', labelKey: 'workspace.chapter' },
-  { id: 'outline', labelKey: 'workspace.outline' },
-  { id: 'plot', labelKey: 'workspace.plot' },
+  { id: 'chapter', labelKey: 'workspace.chapter', icon: FilePenLine },
+  { id: 'outline', labelKey: 'workspace.outline', icon: ListTree },
+  { id: 'plot', labelKey: 'workspace.plot', icon: GitBranch },
 ]
 
 export function WorkspaceTabs({ activeTab, onTabChange, chapter, outline, plot }) {
@@ -17,6 +18,7 @@ export function WorkspaceTabs({ activeTab, onTabChange, chapter, outline, plot }
       <div className="workspace-tabs" role="tablist" aria-label={t('workspace.label')}>
         {tabs.map(tab => {
           const tabId = `${tabSetId}-${tab.id}`
+          const Icon = tab.icon
 
           return (
             <button
@@ -29,6 +31,7 @@ export function WorkspaceTabs({ activeTab, onTabChange, chapter, outline, plot }
               className={`workspace-tab ${activeTab === tab.id ? 'active' : ''}`}
               onClick={() => onTabChange(tab.id)}
             >
+              <Icon className="workspace-tab-icon" size={14} aria-hidden="true" />
               {t(tab.labelKey)}
             </button>
           )

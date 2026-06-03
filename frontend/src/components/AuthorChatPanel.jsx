@@ -3,7 +3,12 @@ import { Send, Trash2, Plus, X, FileText, PenTool, Loader, Square } from 'lucide
 import ReactMarkdown from 'react-markdown'
 import { useI18n } from '../hooks/useI18n'
 import { CreativeFlowNotch } from './CreativeFlowNotch'
-import { MessageBubble, OptionsCard, StreamingToolCard, ThinkingCard } from './author-chat/MessageCards'
+import { MessageBubble, OptionsCard, ThinkingCard, ToolActivityGroup } from './author-chat/MessageCards'
+import {
+  applyStreamingPreview,
+  latestStreamingContentTarget,
+  nextTypewriterFrame,
+} from './author-chat/typewriter'
 import {
   DATA_MUTATING_TOOLS,
   editableUserMessageContent,
@@ -18,6 +23,7 @@ import {
 import { fetchChatHistory } from './author-chat/historyLoader'
 import { parseSlashCommand } from './author-chat/slashCommands'
 import { agentLifecycleState } from './author-chat/agentState'
+import { groupAssistantSegments } from './author-chat/toolActivity'
 
 function CheckpointEditComposer({ value, onChange, onCancel, onSubmit, disabled }) {
   const { t } = useI18n()
@@ -256,6 +262,7 @@ export function AuthorChatPanel({
   const [loading, setLoading] = useState(false)
   const [attachments, setAttachments] = useState([])
   const [streamingMsg, setStreamingMsg] = useState(null) // {thinking, segments[], thinkingDone, phase}
+  const [visibleStreamingText, setVisibleStreamingText] = useState('')
   const [checkpointEditor, setCheckpointEditor] = useState(null)
   const [checkpointResending, setCheckpointResending] = useState(false)
   const chatEndRef = useRef(null)
@@ -324,6 +331,25 @@ export function AuthorChatPanel({
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, streamingMsg])
+
+  const streamingContentTarget = latestStreamingContentTarget(streamingMsg?.segments ?? [])
+  const visibleStreamingSegments = streamingMsg
+    ? applyStreamingPreview(streamingMsg.segments ?? [], visibleStreamingText)
+    : []
+
+  useEffect(() => {
+    if (!streamingContentTarget) {
+      setVisibleStreamingText('')
+      return undefined
+    }
+
+    setVisibleStreamingText(current => nextTypewriterFrame(current, streamingContentTarget))
+    const timer = window.setInterval(() => {
+      setVisibleStreamingText(current => nextTypewriterFrame(current, streamingContentTarget))
+    }, 24)
+
+    return () => window.clearInterval(timer)
+  }, [streamingContentTarget])
 
   // Tick once a second while a retry banner or heartbeat banner is showing, so
   // the displayed countdown / elapsed time stays live without a server push.
@@ -793,8 +819,8 @@ export function AuthorChatPanel({
 
         {/* Live streaming message */}
         {streamingMsg && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-            <div style={{ fontSize: 10, color: 'var(--ink-muted)', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 3 }}><PenTool size={9} /> {t('authorChat.author')}</div>
+          <div className="streaming-message-shell chat-message-row chat-message-enter is-assistant">
+            <div className="chat-message-meta"><PenTool size={9} /> {t('authorChat.author')}</div>
 
             {/* Idle heartbeat banner — server reports no LLM tokens for >15s. Cleared on next chunk. */}
             {!streamingMsg.retry && streamingMsg.idleMs >= 15000 && (
@@ -833,22 +859,17 @@ export function AuthorChatPanel({
 
             {/* Segments (interleaved thinking + content + tool calls) */}
             {streamingMsg.segments?.length > 0 ? (
-              <div style={{ maxWidth: '85%', display: 'flex', flexDirection: 'column', gap: 4, width: '100%' }}>
-                {streamingMsg.segments.map((seg, j) => (
-                  seg.type === 'content' ? (
-                    <div key={j} className="markdown-chat" style={{
-                      padding: '10px 14px', borderRadius: 12,
-                      fontSize: 13, lineHeight: 1.6, wordBreak: 'break-word',
-                      background: 'var(--bg-elevated)', color: 'var(--ink)',
-                      borderBottomLeftRadius: 4,
-                    }}>
+              <div className="streaming-segments">
+                {groupAssistantSegments(visibleStreamingSegments).map((seg, j) => (
+                  seg.type === 'tool_group' ? (
+                    <ToolActivityGroup key={j} segments={seg.segments} />
+                  ) : seg.type === 'content' ? (
+                    <div key={j} className="markdown-chat streaming-content-bubble">
                       <ReactMarkdown>{seg.text}</ReactMarkdown>
-                      {seg.streaming && <span style={{ animation: 'pulse 1s infinite' }}>▍</span>}
+                      {seg.streaming && <span className="typewriter-caret" aria-hidden="true" />}
                     </div>
                   ) : seg.type === 'thinking' ? (
                     <ThinkingCard key={j} segment={seg} t={t} />
-                  ) : seg.type === 'tool_call' ? (
-                    <StreamingToolCard key={j} segment={seg} />
                   ) : seg.type === 'options' ? (
                     <OptionsCard key={j} segment={seg} disabled={loading} onSelect={(opt) => handleSend(opt)} />
                   ) : null

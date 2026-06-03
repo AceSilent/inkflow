@@ -17,6 +17,14 @@ describe('Tool Registration', () => {
     expect(registry.get('analyze_style_profile')).toBeDefined()
   })
 
+  it('can build a bound-book tool registry without create_book', () => {
+    const registry = createAllTools({ includeCreateBook: false })
+
+    expect(registry.get('create_book')).toBeUndefined()
+    expect(registry.listNames()).toHaveLength(22)
+    expect(registry.getToolSummary()).not.toContain('create_book')
+  })
+
   it('should mark write tools correctly', () => {
     const registry = createAllTools()
     const writeTools = registry.getWriteTools()

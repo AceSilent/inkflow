@@ -12,6 +12,11 @@ const labels = {
   'authorChat.attachmentPreview': '查看全文',
   'authorChat.attachmentFull': '收起',
   'authorChat.attachmentLines': '{count} 行',
+  'authorChat.toolExplored': '已探索 {count} 个文件',
+  'authorChat.toolEdited': '已编辑 {count} 个文件',
+  'authorChat.toolCalled': '已调用 {count} 个工具',
+  'authorChat.toolVerbRead': '读取',
+  'authorChat.toolVerbEdited': '已编辑',
 }
 
 function renderBubble(msg) {
@@ -40,5 +45,23 @@ describe('MessageBubble attachment rendering', () => {
     expect(html).toContain('python')
     expect(html).toContain('请读取')
     expect(html).not.toContain('--- 附件')
+  })
+
+  it('renders tool calls as compact activity groups instead of individual cards', () => {
+    const html = renderBubble({
+      role: 'assistant',
+      segments: [
+        { type: 'tool_call', name: 'read_file', status: 'done', argsPreview: '{"relative_path":"agent-loop.ts"}' },
+        { type: 'tool_call', name: 'read_file', status: 'done', argsPreview: '{"relative_path":"package.json"}' },
+        { type: 'content', text: '我看完了。' },
+        { type: 'tool_call', name: 'save_draft', status: 'done', argsPreview: '{"file_path":"04_Drafts/ch01.md"}' },
+        { type: 'tool_call', name: 'save_outline', status: 'done', argsPreview: '{"file_path":"02_Outline/outline.md"}' },
+      ],
+    })
+
+    expect(html).toContain('tool-activity-group')
+    expect(html).toContain('已探索 2 个文件')
+    expect(html).toContain('已编辑 2 个文件')
+    expect(html).not.toContain('#00BCD4')
   })
 })

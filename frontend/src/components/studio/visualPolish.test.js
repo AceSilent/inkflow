@@ -9,7 +9,9 @@ describe('visual polish direction', () => {
   it('adds frosted shell edges and animated theme ambience', () => {
     expect(indexCss).toContain('ambientDrift')
     expect(indexCss).toContain('starDrift')
+    expect(indexCss).toContain('starTwinkle')
     expect(indexCss).toContain('--ambient-star-opacity')
+    expect(indexCss).toContain('--ambient-star-twinkle-opacity')
     expect(indexCss).toContain('--glass-shell: color-mix')
     expect(indexCss).toContain('backdrop-filter: blur(42px)')
     expect(indexCss).toContain('box-shadow: var(--glass-edge-shadow)')
@@ -31,13 +33,28 @@ describe('visual polish direction', () => {
   it('keeps dark themes subtle instead of heavy and noisy', () => {
     expect(indexCss).toContain('--ambient-layer-opacity')
     expect(indexCss).toContain('--ambient-sheen-opacity')
+    expect(indexCss).toContain('--ambient-star-twinkle-opacity')
     expect(indexCss).toContain('--frost-sheen-opacity')
     expect(indexCss).toContain('--frost-grain-opacity')
 
-    expect(indexCss).toMatch(/\[data-theme="ink"\], \[data-theme="dark"\][\s\S]*--ambient-star-opacity:\s*0\.08;/)
+    expect(indexCss).toMatch(/\[data-theme="ink"\], \[data-theme="dark"\][\s\S]*--ambient-star-opacity:\s*0\.18;/)
+    expect(indexCss).toMatch(/\[data-theme="ink"\], \[data-theme="dark"\][\s\S]*--ambient-star-twinkle-opacity:\s*0\.075;/)
     expect(indexCss).toMatch(/\[data-theme="ink"\], \[data-theme="dark"\][\s\S]*--frost-noise-opacity:\s*0\.08;/)
-    expect(indexCss).toMatch(/\[data-theme="graphite"\][\s\S]*--ambient-star-opacity:\s*0\.035;/)
+    expect(indexCss).toMatch(/\[data-theme="graphite"\][\s\S]*--ambient-star-opacity:\s*0\.14;/)
+    expect(indexCss).toMatch(/\[data-theme="graphite"\][\s\S]*--ambient-star-twinkle-opacity:\s*0\.06;/)
     expect(indexCss).toMatch(/\[data-theme="graphite"\][\s\S]*--frost-noise-opacity:\s*0\.07;/)
+    expect(indexCss).toContain('.studio-chat::before')
+  })
+
+  it('animates chat messages and live streaming text without changing layout', () => {
+    expect(indexCss).toContain('messageLiftIn')
+    expect(indexCss).toContain('.chat-message-row')
+    expect(indexCss).toContain('.chat-message-enter')
+    expect(indexCss).toContain('.streaming-content-bubble')
+    expect(indexCss).toContain('.typewriter-caret')
+    expect(indexCss).toContain('.tool-activity-group')
+    expect(indexCss).toContain('.tool-activity-summary')
+    expect(indexCss).toContain('.tool-activity-list')
   })
 
   it('presents the creative flow as a modern creation notch preview', () => {

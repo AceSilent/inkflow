@@ -25,6 +25,7 @@ describe('create_book tool', () => {
     const output = await createBookTool.execute(
       { name: '墨雨复仇' },
       {
+        bookId: '__unbound__',
         dataDir: tmpDir,
         sessionId: 'session_agent',
         onBookCreated: book => created.push(book.book_id),
@@ -37,5 +38,18 @@ describe('create_book tool', () => {
     expect(loadHistoryFull(tmpDir, '墨雨复仇').map(m => m.content)).toEqual([
       '讨论一部墨雨里的复仇小说。',
     ])
+  })
+
+  it('rejects creation from an already-bound book chat', async () => {
+    await expect(createBookTool.execute(
+      { name: '第二本书' },
+      {
+        bookId: 'existing-book',
+        dataDir: tmpDir,
+        sessionId: 'session_agent',
+      },
+    )).rejects.toThrow(/unbound/i)
+
+    expect(fs.existsSync(path.join(tmpDir, '第二本书'))).toBe(false)
   })
 })

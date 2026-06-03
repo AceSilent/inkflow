@@ -48,6 +48,13 @@ describe('buildAuthorPrompt', () => {
     expect(prompt).toContain('load_skill')
   })
 
+  it('states that bound author chats must not create another book', () => {
+    const prompt = buildAuthorPrompt({})
+
+    expect(prompt).toContain('禁止调用 create_book')
+    expect(prompt).toContain('已绑定作品')
+  })
+
   it('should include memory when provided', () => {
     const prompt = buildAuthorPrompt({ memory: '[核心记忆] 测试原则' })
     expect(prompt).toContain('# 记忆')

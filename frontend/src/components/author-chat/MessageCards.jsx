@@ -1,38 +1,45 @@
 import { useState } from 'react'
-import { Wrench, Loader, Check, ChevronDown, ChevronRight, Brain, User, PenTool, FileText, Pencil } from 'lucide-react'
+import { Loader, ChevronDown, ChevronRight, Brain, User, PenTool, FileText, Pencil, SquareTerminal } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { useI18n } from '../../hooks/useI18n'
 import { messageDisplayParts, visibleUserMessageContent } from './messageUtils'
+import { groupAssistantSegments, toolActivityLine, toolActivitySummary } from './toolActivity'
 
-export function StreamingToolCard({ segment }) {
-  const hasResult = segment.status === 'done' && segment.result
-  const resultLooksBad = /Error|Warning|失败|低于|少于|blocked/i.test(segment.result ?? '')
+function resultLooksBad(result) {
+  return /Error|Warning|失败|低于|少于|blocked/i.test(result ?? '')
+}
+
+export function ToolActivityGroup({ segments }) {
+  const { t } = useI18n()
+  const [expanded, setExpanded] = useState(segments.length <= 3)
+  const running = segments.some(segment => segment.status === 'running')
+
   return (
-    <div style={{
-      padding: '5px 10px',
-      borderLeft: `3px solid ${resultLooksBad ? 'var(--warning)' : '#00BCD4'}`,
-      background: 'var(--bg-elevated)',
-      borderRadius: '0 6px 6px 0',
-      fontSize: 11,
-      display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 4,
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <Wrench size={10} style={{ color: '#00BCD4', flexShrink: 0 }} />
-        <code style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--ink)' }}>{segment.name}</code>
-        {segment.status === 'running'
-          ? <Loader size={10} style={{ animation: 'spin 1.5s linear infinite', color: '#00BCD4' }} />
-          : <Check size={10} style={{ color: resultLooksBad ? 'var(--warning)' : '#4CAF50' }} />
-        }
-      </div>
-      {hasResult && (
-        <div style={{
-          color: resultLooksBad ? 'var(--warning)' : 'var(--ink-secondary)',
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          fontFamily: 'monospace',
-        }}>
-          {segment.result}
+    <div className={`tool-activity-group ${expanded ? 'is-expanded' : ''}`}>
+      <button
+        type="button"
+        className="tool-activity-summary"
+        onClick={() => setExpanded(value => !value)}
+        aria-expanded={expanded}
+      >
+        <SquareTerminal size={14} />
+        <span>{toolActivitySummary(segments, t)}</span>
+        {running && <Loader size={12} className="tool-activity-spinner" />}
+        <ChevronDown size={14} className="tool-activity-chevron" />
+      </button>
+
+      {expanded && (
+        <div className="tool-activity-list">
+          {segments.map((segment, index) => (
+            <div key={`${segment.name}-${index}`} className="tool-activity-row">
+              <span className="tool-activity-line">{toolActivityLine(segment, t)}</span>
+              {segment.result && (
+                <span className={`tool-activity-result ${resultLooksBad(segment.result) ? 'is-warning' : ''}`}>
+                  {segment.result}
+                </span>
+              )}
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -44,34 +51,22 @@ export function ThinkingCard({ segment, t }) {
   const [expanded, setExpanded] = useState(false)
   const len = segment.text?.length ?? 0
   return (
-    <div style={{
-      width: '100%',
-      borderLeft: '3px solid rgba(139,92,246,0.55)',
-      paddingLeft: 8,
-    }}>
+    <div className={`thinking-card ${live ? 'is-live' : ''}`}>
       <button
+        type="button"
+        className="thinking-toggle"
         onClick={() => setExpanded(v => !v)}
-        style={{
-          background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0',
-          display: 'flex', alignItems: 'center', gap: 4, fontSize: 11,
-          color: live ? 'rgba(139,92,246,1)' : 'rgba(139,92,246,0.85)', fontWeight: 600,
-        }}
+        aria-expanded={expanded}
       >
         {expanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
         <Brain size={11} />
-        执行分析已折叠 ({len} {t('authorChat.chars')})
-        {live && <span className="agent-shimmer"> · thinking</span>}
+        <span>{t('authorChat.thinkingCollapsed')} ({len} {t('authorChat.chars')})</span>
+        {live && <span className="agent-shimmer thinking-token">thinking</span>}
       </button>
       {expanded && (
-        <div style={{
-          padding: '8px 12px', borderRadius: 8, marginTop: 4,
-          background: 'linear-gradient(135deg, rgba(139,92,246,0.08), rgba(59,130,246,0.08))',
-          border: '1px solid rgba(139,92,246,0.15)', fontSize: 11, lineHeight: 1.6,
-          color: 'var(--ink-muted)', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-          maxHeight: 300, overflowY: 'auto',
-        }}>
+        <div className="thinking-body">
           {segment.text || '(空)'}
-          {live && <span style={{ animation: 'pulse 1s infinite' }}>▍</span>}
+          {live && <span className="typewriter-caret" aria-hidden="true" />}
         </div>
       )}
     </div>
@@ -125,47 +120,6 @@ export function OptionsCard({ segment, disabled, onSelect }) {
           </button>
         ))}
       </div>
-    </div>
-  )
-}
-
-function ToolCallCard({ segment }) {
-  const [expanded, setExpanded] = useState(false)
-
-  return (
-    <div
-      style={{
-        padding: '5px 10px',
-        borderLeft: '3px solid #00BCD4',
-        background: 'var(--bg-elevated)',
-        borderRadius: '0 6px 6px 0',
-        fontSize: 11,
-        cursor: segment.result ? 'pointer' : 'default',
-        transition: 'background 0.15s',
-      }}
-      onClick={() => segment.result && setExpanded(!expanded)}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        {segment.result ? (
-          expanded ? <ChevronDown size={10} style={{ color: 'var(--ink-muted)' }} /> : <ChevronRight size={10} style={{ color: 'var(--ink-muted)' }} />
-        ) : null}
-        <Wrench size={10} style={{ color: '#00BCD4', flexShrink: 0 }} />
-        <code style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--ink)' }}>{segment.name}</code>
-        {segment.argsPreview && (
-          <span style={{ color: 'var(--ink-muted)', fontSize: 10, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            ({segment.argsPreview})
-          </span>
-        )}
-        <Check size={10} style={{ color: '#4CAF50', marginLeft: 'auto' }} />
-      </div>
-      {expanded && segment.result && (
-        <pre style={{
-          margin: '4px 0 0 20px', fontSize: 10, color: 'var(--ink-muted)',
-          whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-          maxHeight: 200, overflowY: 'auto',
-          padding: '4px 0', borderTop: '1px solid var(--border-subtle)', marginTop: 4
-        }}>{segment.result}</pre>
-      )}
     </div>
   )
 }
@@ -258,11 +212,11 @@ export function MessageBubble({ msg, onOptionSelect, optionsDisabled, onCheckpoi
   const canEditCheckpoint = isUser && msg.id && msg.checkpoint_id && !checkpointEditDisabled
 
   return (
-    <div style={{
+    <div className={`chat-message-row chat-message-enter ${isUser ? 'is-user' : 'is-assistant'}`} style={{
       display: 'flex', flexDirection: 'column',
       alignItems: isUser ? 'flex-end' : 'flex-start',
     }}>
-      <div style={{ fontSize: 10, color: 'var(--ink-muted)', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 3 }}>
+      <div className="chat-message-meta" style={{ fontSize: 10, color: 'var(--ink-muted)', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 3 }}>
         {isUser ? <><User size={9} /> {t('authorChat.you')}</> : <><PenTool size={9} /> {t('authorChat.author')}</>}
         {canEditCheckpoint && (
           <button
@@ -294,9 +248,11 @@ export function MessageBubble({ msg, onOptionSelect, optionsDisabled, onCheckpoi
           {msg.thinking && !msg.segments.some(s => s.type === 'thinking') && (
             <ThinkingCard segment={{ text: msg.thinking }} t={t} />
           )}
-          {msg.segments.map((seg, i) => (
-            seg.type === 'content' ? (
-              <div key={i} className="markdown-chat" style={{
+          {groupAssistantSegments(msg.segments).map((seg, i) => (
+            seg.type === 'tool_group' ? (
+              <ToolActivityGroup key={i} segments={seg.segments} />
+            ) : seg.type === 'content' ? (
+              <div key={i} className="markdown-chat assistant-message-bubble" style={{
                 padding: '10px 14px', borderRadius: 12,
                 fontSize: 13, lineHeight: 1.6, wordBreak: 'break-word',
                 background: 'var(--bg-elevated)', color: 'var(--ink)',
@@ -306,8 +262,6 @@ export function MessageBubble({ msg, onOptionSelect, optionsDisabled, onCheckpoi
               </div>
             ) : seg.type === 'thinking' ? (
               <ThinkingCard key={i} segment={seg} t={t} />
-            ) : seg.type === 'tool_call' ? (
-              <ToolCallCard key={i} segment={seg} />
             ) : seg.type === 'options' ? (
               <OptionsCard key={i} segment={seg} disabled={optionsDisabled} onSelect={onOptionSelect} />
             ) : null
@@ -316,7 +270,7 @@ export function MessageBubble({ msg, onOptionSelect, optionsDisabled, onCheckpoi
       ) : isUser ? (
         <UserMessageContent msg={msg} t={t} />
       ) : (
-        <div className={isUser ? '' : 'markdown-chat'} style={{
+        <div className={isUser ? '' : 'markdown-chat assistant-message-bubble'} style={{
           maxWidth: '85%', padding: '10px 14px', borderRadius: 12,
           fontSize: 13, lineHeight: 1.6,
           whiteSpace: isUser ? 'pre-wrap' : 'normal',

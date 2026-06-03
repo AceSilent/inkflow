@@ -1,5 +1,18 @@
 import { useState, useEffect } from 'react'
-import { ChevronRight, FileText, Folder, FolderPlus, Search, Settings, Smartphone, SquarePen, Trash2 } from 'lucide-react'
+import {
+  BookMarked,
+  BookPlus,
+  ChevronRight,
+  FilePenLine,
+  Files,
+  Layers3,
+  ScrollText,
+  Search,
+  Settings,
+  Smartphone,
+  SquarePen,
+  Trash2,
+} from 'lucide-react'
 import { bookResourcePath } from '../api/books'
 import { useI18n } from '../hooks/useI18n'
 import { bottomSidebarActions, primarySidebarActions } from './studio/sidebarNavigation'
@@ -29,13 +42,28 @@ function filterTree(nodes, query) {
 
 const primaryIcons = {
   'new-chat': SquarePen,
-  'new-book': FolderPlus,
+  'new-book': BookPlus,
   search: Search,
 }
 
 const bottomIcons = {
   settings: Settings,
   mobile: Smartphone,
+}
+
+const treeIcons = {
+  book: BookMarked,
+  volume: Layers3,
+  chapter: ScrollText,
+  draft: FilePenLine,
+  scene: Files,
+}
+
+function treeIconColor(type) {
+  if (type === 'book') return 'var(--accent)'
+  if (type === 'volume') return 'var(--ink-secondary)'
+  if (type === 'chapter') return 'color-mix(in oklch, var(--accent) 72%, var(--ink-secondary))'
+  return 'var(--ink-muted)'
 }
 
 export function Sidebar({ activePanel, addToast, onSelect, onBookSelect, onNewConversation, onCreateBookClick, onActivityClick, dataVersion }) {
@@ -214,7 +242,7 @@ function TreeNode({ node, index = 0, bookId, level = 0, selectedId, onSelect, on
   const [open, setOpen] = useState(level < 2)
   const [hovered, setHovered] = useState(false)
   const hasChildren = node.children?.length > 0
-  const Icon = typeof node.icon === 'function' ? node.icon : (node.type === 'book' ? Folder : FileText)
+  const Icon = typeof node.icon === 'function' ? node.icon : (treeIcons[node.type] || FilePenLine)
   const isBook = node.type === 'book'
   const isConfirming = pendingDelete === node.id
   const effectiveBookId = node.type === 'book' ? node.id : bookId
@@ -229,7 +257,7 @@ function TreeNode({ node, index = 0, bookId, level = 0, selectedId, onSelect, on
         onMouseLeave={() => setHovered(false)}
       >
         <span className={`tree-item-toggle ${open ? 'open' : ''}`} style={{ visibility: hasChildren ? 'visible' : 'hidden' }}><ChevronRight size={12} /></span>
-        <span className="tree-item-icon" style={{ color: hasChildren ? 'var(--warning)' : 'var(--accent)' }}><Icon size={15} /></span>
+        <span className="tree-item-icon" style={{ color: treeIconColor(node.type) }}><Icon size={15} /></span>
         <span className="tree-item-label">
           {node.type === 'volume' && node.id !== '__orphan_drafts__' && (
             <span className="label-sc" style={{ color: 'var(--accent)', marginRight: 6 }}>

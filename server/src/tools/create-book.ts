@@ -13,6 +13,13 @@ export const createBookTool: ToolDefinition = {
   permissionLevel: 'write',
   category: '写入',
   execute: async ({ name, book_id, concept }, ctx) => {
+    if (ctx.bookId !== '__unbound__') {
+      throw new Error(`create_book is only available in unbound conversations; current chat is already bound to "${ctx.bookId}".`)
+    }
+    if (!ctx.sessionId) {
+      throw new Error('create_book requires an unbound session id to bind the conversation history.')
+    }
+
     const book = createBookSpace(ctx.dataDir, {
       name,
       book_id,
