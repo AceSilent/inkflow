@@ -15,7 +15,6 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useI18n } from '../hooks/useI18n'
-import { toRoman } from '../utils/roman'
 import { EditableField } from './outline/EditableField'
 import { RenumberConfirmModal } from './outline/RenumberConfirmModal'
 
@@ -70,7 +69,7 @@ function SortableChapterRow({ bookId, chNode, index, onOpen, onPatch, onKey, reo
           <GripVertical size={14} opacity={0.5} />
         </div>
       )}
-      <div className="chapter-num label-sc">{toRoman(index + 1)}.</div>
+      <div className="chapter-num label-sc">{index + 1}.</div>
       <div className="chapter-body" onClick={(e) => e.stopPropagation()}>
         <div className="chapter-title">
           <EditableField
@@ -328,7 +327,7 @@ export function OutlineView({ currentBook, addToast, onChapterOpen, dataVersion 
                 {outline.children.map((vol, volIdx) => (
                   <section key={vol.id} className="outline-volume">
                     <div className="vol-head">
-                      <span className="vol-num label-sc">Vol. {toRoman(volIdx + 1)}</span>
+                      <span className="vol-num label-sc">Vol. {volIdx + 1}</span>
                       <span className="vol-title display-heading">
                         <EditableField
                           value={vol.label}

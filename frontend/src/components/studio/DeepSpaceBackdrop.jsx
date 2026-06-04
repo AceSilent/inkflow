@@ -25,9 +25,9 @@ varying vec2 v_uv;
 
 const float STAR_GRID_DENSE = 190.0;
 const float STAR_GRID_FINE = 310.0;
-const float NEBULA_FLOW_GAIN = 3.25;
-const float STAR_TWINKLE_GAIN = 0.48;
-const float PARALLAX_DRIFT = 0.12;
+const float NEBULA_FLOW_GAIN = 1.18;
+const float STAR_TWINKLE_GAIN = 0.32;
+const float PARALLAX_DRIFT = 0.07;
 
 float hash(vec2 p) {
   return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
@@ -158,8 +158,8 @@ void main() {
 
   float vignette = smoothstep(1.18, 0.22, length(p * vec2(0.78, 1.02)));
   float centerLift = smoothstep(0.86, 0.12, length((p - vec2(-0.04, 0.02)) * vec2(1.08, 0.92)));
-  color *= 0.64 + vignette * 0.56;
-  color += centerLift * vec3(0.020, 0.026, 0.036);
+  color *= 0.50 + vignette * 0.48;
+  color += centerLift * vec3(0.012, 0.016, 0.024);
 
   color = clamp(color, 0.0, 1.0);
   color *= smoothstep(0.0, 0.08, u_opacity);

@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Loader, Plus } from 'lucide-react'
 import { useI18n } from '../hooks/useI18n'
-import { toRoman } from '../utils/roman'
 import { AddNodeModal } from './plotgraph/AddNodeModal'
 import { NodeDetailDrawer } from './plotgraph/NodeDetailDrawer'
 import { UnresolvedSetupsPopover } from './plotgraph/UnresolvedSetupsPopover'
@@ -111,9 +110,9 @@ export function PlotGraphView({ currentBook, addToast, onChapterOpen, dataVersio
             <div key={chId} className="plot-col" data-ch={chId}>
               <div
                 className="plot-col-head label-sc"
-                onClick={() => onChapterOpen && onChapterOpen({ id: chId, label: `Ch. ${toRoman(chRefToOrder(chId))}` })}
+                onClick={() => onChapterOpen && onChapterOpen({ id: chId, label: `Ch. ${chRefToOrder(chId)}` })}
               >
-                Ch. {toRoman(chRefToOrder(chId))}
+                Ch. {chRefToOrder(chId)}
               </div>
               {nodes.map(n => (
                 <div

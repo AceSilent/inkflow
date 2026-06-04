@@ -13,7 +13,6 @@ import { bookResourcePath } from '../api/books'
 import { useI18n } from '../hooks/useI18n'
 import { bottomSidebarActions, primarySidebarActions } from './studio/sidebarNavigation'
 import { fetchExplorerTree } from './sidebarTreeFetch'
-import { toRoman } from '../utils/roman'
 
 function matchesTreeQuery(node, query) {
   const normalized = query.trim().toLowerCase()
@@ -245,12 +244,12 @@ function TreeNode({ node, index = 0, bookId, level = 0, selectedId, onSelect, on
         <span className="tree-item-label">
           {node.type === 'volume' && node.id !== '__orphan_drafts__' && (
             <span className="label-sc" style={{ color: 'var(--accent)', marginRight: 6 }}>
-              Vol. {toRoman(index + 1)}
+              Vol. {index + 1}
             </span>
           )}
           {node.type === 'chapter' && (
             <span className="label-sc" style={{ color: 'var(--accent)', marginRight: 4 }}>
-              {toRoman(index + 1)}.
+              {index + 1}.
             </span>
           )}
           {node.label}

@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Send, Trash2, Plus, X, FileText, PenTool, Loader, Square, Paperclip, Gamepad2, Check } from 'lucide-react'
-import ReactMarkdown from 'react-markdown'
 import { useI18n } from '../hooks/useI18n'
 import { MessageBubble, OptionsCard, ThinkingCard, ToolActivityGroup } from './author-chat/MessageCards'
+import { MarkdownContent } from './author-chat/MarkdownContent'
 import {
   applyStreamingPreview,
   latestStreamingContentTarget,
@@ -230,6 +230,67 @@ function AgentStateBadge({ phase }) {
         <span className="agent-state-label">{state.label}</span>
       </span>
     </span>
+  )
+}
+
+export function LiveStreamingMessage({
+  streamingMsg,
+  visibleStreamingSegments,
+  optionsDisabled,
+  onOptionSelect,
+  t,
+}) {
+  if (!streamingMsg) return null
+
+  return (
+    <div className="streaming-message-shell chat-message-row chat-message-enter is-assistant">
+      {!streamingMsg.retry && (
+        <div className="streaming-agent-state-line">
+          <AgentStateBadge phase={streamingMsg.phase} />
+        </div>
+      )}
+
+      {streamingMsg.retry && (
+        <div style={{
+          maxWidth: '85%', padding: '6px 10px', borderRadius: 8, marginBottom: 4,
+          background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.35)',
+          fontSize: 11, color: 'var(--ink-secondary)', display: 'flex', alignItems: 'center', gap: 6,
+        }}>
+          <Loader size={11} style={{ animation: 'spin 1.5s linear infinite', color: '#f59e0b' }} />
+          <span>
+            {t('authorChat.retrying')
+              .replace('{status}', streamingMsg.retry.status)
+              .replace('{attempt}', streamingMsg.retry.attempt)}{' '}
+            {(() => {
+              const elapsed = Date.now() - (streamingMsg.retry.startedAt ?? Date.now())
+              const remaining = Math.max(0, streamingMsg.retry.delayMs - elapsed)
+              return remaining > 0
+                ? t('authorChat.retryAfter').replace('{seconds}', (remaining / 1000).toFixed(1))
+                : t('authorChat.retryNow')
+            })()}
+          </span>
+        </div>
+      )}
+
+      {streamingMsg.segments?.length > 0 && (
+        <div className="streaming-segments">
+          {groupAssistantSegments(visibleStreamingSegments).map((seg, j) => (
+            seg.type === 'tool_group' ? (
+              <ToolActivityGroup key={j} segments={seg.segments} />
+            ) : seg.type === 'content' ? (
+              <div key={j} className="markdown-chat streaming-content-bubble">
+                <MarkdownContent>{seg.text}</MarkdownContent>
+                {seg.streaming && <span className="typewriter-caret" aria-hidden="true" />}
+              </div>
+            ) : seg.type === 'thinking' ? (
+              <ThinkingCard key={j} segment={seg} t={t} />
+            ) : seg.type === 'options' ? (
+              <OptionsCard key={j} segment={seg} disabled={optionsDisabled} onSelect={onOptionSelect} />
+            ) : null
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -929,70 +990,13 @@ export function AuthorChatPanel({
 
         {/* Live streaming message */}
         {streamingMsg && (
-          <div className="streaming-message-shell chat-message-row chat-message-enter is-assistant">
-            {/* Idle heartbeat banner — server reports no LLM tokens for >15s. Cleared on next chunk. */}
-            {!streamingMsg.retry && streamingMsg.idleMs >= 15000 && (
-              <div style={{
-                maxWidth: '85%', padding: '6px 10px', borderRadius: 8, marginBottom: 4,
-                background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.30)',
-                fontSize: 11, color: 'var(--ink-secondary)', display: 'flex', alignItems: 'center', gap: 6,
-              }}>
-                <Loader size={11} style={{ animation: 'spin 1.5s linear infinite', color: '#3b82f6' }} />
-                <span>{t('authorChat.idleWaiting').replace('{seconds}', Math.round(streamingMsg.idleMs / 1000))}</span>
-              </div>
-            )}
-
-            {/* Retry banner — shown while backing off; auto-cleared on first content/thinking chunk */}
-            {streamingMsg.retry && (
-              <div style={{
-                maxWidth: '85%', padding: '6px 10px', borderRadius: 8, marginBottom: 4,
-                background: 'rgba(245,158,11,0.10)', border: '1px solid rgba(245,158,11,0.35)',
-                fontSize: 11, color: 'var(--ink-secondary)', display: 'flex', alignItems: 'center', gap: 6,
-              }}>
-                <Loader size={11} style={{ animation: 'spin 1.5s linear infinite', color: '#f59e0b' }} />
-                <span>
-                  {t('authorChat.retrying')
-                    .replace('{status}', streamingMsg.retry.status)
-                    .replace('{attempt}', streamingMsg.retry.attempt)}{' '}
-                  {(() => {
-                    const elapsed = Date.now() - (streamingMsg.retry.startedAt ?? Date.now())
-                    const remaining = Math.max(0, streamingMsg.retry.delayMs - elapsed)
-                    return remaining > 0
-                      ? t('authorChat.retryAfter').replace('{seconds}', (remaining / 1000).toFixed(1))
-                      : t('authorChat.retryNow')
-                  })()}
-                </span>
-              </div>
-            )}
-
-            {/* Segments (interleaved thinking + content + tool calls) */}
-            {streamingMsg.segments?.length > 0 ? (
-              <div className="streaming-segments">
-                {groupAssistantSegments(visibleStreamingSegments).map((seg, j) => (
-                  seg.type === 'tool_group' ? (
-                    <ToolActivityGroup key={j} segments={seg.segments} />
-                  ) : seg.type === 'content' ? (
-                    <div key={j} className="markdown-chat streaming-content-bubble">
-                      <ReactMarkdown>{seg.text}</ReactMarkdown>
-                      {seg.streaming && <span className="typewriter-caret" aria-hidden="true" />}
-                    </div>
-                  ) : seg.type === 'thinking' ? (
-                    <ThinkingCard key={j} segment={seg} t={t} />
-                  ) : seg.type === 'options' ? (
-                    <OptionsCard key={j} segment={seg} disabled={loading} onSelect={(opt) => handleSend(opt)} />
-                  ) : null
-                ))}
-              </div>
-            ) : (
-              <div style={{
-                padding: '10px 14px', borderRadius: 12, background: 'var(--bg-elevated)',
-                fontSize: 13, color: 'var(--ink-muted)', borderBottomLeftRadius: 4,
-                display: 'flex', alignItems: 'center', gap: 6
-              }}>
-                <AgentStateBadge phase={streamingMsg.phase} />
-              </div>
-            )}
-          </div>
+          <LiveStreamingMessage
+            streamingMsg={streamingMsg}
+            visibleStreamingSegments={visibleStreamingSegments}
+            optionsDisabled={loading}
+            onOptionSelect={(opt) => handleSend(opt)}
+            t={t}
+          />
         )}
 
         <div ref={chatEndRef} />

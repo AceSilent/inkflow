@@ -100,26 +100,26 @@
   --ambient-star-opacity: 0.035;
   --ambient-star-twinkle-opacity: 0.012;
   --ambient-star-glow-opacity: 0.035;
-  --deep-space-star-opacity: 0.48;
-  --deep-space-nebula-opacity: 0.62;
-  --deep-space-nebula-soft-opacity: 0.42;
-  --deep-space-nebula-faint-opacity: 0.28;
-  --deep-space-field-opacity: 1;
-  --deep-space-vignette-opacity: 0.36;
-  --deep-space-mesh-opacity: 0.9;
-  --deep-space-core-opacity: 0.68;
-  --deep-space-bottom-glow-opacity: 0.82;
-  --deep-space-side-glow-opacity: 0.7;
-  --deep-space-edge-opacity: 0.38;
-  --deep-space-shell-star-opacity: 0.72;
-  --deep-space-cloud-opacity: 0.92;
-  --deep-space-haze-opacity: 0.78;
+  --deep-space-star-opacity: 0.34;
+  --deep-space-nebula-opacity: 0.42;
+  --deep-space-nebula-soft-opacity: 0.28;
+  --deep-space-nebula-faint-opacity: 0.16;
+  --deep-space-field-opacity: 0.74;
+  --deep-space-vignette-opacity: 0.48;
+  --deep-space-mesh-opacity: 0.46;
+  --deep-space-core-opacity: 0.42;
+  --deep-space-bottom-glow-opacity: 0.48;
+  --deep-space-side-glow-opacity: 0.38;
+  --deep-space-edge-opacity: 0.52;
+  --deep-space-shell-star-opacity: 0.48;
+  --deep-space-cloud-opacity: 0.5;
+  --deep-space-haze-opacity: 0.42;
   --star-layer-opacity: var(--deep-space-star-opacity);
   --star-layer-twinkle-opacity: 0.018;
-  --chat-star-opacity: 0.64;
-  --chat-nebula-motion-opacity: 0.72;
-  --deep-space-canvas-opacity: 1;
-  --deep-space-warm-opacity: 0.9;
+  --chat-star-opacity: 0.42;
+  --chat-nebula-motion-opacity: 0.46;
+  --deep-space-canvas-opacity: 0.78;
+  --deep-space-warm-opacity: 0.7;
   --chat-frost-surface: color-mix(in oklch, var(--bg-elevated) 12%, transparent);
   --chat-frost-border: color-mix(in oklch, var(--glass-border) 68%, transparent);
   --chat-composer-surface: color-mix(in oklch, var(--bg-elevated) 52%, transparent);
@@ -169,26 +169,26 @@
   --ambient-star-opacity: 0.03;
   --ambient-star-twinkle-opacity: 0.01;
   --ambient-star-glow-opacity: 0.03;
-  --deep-space-star-opacity: 0.38;
-  --deep-space-nebula-opacity: 0.5;
-  --deep-space-nebula-soft-opacity: 0.34;
-  --deep-space-nebula-faint-opacity: 0.22;
-  --deep-space-field-opacity: 0.92;
-  --deep-space-vignette-opacity: 0.32;
-  --deep-space-mesh-opacity: 0.74;
-  --deep-space-core-opacity: 0.54;
-  --deep-space-bottom-glow-opacity: 0.66;
-  --deep-space-side-glow-opacity: 0.36;
-  --deep-space-edge-opacity: 0.34;
-  --deep-space-shell-star-opacity: 0.46;
-  --deep-space-cloud-opacity: 0.68;
-  --deep-space-haze-opacity: 0.62;
+  --deep-space-star-opacity: 0.28;
+  --deep-space-nebula-opacity: 0.34;
+  --deep-space-nebula-soft-opacity: 0.22;
+  --deep-space-nebula-faint-opacity: 0.14;
+  --deep-space-field-opacity: 0.64;
+  --deep-space-vignette-opacity: 0.42;
+  --deep-space-mesh-opacity: 0.4;
+  --deep-space-core-opacity: 0.36;
+  --deep-space-bottom-glow-opacity: 0.4;
+  --deep-space-side-glow-opacity: 0.24;
+  --deep-space-edge-opacity: 0.46;
+  --deep-space-shell-star-opacity: 0.34;
+  --deep-space-cloud-opacity: 0.42;
+  --deep-space-haze-opacity: 0.36;
   --star-layer-opacity: var(--deep-space-star-opacity);
   --star-layer-twinkle-opacity: 0.014;
-  --chat-star-opacity: 0.56;
-  --chat-nebula-motion-opacity: 0.58;
-  --deep-space-canvas-opacity: 0.86;
-  --deep-space-warm-opacity: 0.66;
+  --chat-star-opacity: 0.38;
+  --chat-nebula-motion-opacity: 0.4;
+  --deep-space-canvas-opacity: 0.68;
+  --deep-space-warm-opacity: 0.52;
   --chat-frost-surface: color-mix(in oklch, var(--bg-elevated) 14%, transparent);
   --chat-frost-border: color-mix(in oklch, var(--glass-border) 68%, transparent);
   --chat-composer-surface: color-mix(in oklch, var(--bg-elevated) 54%, transparent);
@@ -272,7 +272,7 @@ html, body, #root {
   opacity: var(--ambient-layer-opacity);
   mix-blend-mode: plus-lighter;
   transform: translate3d(0, 0, 0);
-  animation: ambientDrift 28s ease-in-out infinite alternate;
+  animation: ambientDrift 56s ease-in-out infinite alternate;
 }
 
 #root > [data-theme="ink"]::before,
@@ -286,9 +286,9 @@ html, body, #root {
     radial-gradient(ellipse 56% 64% at 82% 20%, oklch(22% 0.044 285 / 0.28), transparent 62%),
     linear-gradient(112deg, transparent 18%, oklch(100% 0 0 / var(--ambient-sheen-opacity)), transparent 58%);
   filter: blur(64px) saturate(1.22);
-  opacity: calc(var(--deep-space-field-opacity) * 0.22);
+  opacity: calc(var(--deep-space-field-opacity) * 0.12);
   mix-blend-mode: screen;
-  animation: deepSpaceDrift 84s ease-in-out infinite alternate;
+  animation: deepSpaceDrift 168s ease-in-out infinite alternate;
 }
 
 #root > [data-theme]::after {
@@ -309,7 +309,7 @@ html, body, #root {
   opacity: var(--star-layer-opacity);
   mix-blend-mode: var(--ambient-blend, normal);
   filter: drop-shadow(0 0 4px oklch(92% 0.05 255 / var(--ambient-star-glow-opacity)));
-  animation: starDrift 52s linear infinite, starTwinkle 6.5s ease-in-out infinite alternate;
+  animation: starDrift 104s linear infinite, starTwinkle 9s ease-in-out infinite alternate;
 }
 
 #root > [data-theme="ink"]::after,
@@ -328,7 +328,7 @@ html, body, #root {
   opacity: calc(var(--star-layer-opacity) * 0.2);
   mix-blend-mode: screen;
   filter: none;
-  animation: deepSpaceDrift 150s linear infinite, starTwinkle 12s ease-in-out infinite alternate;
+  animation: deepSpaceDrift 240s linear infinite, starTwinkle 16s ease-in-out infinite alternate;
 }
 
 #root > [data-theme] > .studio-shell,
@@ -767,8 +767,8 @@ button:active:not(:disabled) {
 
 /* ─── Tree ─── */
 .tree-item {
-  display: flex; align-items: center; gap: 6px; padding: 5px 10px; margin: 0 6px 1px;
-  font-size: 12px; color: var(--ink-secondary); cursor: pointer;
+  display: flex; align-items: center; gap: 6px; padding: 6px 10px; margin: 0 6px 1px;
+  font-size: 13.5px; line-height: 1.5; font-weight: 520; color: var(--ink-secondary); cursor: pointer;
   border-radius: 9px;
   transition: background 0.1s, color 0.1s; user-select: none;
 }
@@ -1131,6 +1131,23 @@ button:active:not(:disabled) {
   color: var(--ink-secondary); font-style: italic;
 }
 .markdown-chat a { color: var(--accent); text-decoration: underline; }
+.markdown-chat .markdown-math {
+  color: inherit;
+}
+.markdown-chat .markdown-math-inline {
+  display: inline-flex;
+  align-items: baseline;
+  margin: 0 0.08em;
+  vertical-align: -0.08em;
+}
+.markdown-chat .katex {
+  font-size: 1em;
+}
+.markdown-chat .katex-display {
+  margin: 0.75em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
 
 /* ===== Chapter Workbench shell ===== */
 .workbench {
@@ -1342,8 +1359,8 @@ button:active:not(:disabled) {
 }
 .chapter-row:hover { background: color-mix(in oklch, var(--accent) 8%, transparent); }
 .chapter-num { color: var(--accent); }
-.chapter-body .chapter-title { font-family: var(--font-display); font-size: var(--fs-body); }
-.chapter-body .chapter-summary { font-size: var(--fs-label); color: var(--ink-secondary); line-height: 1.55; margin-top: 2px; }
+.chapter-body .chapter-title { font-family: var(--font-display); font-size: 15px; }
+.chapter-body .chapter-summary { font-size: var(--fs-small); color: var(--ink-secondary); line-height: 1.6; margin-top: 3px; }
 .chapter-status { color: var(--ink-secondary); }
 .chapter-status.draft { color: var(--warning); }
 .chapter-status.done { color: var(--success); }
@@ -2136,8 +2153,8 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
     linear-gradient(180deg, oklch(100% 0 0 / var(--shell-topwash-opacity)), transparent 34%);
   filter: blur(52px) saturate(1.22);
   mix-blend-mode: screen;
-  opacity: 0.12;
-  animation: deepSpaceDrift 72s ease-in-out infinite alternate;
+  opacity: 0.07;
+  animation: deepSpaceDrift 144s ease-in-out infinite alternate;
 }
 
 .studio-shell::after {
@@ -2385,7 +2402,7 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   background: transparent;
   color: var(--ink);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .studio-sidebar-section-label {
@@ -2592,7 +2609,7 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
 
 .author-chat-empty > :first-child {
   color: var(--ink-secondary);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .author-chat-empty > :not(:first-child) {
@@ -2660,6 +2677,14 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   align-items: flex-start;
 }
 
+.streaming-agent-state-line {
+  width: fit-content;
+  max-width: min(640px, 100%);
+  margin: 0 0 3px;
+  padding: 2px 4px 2px 1px;
+  color: var(--ink-muted);
+}
+
 .streaming-segments {
   width: 100%;
   max-width: 100%;
@@ -2686,7 +2711,7 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
     linear-gradient(180deg, color-mix(in oklch, var(--glass-highlight) 7%, transparent), transparent 76%),
     var(--chat-frost-surface);
   border: 1px solid color-mix(in oklch, var(--chat-frost-border) 74%, transparent);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.6;
   word-break: break-word;
   backdrop-filter: blur(18px) saturate(1.08);
@@ -3045,7 +3070,7 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   border-radius: 12px;
   color: var(--ink);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.55;
   padding: 5px 6px;
 }
@@ -3292,7 +3317,7 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
     linear-gradient(180deg, color-mix(in oklch, var(--glass-highlight) 10%, transparent), transparent 78%),
     var(--chat-frost-surface);
   border: 1px solid var(--chat-frost-border);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;

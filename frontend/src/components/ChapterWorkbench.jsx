@@ -2,7 +2,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { Loader, Check, RefreshCw, Send } from 'lucide-react'
 import { useI18n } from '../hooks/useI18n'
-import { toRoman } from '../utils/roman'
 import { MilkdownEditor } from './workbench/MilkdownEditor'
 import { CommentFeed } from './workbench/CommentFeed'
 import { AnnotationPopover } from './workbench/AnnotationPopover'
@@ -273,7 +272,7 @@ export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, da
     <div className="workbench" data-locked={locked}>
       {/* Left rail */}
       <aside className="workbench-rail">
-        <span className="rail-label">Ch. {toRoman(chNum)}</span>
+        <span className="rail-label">Ch. {chNum}</span>
       </aside>
 
       {/* Main area */}
@@ -281,7 +280,7 @@ export function ChapterWorkbench({ bookId, chapterId, chapterLabel, addToast, da
         {/* Top bar */}
         <div className="workbench-topbar">
           <div className="workbench-title">
-            <span className="label-sc" style={{ color: 'var(--accent)' }}>Ch. {toRoman(chNum)}</span>
+            <span className="label-sc" style={{ color: 'var(--accent)' }}>Ch. {chNum}</span>
             <span className="display-heading">
               {chapterLabel}{dirty && <span style={{ color: 'var(--accent)', marginLeft: 6 }}>●</span>}
             </span>

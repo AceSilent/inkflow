@@ -2,10 +2,18 @@ import { existsSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 const indexCss = readFileSync(new URL('../../index.css', import.meta.url), 'utf8')
+const designTokens = readFileSync(new URL('../../design-tokens.css', import.meta.url), 'utf8')
 const studioShell = readFileSync(new URL('./StudioShell.jsx', import.meta.url), 'utf8')
 const useThemeSource = readFileSync(new URL('../../hooks/useTheme.js', import.meta.url), 'utf8')
+const authorChatPanel = readFileSync(new URL('../AuthorChatPanel.jsx', import.meta.url), 'utf8')
+const locales = readFileSync(new URL('../../i18n/locales.js', import.meta.url), 'utf8')
+const outlineView = readFileSync(new URL('../OutlineView.jsx', import.meta.url), 'utf8')
+const sidebar = readFileSync(new URL('../Sidebar.jsx', import.meta.url), 'utf8')
+const chapterWorkbench = readFileSync(new URL('../ChapterWorkbench.jsx', import.meta.url), 'utf8')
+const plotGraphView = readFileSync(new URL('../PlotGraphView.jsx', import.meta.url), 'utf8')
 const deepSpaceBackdropUrl = new URL('./DeepSpaceBackdrop.jsx', import.meta.url)
 const deepSpaceBackdrop = existsSync(deepSpaceBackdropUrl) ? readFileSync(deepSpaceBackdropUrl, 'utf8') : ''
+const romanUtilUrl = new URL('../../utils/roman.ts', import.meta.url)
 const previewHtml = readFileSync(new URL('../../../../docs/design/creative-flow-preview.html', import.meta.url), 'utf8')
 const tauriConfig = readFileSync(new URL('../../../../src-tauri/tauri.conf.json', import.meta.url), 'utf8')
 
@@ -61,15 +69,15 @@ describe('visual polish direction', () => {
 
     expect(indexCss).toMatch(/\[data-theme="ink"\], \[data-theme="dark"\][\s\S]*--ambient-star-opacity:\s*0\.035;/)
     expect(indexCss).toMatch(/\[data-theme="ink"\], \[data-theme="dark"\][\s\S]*--ambient-star-twinkle-opacity:\s*0\.012;/)
-    expect(indexCss).toMatch(/\[data-theme="ink"\], \[data-theme="dark"\][\s\S]*--deep-space-star-opacity:\s*0\.48;/)
-    expect(indexCss).toMatch(/\[data-theme="ink"\], \[data-theme="dark"\][\s\S]*--deep-space-field-opacity:\s*1;/)
-    expect(indexCss).toMatch(/\[data-theme="ink"\], \[data-theme="dark"\][\s\S]*--deep-space-warm-opacity:\s*0\.9;/)
+    expect(indexCss).toMatch(/\[data-theme="ink"\], \[data-theme="dark"\][\s\S]*--deep-space-star-opacity:\s*0\.34;/)
+    expect(indexCss).toMatch(/\[data-theme="ink"\], \[data-theme="dark"\][\s\S]*--deep-space-field-opacity:\s*0\.74;/)
+    expect(indexCss).toMatch(/\[data-theme="ink"\], \[data-theme="dark"\][\s\S]*--deep-space-warm-opacity:\s*0\.7;/)
     expect(indexCss).toMatch(/\[data-theme="ink"\], \[data-theme="dark"\][\s\S]*--frost-noise-opacity:\s*0\.035;/)
     expect(indexCss).toMatch(/\[data-theme="graphite"\][\s\S]*--ambient-star-opacity:\s*0\.03;/)
     expect(indexCss).toMatch(/\[data-theme="graphite"\][\s\S]*--ambient-star-twinkle-opacity:\s*0\.01;/)
-    expect(indexCss).toMatch(/\[data-theme="graphite"\][\s\S]*--deep-space-star-opacity:\s*0\.38;/)
-    expect(indexCss).toMatch(/\[data-theme="graphite"\][\s\S]*--deep-space-field-opacity:\s*0\.92;/)
-    expect(indexCss).toMatch(/\[data-theme="graphite"\][\s\S]*--deep-space-warm-opacity:\s*0\.66;/)
+    expect(indexCss).toMatch(/\[data-theme="graphite"\][\s\S]*--deep-space-star-opacity:\s*0\.28;/)
+    expect(indexCss).toMatch(/\[data-theme="graphite"\][\s\S]*--deep-space-field-opacity:\s*0\.64;/)
+    expect(indexCss).toMatch(/\[data-theme="graphite"\][\s\S]*--deep-space-warm-opacity:\s*0\.52;/)
     expect(indexCss).toMatch(/\[data-theme="graphite"\][\s\S]*--frost-noise-opacity:\s*0\.03;/)
   })
 
@@ -91,9 +99,9 @@ describe('visual polish direction', () => {
     expect(indexCss).toMatch(/\.studio-shell \{[\s\S]*deep-space-base/)
     expect(indexCss).toMatch(/\.studio-shell::before \{[\s\S]*deep-space-mesh/)
     expect(indexCss).toMatch(/\.studio-shell::after \{[\s\S]*deep-space-stars/)
-    expect(indexCss).toMatch(/\[data-theme="ink"\], \[data-theme="dark"\][\s\S]*--deep-space-mesh-opacity:\s*0\.9;/)
-    expect(indexCss).toMatch(/\[data-theme="ink"\], \[data-theme="dark"\][\s\S]*--deep-space-cloud-opacity:\s*0\.92;/)
-    expect(indexCss).toMatch(/\[data-theme="graphite"\][\s\S]*--deep-space-mesh-opacity:\s*0\.74;/)
+    expect(indexCss).toMatch(/\[data-theme="ink"\], \[data-theme="dark"\][\s\S]*--deep-space-mesh-opacity:\s*0\.46;/)
+    expect(indexCss).toMatch(/\[data-theme="ink"\], \[data-theme="dark"\][\s\S]*--deep-space-cloud-opacity:\s*0\.5;/)
+    expect(indexCss).toMatch(/\[data-theme="graphite"\][\s\S]*--deep-space-mesh-opacity:\s*0\.4;/)
     expect(indexCss).toMatch(/\.studio-library \{[\s\S]*background:[\s\S]*color-mix\(in oklch, var\(--glass-panel\) 12%, transparent\);/)
     expect(indexCss).toMatch(/\.studio-titlebar \{[\s\S]*background:\s*color-mix\(in oklch, var\(--glass-panel\) 18%, transparent\);/)
     expect(indexCss).toMatch(/\.workspace-pane \{[\s\S]*background:[\s\S]*color-mix\(in oklch, var\(--glass-panel\) 14%, transparent\);/)
@@ -155,10 +163,10 @@ describe('visual polish direction', () => {
     expect(deepSpaceBackdrop).toContain('vec3(0.16, 0.31, 0.50)')
   })
 
-  it('makes the shader read as moving deep space rather than a nearly static wallpaper', () => {
-    expect(deepSpaceBackdrop).toContain('NEBULA_FLOW_GAIN = 3.25')
-    expect(deepSpaceBackdrop).toContain('STAR_TWINKLE_GAIN = 0.48')
-    expect(deepSpaceBackdrop).toContain('PARALLAX_DRIFT = 0.12')
+  it('keeps deep-space motion slow enough to avoid fast fog drift', () => {
+    expect(deepSpaceBackdrop).toContain('NEBULA_FLOW_GAIN = 1.18')
+    expect(deepSpaceBackdrop).toContain('STAR_TWINKLE_GAIN = 0.32')
+    expect(deepSpaceBackdrop).toContain('PARALLAX_DRIFT = 0.07')
     expect(deepSpaceBackdrop).toContain('motionTime = u_time * NEBULA_FLOW_GAIN')
     expect(deepSpaceBackdrop).toContain('flowWarp')
     expect(deepSpaceBackdrop).toContain('starUv')
@@ -231,6 +239,27 @@ describe('visual polish direction', () => {
     expect(indexCss).toMatch(/\.user-message-bubble \{[\s\S]*background:[\s\S]*var\(--chat-frost-surface\);/)
     expect(indexCss).toMatch(/\.user-message-bubble \{[\s\S]*box-shadow:[\s\S]*0 8px 28px oklch\(0% 0 0 \/ 0\.045\)/)
     expect(userMessageBubbleCss).not.toContain('var(--accent)')
+  })
+
+  it('removes stale waiting copy and roman-number presentation debt', () => {
+    expect(authorChatPanel).not.toContain('idleWaiting')
+    expect(authorChatPanel).not.toContain('等待模型响应中')
+    expect(locales).not.toContain('authorChat.idleWaiting')
+    expect(locales).not.toContain('thinking + 长上下文')
+    expect(existsSync(romanUtilUrl)).toBe(false)
+    expect([outlineView, sidebar, chapterWorkbench, plotGraphView].join('\n')).not.toContain('toRoman')
+  })
+
+  it('keeps chat and outline text readable at studio scale', () => {
+    expect(designTokens).toContain('--fs-body: 14px;')
+    expect(designTokens).toContain('--fs-small: 12px;')
+    expect(designTokens).toContain('--fs-label: 10px;')
+    expect(indexCss).toMatch(/\.chapter-body \.chapter-title \{[\s\S]*font-size:\s*15px;/)
+    expect(indexCss).toMatch(/\.chapter-body \.chapter-summary \{[\s\S]*font-size:\s*var\(--fs-small\);/)
+    expect(indexCss).toMatch(/\.tree-item \{[\s\S]*font-size:\s*13\.5px;[\s\S]*line-height:\s*1\.5;/)
+    expect(indexCss).toMatch(/\.assistant-message-bubble,[\s\S]*\.streaming-content-bubble \{[\s\S]*font-size:\s*14px;/)
+    expect(indexCss).toMatch(/\.user-message-bubble \{[\s\S]*font-size:\s*14px;/)
+    expect(indexCss).toMatch(/\.chat-composer textarea \{[\s\S]*font-size:\s*14px;/)
   })
 
   it('animates chat messages and live streaming text without changing layout', () => {

@@ -61,7 +61,7 @@
   font-family: var(--font-label);
   font-variant: small-caps;
   font-size: var(--fs-label);
-  letter-spacing: 0.22em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   font-weight: 500;
 }

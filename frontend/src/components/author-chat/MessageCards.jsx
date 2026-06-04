@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { Loader, ChevronDown, ChevronRight, FileText, Pencil, SquareTerminal } from 'lucide-react'
-import ReactMarkdown from 'react-markdown'
 import { useI18n } from '../../hooks/useI18n'
 import { messageDisplayParts, visibleUserMessageContent } from './messageUtils'
 import { groupAssistantSegments, toolActivityLine, toolActivitySummary } from './toolActivity'
+import { MarkdownContent } from './MarkdownContent'
 
 function resultLooksBad(result) {
   return /Error|Warning|失败|低于|少于|blocked/i.test(result ?? '')
@@ -237,7 +237,7 @@ export function MessageBubble({ msg, onOptionSelect, optionsDisabled, onCheckpoi
               <ToolActivityGroup key={i} segments={seg.segments} />
             ) : seg.type === 'content' ? (
               <div key={i} className="markdown-chat assistant-message-bubble">
-                <ReactMarkdown>{seg.text}</ReactMarkdown>
+                <MarkdownContent>{seg.text}</MarkdownContent>
               </div>
             ) : seg.type === 'thinking' ? (
               <ThinkingCard key={i} segment={seg} t={t} />
@@ -250,7 +250,7 @@ export function MessageBubble({ msg, onOptionSelect, optionsDisabled, onCheckpoi
         <UserMessageContent msg={msg} t={t} />
       ) : (
         <div className="markdown-chat assistant-message-bubble">
-          <ReactMarkdown>{msg.content}</ReactMarkdown>
+          <MarkdownContent>{msg.content}</MarkdownContent>
         </div>
       )}
     </div>
