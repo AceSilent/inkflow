@@ -61,6 +61,10 @@ export const AUTHOR_SECTIONS: PromptSection[] = [
     contentFn: () => readPromptFile('author_system.md'),
   },
   {
+    title: '运行规约',
+    contentFn: () => readPromptFile('author_runtime_contract.md'),
+  },
+  {
     title: '写作硬门槛',
     contentFn: () => readPromptFile('writing_guardrails.md'),
   },

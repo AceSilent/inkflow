@@ -226,6 +226,7 @@ export function buildCreativeStagePrompt(bookDir: string): string {
     `下一步：${status.nextAction}`,
     '',
     '阶段门控：设定库 → 大纲 → 剧情图 → 章节正文 → 人审 → 可选设定/逻辑慢审 → 人类终审。可以自然回应用户，但不要跳过未完成阶段。',
+    '状态提示：稳定信息先落盘；设定、大纲、剧情图缺口未补齐时，不要急着进入正文，也不要把继续讨论误判为创建新书。',
     `状态：文风控制面=${status.metrics.hasStyleProfile ? '已保存' : '缺失'}；角色=${status.metrics.hasCharacters ? '已保存' : '缺失'}；世界观=${status.metrics.hasWorldLore ? '已保存' : '缺失'}；大纲=${status.metrics.hasOutline ? '已保存' : '缺失'}；剧情图=${status.metrics.plotNodes} 节点/${status.metrics.plotEdges} 边；ch01=${status.metrics.hasFirstDraft ? '有草稿' : '无草稿'}；ch01慢审=${status.metrics.hasFirstReview ? (status.metrics.firstReviewPassed ? '通过' : '未通过') : '未送审'}；ch01人审=${status.metrics.firstHumanApproved ? '通过' : '未通过'}。`,
   ]
   if (status.blockers.length > 0) {

@@ -12,6 +12,8 @@
   --titlebar-h: 40px;
   --mac-traffic-light-space: 76px;
   --tabbar-h: 36px;
+  --chat-content-width: min(880px, calc(100% - 48px));
+  --creation-notch-clearance: 34px;
 
   --radius-sm: 6px;
   --radius-md: 8px;
@@ -53,6 +55,28 @@
   --ambient-star-opacity: 0.045;
   --ambient-star-twinkle-opacity: 0.018;
   --ambient-star-glow-opacity: 0.045;
+  --deep-space-star-opacity: 0;
+  --deep-space-nebula-opacity: 0;
+  --deep-space-nebula-soft-opacity: 0;
+  --deep-space-nebula-faint-opacity: 0;
+  --deep-space-field-opacity: 0;
+  --deep-space-vignette-opacity: 0;
+  --deep-space-mesh-opacity: 0;
+  --deep-space-core-opacity: 0;
+  --deep-space-bottom-glow-opacity: 0;
+  --deep-space-side-glow-opacity: 0;
+  --deep-space-edge-opacity: 0;
+  --deep-space-shell-star-opacity: 0;
+  --deep-space-cloud-opacity: 0;
+  --deep-space-haze-opacity: 0;
+  --star-layer-opacity: var(--ambient-star-opacity);
+  --star-layer-twinkle-opacity: var(--ambient-star-twinkle-opacity);
+  --chat-star-opacity: 0;
+  --chat-nebula-motion-opacity: 0;
+  --deep-space-canvas-opacity: 0;
+  --deep-space-warm-opacity: 0;
+  --chat-frost-surface: color-mix(in oklch, var(--glass-panel) 72%, transparent);
+  --chat-frost-border: color-mix(in oklch, var(--glass-border) 62%, transparent);
   --ambient-layer-opacity: 0.92;
   --ambient-sheen-opacity: 0.24;
   --ambient-streak-opacity: 0.08;
@@ -66,38 +90,60 @@
 }
 
 [data-theme="ink"], [data-theme="dark"] {
-  --ambient-a: oklch(31% 0.062 255 / 0.16);
-  --ambient-b: oklch(40% 0.052 285 / 0.08);
-  --ambient-c: oklch(16% 0.012 260 / 0.68);
-  --ambient-star-opacity: 0.24;
-  --ambient-star-twinkle-opacity: 0.085;
-  --ambient-star-glow-opacity: 0.2;
-  --ambient-layer-opacity: 0.44;
-  --ambient-sheen-opacity: 0.055;
-  --ambient-streak-opacity: 0.018;
+  --ambient-a: oklch(27% 0.056 222 / 0.16);
+  --ambient-b: oklch(34% 0.048 288 / 0.09);
+  --ambient-c: oklch(12% 0.012 260 / 0.78);
+  --ambient-star-opacity: 0.035;
+  --ambient-star-twinkle-opacity: 0.012;
+  --ambient-star-glow-opacity: 0.035;
+  --deep-space-star-opacity: 0.48;
+  --deep-space-nebula-opacity: 0.62;
+  --deep-space-nebula-soft-opacity: 0.42;
+  --deep-space-nebula-faint-opacity: 0.28;
+  --deep-space-field-opacity: 1;
+  --deep-space-vignette-opacity: 0.36;
+  --deep-space-mesh-opacity: 0.9;
+  --deep-space-core-opacity: 0.68;
+  --deep-space-bottom-glow-opacity: 0.82;
+  --deep-space-side-glow-opacity: 0.7;
+  --deep-space-edge-opacity: 0.38;
+  --deep-space-shell-star-opacity: 0.72;
+  --deep-space-cloud-opacity: 0.92;
+  --deep-space-haze-opacity: 0.78;
+  --star-layer-opacity: var(--deep-space-star-opacity);
+  --star-layer-twinkle-opacity: 0.018;
+  --chat-star-opacity: 0.64;
+  --chat-nebula-motion-opacity: 0.72;
+  --deep-space-canvas-opacity: 1;
+  --deep-space-warm-opacity: 0.9;
+  --chat-frost-surface: color-mix(in oklch, var(--bg-elevated) 12%, transparent);
+  --chat-frost-border: color-mix(in oklch, var(--glass-border) 68%, transparent);
+  --ambient-layer-opacity: 0.5;
+  --ambient-sheen-opacity: 0.014;
+  --ambient-streak-opacity: 0;
   --ambient-blend: screen;
-  --glass-shell: color-mix(in oklch, var(--bg-elevated) 42%, transparent);
-  --glass-panel: color-mix(in oklch, var(--bg-elevated) 34%, transparent);
-  --glass-panel-strong: color-mix(in oklch, var(--bg-elevated) 48%, transparent);
-  --glass-hover: color-mix(in oklch, var(--bg-elevated) 54%, transparent);
-  --glass-press: color-mix(in oklch, var(--ink) 8%, var(--bg-elevated) 46%);
-  --glass-border: color-mix(in oklch, var(--border-subtle) 60%, oklch(100% 0 0 / 0.12));
-  --glass-highlight: oklch(100% 0 0 / 0.14);
+  --glass-shell: color-mix(in oklch, var(--bg-elevated) 8%, transparent);
+  --glass-panel: color-mix(in oklch, var(--bg-elevated) 8%, transparent);
+  --glass-panel-strong: color-mix(in oklch, var(--bg-elevated) 16%, transparent);
+  --glass-hover: color-mix(in oklch, var(--bg-elevated) 24%, transparent);
+  --glass-press: color-mix(in oklch, var(--ink) 5%, var(--bg-elevated) 34%);
+  --glass-border: color-mix(in oklch, var(--border-subtle) 45%, oklch(100% 0 0 / 0.08));
+  --glass-highlight: oklch(100% 0 0 / 0.075);
   --glass-edge-shadow:
-    0 30px 96px oklch(0% 0 0 / 0.30),
-    0 10px 30px oklch(0% 0 0 / 0.20),
+    0 30px 96px oklch(0% 0 0 / 0.24),
+    0 10px 30px oklch(0% 0 0 / 0.14),
     inset 0 1px 0 var(--glass-highlight),
-    inset 0 0 0 1px oklch(100% 0 0 / 0.07),
-    inset 22px 0 54px oklch(62% 0.035 240 / 0.055),
-    inset -22px 0 54px oklch(66% 0.035 285 / 0.045);
-  --frost-noise-opacity: 0.08;
-  --frost-sheen-opacity: 0.055;
-  --frost-grain-opacity: 0.08;
-  --frost-streak-opacity: 0.018;
-  --shell-top-shine-opacity: 0.045;
-  --shell-side-shine-opacity: 0.055;
-  --shell-side-fade-opacity: 0.025;
-  --shell-topwash-opacity: 0.04;
+    inset 0 0 0 1px oklch(100% 0 0 / 0.04),
+    inset 22px 0 54px oklch(62% 0.035 240 / 0.028),
+    inset -22px 0 54px oklch(66% 0.035 285 / 0.024);
+  --frost-noise-opacity: 0.035;
+  --frost-sheen-opacity: 0.024;
+  --frost-grain-opacity: 0.035;
+  --frost-streak-opacity: 0.006;
+  --shell-top-shine-opacity: 0.026;
+  --shell-side-shine-opacity: 0.03;
+  --shell-side-fade-opacity: 0.014;
+  --shell-topwash-opacity: 0.024;
 }
 
 [data-theme="paper"] {
@@ -109,38 +155,60 @@
 }
 
 [data-theme="graphite"] {
-  --ambient-a: oklch(38% 0.034 205 / 0.10);
-  --ambient-b: oklch(34% 0.022 15 / 0.055);
-  --ambient-c: oklch(22% 0.008 255 / 0.72);
-  --ambient-star-opacity: 0.2;
-  --ambient-star-twinkle-opacity: 0.074;
-  --ambient-star-glow-opacity: 0.17;
-  --ambient-layer-opacity: 0.34;
-  --ambient-sheen-opacity: 0.04;
-  --ambient-streak-opacity: 0.014;
+  --ambient-a: oklch(32% 0.034 205 / 0.1);
+  --ambient-b: oklch(30% 0.024 285 / 0.058);
+  --ambient-c: oklch(17% 0.008 255 / 0.76);
+  --ambient-star-opacity: 0.03;
+  --ambient-star-twinkle-opacity: 0.01;
+  --ambient-star-glow-opacity: 0.03;
+  --deep-space-star-opacity: 0.38;
+  --deep-space-nebula-opacity: 0.5;
+  --deep-space-nebula-soft-opacity: 0.34;
+  --deep-space-nebula-faint-opacity: 0.22;
+  --deep-space-field-opacity: 0.92;
+  --deep-space-vignette-opacity: 0.32;
+  --deep-space-mesh-opacity: 0.74;
+  --deep-space-core-opacity: 0.54;
+  --deep-space-bottom-glow-opacity: 0.66;
+  --deep-space-side-glow-opacity: 0.36;
+  --deep-space-edge-opacity: 0.34;
+  --deep-space-shell-star-opacity: 0.46;
+  --deep-space-cloud-opacity: 0.68;
+  --deep-space-haze-opacity: 0.62;
+  --star-layer-opacity: var(--deep-space-star-opacity);
+  --star-layer-twinkle-opacity: 0.014;
+  --chat-star-opacity: 0.56;
+  --chat-nebula-motion-opacity: 0.58;
+  --deep-space-canvas-opacity: 0.86;
+  --deep-space-warm-opacity: 0.66;
+  --chat-frost-surface: color-mix(in oklch, var(--bg-elevated) 14%, transparent);
+  --chat-frost-border: color-mix(in oklch, var(--glass-border) 68%, transparent);
+  --ambient-layer-opacity: 0.44;
+  --ambient-sheen-opacity: 0.012;
+  --ambient-streak-opacity: 0;
   --ambient-blend: screen;
-  --glass-shell: color-mix(in oklch, var(--bg-elevated) 44%, transparent);
-  --glass-panel: color-mix(in oklch, var(--bg-elevated) 36%, transparent);
-  --glass-panel-strong: color-mix(in oklch, var(--bg-elevated) 50%, transparent);
-  --glass-hover: color-mix(in oklch, var(--bg-elevated) 56%, transparent);
-  --glass-press: color-mix(in oklch, var(--ink) 7%, var(--bg-elevated) 48%);
-  --glass-border: color-mix(in oklch, var(--border-subtle) 62%, oklch(100% 0 0 / 0.11));
-  --glass-highlight: oklch(100% 0 0 / 0.12);
+  --glass-shell: color-mix(in oklch, var(--bg-elevated) 10%, transparent);
+  --glass-panel: color-mix(in oklch, var(--bg-elevated) 10%, transparent);
+  --glass-panel-strong: color-mix(in oklch, var(--bg-elevated) 18%, transparent);
+  --glass-hover: color-mix(in oklch, var(--bg-elevated) 26%, transparent);
+  --glass-press: color-mix(in oklch, var(--ink) 5%, var(--bg-elevated) 36%);
+  --glass-border: color-mix(in oklch, var(--border-subtle) 48%, oklch(100% 0 0 / 0.07));
+  --glass-highlight: oklch(100% 0 0 / 0.065);
   --glass-edge-shadow:
-    0 30px 96px oklch(0% 0 0 / 0.28),
-    0 10px 30px oklch(0% 0 0 / 0.18),
+    0 30px 96px oklch(0% 0 0 / 0.22),
+    0 10px 30px oklch(0% 0 0 / 0.12),
     inset 0 1px 0 var(--glass-highlight),
-    inset 0 0 0 1px oklch(100% 0 0 / 0.06),
-    inset 20px 0 48px oklch(62% 0.022 210 / 0.045),
-    inset -20px 0 48px oklch(58% 0.018 25 / 0.035);
-  --frost-noise-opacity: 0.07;
-  --frost-sheen-opacity: 0.045;
-  --frost-grain-opacity: 0.07;
-  --frost-streak-opacity: 0.014;
-  --shell-top-shine-opacity: 0.035;
-  --shell-side-shine-opacity: 0.045;
-  --shell-side-fade-opacity: 0.02;
-  --shell-topwash-opacity: 0.032;
+    inset 0 0 0 1px oklch(100% 0 0 / 0.035),
+    inset 20px 0 48px oklch(62% 0.022 210 / 0.022),
+    inset -20px 0 48px oklch(58% 0.018 25 / 0.018);
+  --frost-noise-opacity: 0.03;
+  --frost-sheen-opacity: 0.02;
+  --frost-grain-opacity: 0.03;
+  --frost-streak-opacity: 0.005;
+  --shell-top-shine-opacity: 0.022;
+  --shell-side-shine-opacity: 0.026;
+  --shell-side-fade-opacity: 0.012;
+  --shell-topwash-opacity: 0.02;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -164,6 +232,19 @@ html, body, #root {
     linear-gradient(180deg, color-mix(in oklch, var(--ambient-c) 74%, transparent), color-mix(in oklch, var(--bg) 42%, transparent));
 }
 
+#root > [data-theme="ink"],
+#root > [data-theme="dark"],
+#root > [data-theme="graphite"] {
+  background:
+    radial-gradient(ellipse 120% 88% at 50% 54%, transparent 45%, oklch(0% 0 0 / var(--deep-space-vignette-opacity)) 100%),
+    radial-gradient(ellipse 72% 60% at 86% 18%, oklch(48% 0.16 30 / calc(var(--deep-space-warm-opacity) * 0.36)), transparent 66%),
+    radial-gradient(ellipse 84% 70% at 62% 82%, oklch(34% 0.13 318 / calc(var(--deep-space-warm-opacity) * 0.32)), transparent 68%),
+    radial-gradient(ellipse 96% 72% at 45% 35%, oklch(34% 0.052 224 / var(--deep-space-nebula-opacity)), transparent 62%),
+    radial-gradient(ellipse 86% 68% at 73% 68%, oklch(28% 0.046 188 / var(--deep-space-nebula-soft-opacity)), transparent 64%),
+    radial-gradient(ellipse 82% 76% at 20% 78%, oklch(24% 0.04 282 / var(--deep-space-nebula-faint-opacity)), transparent 66%),
+    linear-gradient(135deg, oklch(10.5% 0.022 226), oklch(7.4% 0.017 258) 50%, oklch(9.6% 0.018 205));
+}
+
 #root > [data-theme]::before {
   content: "";
   position: fixed;
@@ -182,6 +263,22 @@ html, body, #root {
   animation: ambientDrift 28s ease-in-out infinite alternate;
 }
 
+#root > [data-theme="ink"]::before,
+#root > [data-theme="dark"]::before,
+#root > [data-theme="graphite"]::before {
+  inset: -22%;
+  background:
+    radial-gradient(ellipse 84% 64% at 45% 30%, oklch(35% 0.046 232 / 0.52), transparent 56%),
+    radial-gradient(ellipse 74% 68% at 66% 58%, oklch(30% 0.04 185 / 0.42), transparent 58%),
+    radial-gradient(ellipse 78% 72% at 22% 82%, oklch(24% 0.038 205 / 0.34), transparent 62%),
+    radial-gradient(ellipse 56% 64% at 82% 20%, oklch(22% 0.044 285 / 0.28), transparent 62%),
+    linear-gradient(112deg, transparent 18%, oklch(100% 0 0 / var(--ambient-sheen-opacity)), transparent 58%);
+  filter: blur(64px) saturate(1.22);
+  opacity: calc(var(--deep-space-field-opacity) * 0.22);
+  mix-blend-mode: screen;
+  animation: deepSpaceDrift 84s ease-in-out infinite alternate;
+}
+
 #root > [data-theme]::after {
   content: "";
   position: fixed;
@@ -197,10 +294,29 @@ html, body, #root {
     radial-gradient(circle at 62% 12%, oklch(86% 0.052 285 / 0.72) 0 0.75px, transparent 1.25px),
     radial-gradient(circle at 54% 52%, oklch(100% 0 0 / 0.76) 0 0.9px, transparent 1.35px);
   background-size: 220px 220px, 300px 300px, 360px 360px, 260px 260px, 410px 410px, 520px 520px, 470px 470px;
-  opacity: var(--ambient-star-opacity);
+  opacity: var(--star-layer-opacity);
   mix-blend-mode: var(--ambient-blend, normal);
   filter: drop-shadow(0 0 4px oklch(92% 0.05 255 / var(--ambient-star-glow-opacity)));
   animation: starDrift 52s linear infinite, starTwinkle 6.5s ease-in-out infinite alternate;
+}
+
+#root > [data-theme="ink"]::after,
+#root > [data-theme="dark"]::after,
+#root > [data-theme="graphite"]::after {
+  /* sparse-star-field: few crisp points over soft color fields, not dust noise. */
+  background-image:
+    radial-gradient(circle at 16% 22%, oklch(96% 0.01 250 / 0.72) 0 0.85px, transparent 1.45px),
+    radial-gradient(circle at 73% 19%, oklch(84% 0.035 230 / 0.58) 0 0.75px, transparent 1.35px),
+    radial-gradient(circle at 45% 73%, oklch(98% 0.006 250 / 0.52) 0 0.62px, transparent 1.22px),
+    radial-gradient(circle at 88% 66%, oklch(78% 0.052 28 / 0.48) 0 0.88px, transparent 1.52px),
+    radial-gradient(circle at 31% 84%, oklch(82% 0.03 205 / 0.4) 0 0.55px, transparent 1.12px),
+    radial-gradient(circle at 58% 33%, oklch(92% 0.018 260 / 0.42) 0 0.5px, transparent 1px);
+  background-size: 1180px 1180px, 1560px 1560px, 1900px 1900px, 1380px 1380px, 2200px 2200px, 1740px 1740px;
+  background-position: 0 0, 14% 8%, 70% 38%, 82% 18%, 24% 72%, 48% 32%;
+  opacity: calc(var(--star-layer-opacity) * 0.2);
+  mix-blend-mode: screen;
+  filter: none;
+  animation: deepSpaceDrift 150s linear infinite, starTwinkle 12s ease-in-out infinite alternate;
 }
 
 #root > [data-theme] > .studio-shell,
@@ -215,6 +331,31 @@ html, body, #root {
   100% { transform: translate3d(2%, -0.5%, 0) scale(1.04); }
 }
 
+@keyframes deepSpaceDrift {
+  0% { transform: translate3d(-0.8%, -0.45%, 0) scale(1); }
+  50% { transform: translate3d(0.45%, 0.65%, 0) scale(1.012); }
+  100% { transform: translate3d(0.9%, -0.25%, 0) scale(1.02); }
+}
+
+@keyframes deepSpaceCinema {
+  0% {
+    background-position: 0% 42%, 86% 18%, 18% 86%, 64% 62%, 0 0;
+    transform: translate3d(-5.6%, -3.2%, 0) scale(1.1) rotate(-0.35deg);
+  }
+  38% {
+    background-position: 24% 50%, 78% 28%, 26% 72%, 58% 68%, 0 0;
+    transform: translate3d(3.8%, 4.4%, 0) scale(1.15) rotate(0.22deg);
+  }
+  70% {
+    background-position: 48% 38%, 92% 40%, 14% 64%, 70% 54%, 0 0;
+    transform: translate3d(6.2%, -1.8%, 0) scale(1.13) rotate(-0.12deg);
+  }
+  100% {
+    background-position: 72% 48%, 74% 22%, 32% 82%, 52% 70%, 0 0;
+    transform: translate3d(-2.8%, 5.2%, 0) scale(1.17) rotate(0.28deg);
+  }
+}
+
 @keyframes starDrift {
   from { background-position: 0 0, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0; }
   to { background-position: 220px 160px, -300px 260px, 360px -240px, -260px -180px, 410px 320px, -520px 220px, 470px -260px; }
@@ -222,12 +363,23 @@ html, body, #root {
 
 @keyframes starTwinkle {
   0%, 100% {
-    opacity: var(--ambient-star-opacity);
+    opacity: var(--star-layer-opacity);
     filter: brightness(1) saturate(1);
   }
   46% {
-    opacity: calc(var(--ambient-star-opacity) + var(--ambient-star-twinkle-opacity));
-    filter: brightness(1.22) saturate(1.08);
+    opacity: calc(var(--star-layer-opacity) + var(--star-layer-twinkle-opacity));
+    filter: brightness(1.12) saturate(1.04);
+  }
+}
+
+@keyframes chatStarSignal {
+  0%, 100% {
+    filter: brightness(1) saturate(1.04);
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    filter: brightness(1.18) saturate(1.08);
+    transform: translate3d(0.25%, -0.18%, 0);
   }
 }
 
@@ -242,7 +394,7 @@ html, body, #root {
   #root > [data-theme]::before,
   #root > [data-theme]::after,
   .studio-shell::after,
-  .studio-chat::before {
+  .deep-space-backdrop__canvas {
     animation: none;
   }
 }
@@ -613,8 +765,13 @@ button:active:not(:disabled) {
 .tree-item-toggle { width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: transform 0.15s; }
 .tree-item-toggle.open { transform: rotate(90deg); }
 .tree-item-toggle svg { width: 12px; height: 12px; }
-.tree-item-icon { flex-shrink: 0; }
-.tree-item-icon svg { width: 16px; height: 16px; }
+.tree-item-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  color: color-mix(in oklch, var(--ink-muted) 82%, transparent);
+  opacity: 0.72;
+}
+.tree-item-icon svg { width: 14px; height: 14px; stroke-width: 1.65; }
 .tree-item-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tree-children { padding-left: 16px; }
 .tree-children.collapsed { display: none; }
@@ -1134,13 +1291,14 @@ button:active:not(:disabled) {
 /* ─── OutlineView ──────────────────────────────────────────────────── */
 .outline-view {
   height: 100%; overflow-y: auto;
-  background: var(--bg);
+  background: transparent;
   padding: 0;
 }
 .outline-topbar {
   display: flex; justify-content: space-between; align-items: center;
-  padding: 14px 28px; border-bottom: 1px solid var(--border-strong);
-  background: var(--bg-elevated);
+  padding: 14px 28px; border-bottom: 1px solid var(--glass-border);
+  background: color-mix(in oklch, var(--glass-panel) 20%, transparent);
+  backdrop-filter: blur(22px) saturate(1.12);
 }
 .outline-doc { padding: 28px 36px; max-width: 900px; margin: 0 auto; }
 .outline-doc .display-hero { margin-bottom: 4px; }
@@ -1168,9 +1326,9 @@ button:active:not(:disabled) {
 .chapter-row:focus {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
-  background: var(--accent-soft);
+  background: color-mix(in oklch, var(--accent) 10%, transparent);
 }
-.chapter-row:hover { background: var(--accent-soft); }
+.chapter-row:hover { background: color-mix(in oklch, var(--accent) 8%, transparent); }
 .chapter-num { color: var(--accent); }
 .chapter-body .chapter-title { font-family: var(--font-display); font-size: var(--fs-body); }
 .chapter-body .chapter-summary { font-size: var(--fs-label); color: var(--ink-secondary); line-height: 1.55; margin-top: 2px; }
@@ -1190,8 +1348,8 @@ button:active:not(:disabled) {
   font-style: italic;
 }
 .editable-input {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-strong);
+  background: var(--chat-frost-surface);
+  border: 1px solid var(--chat-frost-border);
   color: var(--ink);
   padding: 4px 6px;
   font-family: inherit;
@@ -1222,15 +1380,16 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: var(--bg);
+  background: transparent;
   position: relative;
 }
 .plot-topbar {
   display: grid;
   grid-template-columns: 1fr auto auto;
   padding: 12px 22px;
-  border-bottom: 1px solid var(--border-strong);
-  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--glass-border);
+  background: color-mix(in oklch, var(--glass-panel) 20%, transparent);
+  backdrop-filter: blur(22px) saturate(1.12);
   align-items: center;
   gap: 12px;
 }
@@ -1268,16 +1427,18 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   cursor: pointer;
 }
 .plot-node {
-  background: var(--bg-elevated);
+  background: var(--chat-frost-surface);
   padding: 7px 9px;
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--chat-frost-border);
   border-left-width: 3px;
+  border-radius: 10px;
   cursor: pointer;
-  transition: transform 100ms;
+  backdrop-filter: blur(18px) saturate(1.12);
+  transition: transform 100ms, background var(--motion-fast), border-color var(--motion-fast), box-shadow var(--motion-fast);
 }
 .plot-node:hover {
   transform: translate(-1px, -1px);
-  box-shadow: 2px 2px 0 var(--accent-soft);
+  box-shadow: 0 8px 24px oklch(0% 0 0 / 0.08);
 }
 .plot-node-type {
   color: var(--ink-secondary);
@@ -1310,11 +1471,14 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   right: 0;
   width: 320px;
   height: calc(100% - 50px);
-  background: var(--bg-elevated);
-  border-left: 1px solid var(--border-strong);
+  background:
+    linear-gradient(180deg, color-mix(in oklch, var(--glass-highlight) 10%, transparent), transparent 42%),
+    color-mix(in oklch, var(--glass-panel-strong) 72%, transparent);
+  border-left: 1px solid var(--glass-border);
   padding: 14px 16px;
   overflow-y: auto;
   z-index: 50;
+  backdrop-filter: blur(28px) saturate(1.16);
 }
 .drawer-head {
   display: flex;
@@ -1366,13 +1530,16 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   position: absolute;
   top: 42px;
   right: 140px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-strong);
+  background:
+    linear-gradient(180deg, color-mix(in oklch, var(--glass-highlight) 14%, transparent), transparent 50%),
+    color-mix(in oklch, var(--glass-panel-strong) 76%, transparent);
+  border: 1px solid var(--glass-border);
   padding: 10px 12px;
   min-width: 260px;
   max-width: 320px;
-  box-shadow: 3px 3px 0 var(--accent-soft);
+  box-shadow: 0 18px 44px oklch(0% 0 0 / 0.14);
   z-index: 40;
+  backdrop-filter: blur(28px) saturate(1.16);
 }
 .popover-head {
   display: flex;
@@ -1566,79 +1733,145 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
 
 /* ─── Creation Notch ─── */
 .creation-notch {
-  position: relative;
-  z-index: 2;
-  flex: 0 0 auto;
+  position: absolute;
+  top: 0;
+  left: 50%;
+  right: auto;
+  z-index: 8;
   display: flex;
   flex-direction: column;
   align-items: center;
   width: 100%;
-  max-height: 42px;
   padding: 0 clamp(18px, 5vw, 72px);
   margin-top: -1px;
   overflow: visible;
-  transition: max-height var(--motion-smooth), padding var(--motion-smooth);
+  pointer-events: none;
+  transform: translateX(-50%);
+  transition: opacity var(--motion-fast), transform var(--motion-smooth);
 }
 
 .creation-notch.expanded {
-  max-height: 228px;
-  padding-bottom: 8px;
+  transform: translateX(-50%);
 }
 
 .creation-notch-shell {
   position: relative;
   z-index: 2;
   display: grid;
-  grid-template-columns: auto minmax(90px, 1fr) auto;
+  grid-template-columns: 13px auto 13px;
+  justify-items: center;
   align-items: center;
-  gap: 10px;
-  width: min(520px, calc(100% - 40px));
-  min-height: 32px;
-  padding: 5px 7px 5px 11px;
+  gap: 5px;
+  width: fit-content;
+  max-width: calc(100% - 40px);
+  min-width: 104px;
+  min-height: 27px;
+  padding: 4px 8px 7px;
   color: var(--ink-secondary);
   background:
-    linear-gradient(180deg, color-mix(in oklch, var(--glass-highlight) 58%, transparent), transparent 72%),
-    var(--glass-panel-strong);
-  border: 1px solid var(--glass-border);
-  border-top-color: color-mix(in oklch, var(--glass-highlight) 78%, var(--glass-border));
-  border-radius: 0 0 16px 16px;
+    linear-gradient(180deg, color-mix(in oklch, var(--glass-highlight) 28%, transparent), transparent 74%),
+    color-mix(in oklch, var(--glass-panel-strong) 82%, transparent);
+  border: 1px solid color-mix(in oklch, var(--glass-border) 76%, transparent);
+  border-top-color: color-mix(in oklch, var(--glass-highlight) 30%, var(--glass-border));
+  border-radius: 0 0 14px 14px;
   box-shadow:
-    0 14px 36px oklch(0% 0 0 / 0.1),
-    inset 0 1px 0 var(--glass-highlight);
-  backdrop-filter: blur(34px) saturate(1.22);
-  animation: creationNotchPulse 5.5s ease-in-out infinite;
+    0 8px 22px oklch(0% 0 0 / 0.07),
+    inset 0 1px 0 color-mix(in oklch, var(--glass-highlight) 44%, transparent),
+    inset 0 -1px 0 color-mix(in oklch, var(--glass-border) 22%, transparent);
+  backdrop-filter: blur(30px) saturate(1.18);
+  pointer-events: auto;
 }
 
 .creation-notch-shell:hover {
   color: var(--ink);
   background:
-    linear-gradient(180deg, color-mix(in oklch, var(--glass-highlight) 72%, transparent), transparent 72%),
-    var(--glass-hover);
+    linear-gradient(180deg, color-mix(in oklch, var(--glass-highlight) 34%, transparent), transparent 74%),
+    color-mix(in oklch, var(--glass-hover) 78%, transparent);
   border-color: var(--glass-border);
 }
 
 .creation-notch-current,
 .creation-notch-summary,
+.creation-notch-balance-spacer,
 .creation-notch-pull-handle {
   min-width: 0;
   display: inline-flex;
   align-items: center;
 }
 
+.creation-notch-balance-spacer {
+  width: 13px;
+  height: 14px;
+}
+
 .creation-notch-current {
-  gap: 7px;
   color: var(--ink);
   font-size: 12px;
   font-weight: 650;
   white-space: nowrap;
 }
 
-.creation-notch-orb {
-  width: 7px;
-  height: 7px;
+.creation-notch-current-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.creation-notch-progress-track {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 4px;
+  height: 2px;
+  overflow: hidden;
   border-radius: 999px;
-  background: var(--accent);
-  box-shadow: 0 0 0 4px color-mix(in oklch, var(--accent) 14%, transparent), 0 0 18px color-mix(in oklch, var(--accent) 26%, transparent);
+  background: color-mix(in oklch, var(--glass-border) 42%, transparent);
+}
+
+.creation-notch-progress-fill {
+  display: block;
+  width: var(--creation-progress, 12%);
+  height: 100%;
+  min-width: 18px;
+  border-radius: inherit;
+  transform-origin: left center;
+  background: linear-gradient(90deg, color-mix(in oklch, var(--accent) 76%, white), color-mix(in oklch, var(--accent) 48%, transparent));
+  box-shadow: 0 0 12px color-mix(in oklch, var(--accent) 30%, transparent);
+}
+
+.creation-notch-progress-fill.is-breathing {
+  animation: creationFlowBreath 1.9s ease-in-out infinite;
+}
+
+.creation-notch-flow-bar {
+  width: 20px;
+  height: 2px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--ink-muted) 72%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in oklch, var(--glass-highlight) 36%, transparent);
+  transition: background var(--motion-fast), box-shadow var(--motion-fast), opacity var(--motion-fast), transform var(--motion-fast);
+}
+
+.creation-notch-flow-bar.is-done {
+  background: color-mix(in oklch, var(--success) 68%, var(--ink-muted));
+  opacity: 0.68;
+}
+
+.creation-notch-flow-bar.is-current {
+  background: linear-gradient(90deg, color-mix(in oklch, var(--accent) 82%, white), color-mix(in oklch, var(--accent) 58%, var(--ink-muted)));
+  box-shadow:
+    0 0 10px color-mix(in oklch, var(--accent) 32%, transparent),
+    inset 0 1px 0 color-mix(in oklch, var(--glass-highlight) 52%, transparent);
+}
+
+.creation-notch-flow-bar.is-breathing {
+  animation: creationFlowBreath 1.9s ease-in-out infinite;
+}
+
+.creation-notch-flow-bar.is-blocked {
+  background: color-mix(in oklch, var(--warning) 76%, var(--ink-muted));
+  box-shadow: 0 0 9px color-mix(in oklch, var(--warning) 24%, transparent);
 }
 
 .creation-notch-summary {
@@ -1651,15 +1884,16 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
 
 .creation-notch-pull-handle {
   justify-content: center;
-  width: 22px;
-  height: 20px;
+  width: 13px;
+  height: 14px;
+  margin-left: -1px;
   color: var(--ink-muted);
   border-radius: 999px;
   transition: color var(--motion-fast), background var(--motion-fast), transform var(--motion-smooth);
 }
 
 .creation-notch-shell:hover .creation-notch-pull-handle {
-  background: color-mix(in oklch, var(--bg-elevated) 44%, transparent);
+  color: var(--ink-secondary);
 }
 
 .creation-notch.expanded .creation-notch-pull-handle {
@@ -1667,53 +1901,36 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
 }
 
 .creation-notch-panel {
-  width: min(760px, calc(100% - 48px));
-  max-height: 0;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  width: min(536px, calc(100% - 56px));
   margin-top: 0;
-  padding: 0 18px;
+  padding: 9px 11px 10px;
   opacity: 0;
   overflow: hidden;
   pointer-events: none;
-  transform: translateY(-10px) scale(0.985);
+  transform: translateX(-50%) translateY(-10px) scale(0.985);
   color: var(--ink-secondary);
   background:
-    linear-gradient(180deg, color-mix(in oklch, var(--glass-highlight) 42%, transparent), transparent 30%),
-    var(--glass-panel);
-  border: 1px solid transparent;
-  border-radius: 18px;
-  box-shadow: 0 24px 64px oklch(0% 0 0 / 0.12), inset 0 1px 0 color-mix(in oklch, var(--glass-highlight) 76%, transparent);
-  backdrop-filter: blur(38px) saturate(1.24);
-  transition: max-height var(--motion-smooth), opacity var(--motion-fast), transform var(--motion-smooth), margin var(--motion-smooth), padding var(--motion-smooth), border-color var(--motion-fast), background var(--motion-fast);
+    linear-gradient(180deg, color-mix(in oklch, var(--glass-highlight) 24%, transparent), transparent 32%),
+    color-mix(in oklch, var(--glass-panel-strong) 84%, transparent);
+  border: 1px solid color-mix(in oklch, var(--glass-border) 70%, transparent);
+  border-radius: 14px;
+  box-shadow: 0 14px 34px oklch(0% 0 0 / 0.095), inset 0 1px 0 color-mix(in oklch, var(--glass-highlight) 34%, transparent);
+  backdrop-filter: blur(30px) saturate(1.14);
+  transition: opacity var(--motion-fast), transform var(--motion-smooth), border-color var(--motion-fast), background var(--motion-fast);
 }
 
 .creation-notch.expanded .creation-notch-panel {
-  max-height: 174px;
-  margin-top: 8px;
-  padding: 14px 18px 16px;
   opacity: 1;
   pointer-events: auto;
-  transform: translateY(0) scale(1);
+  transform: translateX(-50%) translateY(0) scale(1);
   border-color: var(--glass-border);
 }
 
-.creation-notch-panel-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 16px;
-  min-width: 0;
-  padding-bottom: 12px;
-}
-
-.creation-notch-panel-head span {
-  color: var(--ink);
-  font-size: 13px;
-  font-weight: 680;
-  white-space: nowrap;
-}
-
-.creation-notch-panel-head p {
-  min-width: 0;
+.creation-notch-panel-note {
+  margin: 0 0 7px;
   color: var(--ink-muted);
   font-size: 11px;
   line-height: 1.45;
@@ -1726,7 +1943,7 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
-  margin: -5px 0 10px;
+  margin: 0 0 8px;
 }
 
 .creation-notch-blockers span {
@@ -1741,11 +1958,11 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
 .creation-notch-timeline {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
-  gap: 0;
+  grid-template-columns: repeat(8, minmax(34px, 1fr));
+  gap: 6px;
   list-style: none;
   margin: 0;
-  padding: 14px 0 0;
+  padding: 5px 0 0;
 }
 
 .creation-notch-timeline::before {
@@ -1753,9 +1970,9 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   position: absolute;
   left: 4%;
   right: 4%;
-  top: 20px;
+  top: 11px;
   height: 1px;
-  background: linear-gradient(90deg, transparent, color-mix(in oklch, var(--border-strong) 70%, transparent), transparent);
+  background: linear-gradient(90deg, transparent, color-mix(in oklch, var(--glass-border) 62%, transparent), transparent);
 }
 
 .creation-notch-stage {
@@ -1764,25 +1981,12 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 7px;
+  gap: 5px;
   min-width: 0;
   color: var(--ink-muted);
-  font-size: 10.5px;
+  font-size: 9.8px;
   line-height: 1.2;
   white-space: nowrap;
-}
-
-.creation-notch-dot {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 15px;
-  height: 15px;
-  color: currentColor;
-  background: color-mix(in oklch, var(--bg-elevated) 72%, transparent);
-  border: 1px solid var(--glass-border);
-  border-radius: 999px;
-  box-shadow: 0 0 0 4px color-mix(in oklch, var(--bg-elevated) 28%, transparent);
 }
 
 .creation-notch-stage.done {
@@ -1794,12 +1998,6 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   font-weight: 650;
 }
 
-.creation-notch-stage.current .creation-notch-dot {
-  background: color-mix(in oklch, var(--accent) 16%, var(--bg-elevated));
-  border-color: color-mix(in oklch, var(--accent) 42%, transparent);
-  box-shadow: 0 0 0 4px color-mix(in oklch, var(--accent) 13%, transparent), 0 0 20px color-mix(in oklch, var(--accent) 22%, transparent);
-}
-
 .creation-notch-stage.blocked {
   color: var(--warning);
 }
@@ -1808,17 +2006,20 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   animation: spin 1.2s linear infinite;
 }
 
-@keyframes creationNotchPulse {
+@keyframes creationFlowBreath {
   0%, 100% {
+    opacity: 0.72;
+    transform: scaleX(0.86);
     box-shadow:
-      0 14px 36px oklch(0% 0 0 / 0.1),
-      inset 0 1px 0 var(--glass-highlight);
+      0 0 8px color-mix(in oklch, var(--accent) 20%, transparent),
+      inset 0 1px 0 color-mix(in oklch, var(--glass-highlight) 48%, transparent);
   }
   50% {
+    opacity: 1;
+    transform: scaleX(1.04);
     box-shadow:
-      0 18px 44px oklch(0% 0 0 / 0.13),
-      0 0 22px color-mix(in oklch, var(--accent) 12%, transparent),
-      inset 0 1px 0 var(--glass-highlight);
+      0 0 16px color-mix(in oklch, var(--accent) 38%, transparent),
+      inset 0 1px 0 color-mix(in oklch, var(--glass-highlight) 62%, transparent);
   }
 }
 
@@ -1827,8 +2028,9 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
     padding-inline: 12px;
   }
   .creation-notch-shell {
-    width: min(520px, calc(100% - 12px));
-    grid-template-columns: minmax(0, 1fr) auto;
+    width: fit-content;
+    max-width: calc(100% - 12px);
+    grid-template-columns: auto auto;
   }
   .creation-notch-summary {
     display: none;
@@ -1846,6 +2048,35 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
 }
 
 /* ─── Codex-like Studio Shell ─── */
+.deep-space-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  contain: paint;
+  opacity: var(--deep-space-canvas-opacity);
+  background:
+    radial-gradient(ellipse 118% 76% at 46% 52%, oklch(20% 0.038 222 / 0.18), transparent 66%),
+    radial-gradient(ellipse 66% 58% at 72% 78%, oklch(40% 0.16 26 / calc(var(--deep-space-warm-opacity) * 0.24)), transparent 72%),
+    radial-gradient(ellipse 78% 70% at 34% 28%, oklch(31% 0.058 226 / 0.22), transparent 68%),
+    linear-gradient(135deg, oklch(5.2% 0.014 232), oklch(3.8% 0.012 260) 54%, oklch(5% 0.012 205));
+  background-position: center;
+  background-size: 100% 100%;
+  background-blend-mode: screen, screen, screen, normal;
+  filter: saturate(1.08) brightness(1.03);
+  mix-blend-mode: normal;
+}
+
+.deep-space-backdrop__canvas {
+  display: block;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: translateZ(0);
+}
+
 .studio-shell {
   display: grid;
   grid-template-areas:
@@ -1855,8 +2086,16 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   grid-template-rows: var(--titlebar-h) minmax(0, 1fr);
   height: 100vh;
   color: var(--ink);
+  /* deep-space-base */
   background:
-    linear-gradient(180deg, oklch(100% 0 0 / var(--shell-top-shine-opacity)), transparent 18%),
+    radial-gradient(ellipse 124% 86% at 50% 54%, transparent 42%, oklch(0% 0 0 / var(--deep-space-edge-opacity)) 100%),
+    radial-gradient(ellipse 142% 92% at 50% 94%, oklch(31% 0.054 196 / var(--deep-space-bottom-glow-opacity)), transparent 66%),
+    radial-gradient(ellipse 78% 64% at 82% 20%, oklch(48% 0.17 24 / calc(var(--deep-space-warm-opacity) * 0.66)), transparent 68%),
+    radial-gradient(ellipse 90% 72% at 64% 76%, oklch(36% 0.15 315 / calc(var(--deep-space-warm-opacity) * 0.5)), transparent 70%),
+    radial-gradient(ellipse 112% 82% at 24% 48%, oklch(29% 0.044 214 / var(--deep-space-cloud-opacity)), transparent 68%),
+    radial-gradient(ellipse 106% 78% at 73% 58%, oklch(27% 0.046 184 / var(--deep-space-core-opacity)), transparent 66%),
+    radial-gradient(ellipse 82% 72% at 62% 10%, oklch(21% 0.046 286 / var(--deep-space-side-glow-opacity)), transparent 64%),
+    linear-gradient(135deg, oklch(10.5% 0.024 225), oklch(7.2% 0.018 255) 50%, oklch(9.2% 0.018 200)),
     var(--glass-shell);
   overflow: hidden;
   border: 1px solid var(--glass-border);
@@ -1872,25 +2111,46 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   inset: 0;
   z-index: 0;
   pointer-events: none;
+  /* deep-space-mesh */
   background:
+    radial-gradient(ellipse 86% 58% at 40% 18%, oklch(36% 0.046 226 / var(--deep-space-mesh-opacity)), transparent 58%),
+    radial-gradient(ellipse 72% 64% at 86% 18%, oklch(51% 0.17 28 / calc(var(--deep-space-warm-opacity) * 0.5)), transparent 64%),
+    radial-gradient(ellipse 76% 72% at 72% 82%, oklch(34% 0.15 318 / calc(var(--deep-space-warm-opacity) * 0.44)), transparent 68%),
+    radial-gradient(ellipse 84% 70% at 68% 46%, oklch(30% 0.05 190 / var(--deep-space-core-opacity)), transparent 62%),
+    radial-gradient(ellipse 90% 78% at 28% 82%, oklch(24% 0.042 205 / var(--deep-space-haze-opacity)), transparent 66%),
+    radial-gradient(ellipse 80% 70% at 88% 86%, oklch(22% 0.036 178 / var(--deep-space-mesh-opacity)), transparent 68%),
+    radial-gradient(ellipse 64% 60% at 78% 16%, oklch(22% 0.044 292 / var(--deep-space-side-glow-opacity)), transparent 62%),
     linear-gradient(90deg, oklch(100% 0 0 / var(--shell-side-shine-opacity)), transparent 14%, transparent 82%, oklch(100% 0 0 / var(--shell-side-fade-opacity))),
     linear-gradient(180deg, oklch(100% 0 0 / var(--shell-topwash-opacity)), transparent 34%);
+  filter: blur(52px) saturate(1.22);
+  mix-blend-mode: screen;
+  opacity: 0.12;
+  animation: deepSpaceDrift 72s ease-in-out infinite alternate;
 }
 
 .studio-shell::after {
   content: "";
   position: absolute;
   inset: 0;
-  z-index: 3;
+  z-index: 0;
   pointer-events: none;
+  /* deep-space-stars */
   background-image:
-    linear-gradient(116deg, transparent 0 33%, oklch(100% 0 0 / var(--frost-sheen-opacity)) 43%, transparent 55%),
-    repeating-radial-gradient(circle at 22% 18%, oklch(100% 0 0 / var(--frost-grain-opacity)) 0 0.45px, transparent 0.75px 2.6px),
-    repeating-linear-gradient(100deg, oklch(100% 0 0 / var(--frost-streak-opacity)) 0 1px, transparent 1px 7px);
-  background-size: 180% 180%, 120px 120px, 96px 96px;
-  opacity: var(--frost-noise-opacity);
-  mix-blend-mode: overlay;
-  animation: frostGrain 8s steps(2, end) infinite;
+    radial-gradient(circle at 16% 24%, oklch(96% 0.01 250 / 0.76) 0 0.95px, transparent 1.55px),
+    radial-gradient(circle at 24% 42%, oklch(100% 0.006 250 / 0.62) 0 0.72px, transparent 1.28px),
+    radial-gradient(circle at 31% 69%, oklch(88% 0.03 205 / 0.48) 0 0.75px, transparent 1.3px),
+    radial-gradient(circle at 47% 34%, oklch(98% 0.006 250 / 0.7) 0 1.08px, transparent 1.75px),
+    radial-gradient(circle at 63% 18%, oklch(84% 0.042 230 / 0.62) 0 0.82px, transparent 1.45px),
+    radial-gradient(circle at 68% 73%, oklch(91% 0.035 286 / 0.54) 0 0.78px, transparent 1.34px),
+    radial-gradient(circle at 79% 57%, oklch(78% 0.055 28 / 0.5) 0 1px, transparent 1.7px),
+    radial-gradient(circle at 86% 36%, oklch(88% 0.08 28 / 0.58) 0 0.86px, transparent 1.48px),
+    radial-gradient(circle at 91% 82%, oklch(94% 0.008 250 / 0.58) 0 0.78px, transparent 1.32px),
+    linear-gradient(116deg, transparent 0 33%, oklch(100% 0 0 / var(--frost-sheen-opacity)) 43%, transparent 55%);
+  background-size: 100% 100%;
+  opacity: calc(var(--deep-space-shell-star-opacity) * 0.12);
+  mix-blend-mode: screen;
+  filter: brightness(1.08) saturate(1.05);
+  animation: chatStarSignal 11s ease-in-out infinite alternate;
 }
 
 .studio-titlebar {
@@ -1903,7 +2163,7 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   min-width: 0;
   height: var(--titlebar-h);
   padding: 0 16px 0 var(--studio-titlebar-left-inset, var(--mac-traffic-light-space));
-  background: color-mix(in oklch, var(--bg-elevated) 48%, transparent);
+  background: color-mix(in oklch, var(--glass-panel) 18%, transparent);
   border-bottom: 1px solid var(--glass-border);
   backdrop-filter: blur(36px) saturate(1.22);
   user-select: none;
@@ -2039,9 +2299,11 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  background: var(--glass-panel);
+  background:
+    linear-gradient(180deg, color-mix(in oklch, var(--glass-highlight) 4%, transparent), transparent 48%),
+    color-mix(in oklch, var(--glass-panel) 12%, transparent);
   border-right: 1px solid var(--glass-border);
-  backdrop-filter: blur(36px) saturate(1.18);
+  backdrop-filter: blur(24px) saturate(1.12);
   overflow: hidden;
 }
 
@@ -2173,33 +2435,12 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   min-height: 0;
   position: relative;
   isolation: isolate;
-  overflow: auto;
-  background:
-    linear-gradient(180deg, color-mix(in oklch, var(--bg-elevated) 42%, transparent), color-mix(in oklch, var(--bg) 48%, transparent)),
-    radial-gradient(circle at 50% -6%, color-mix(in oklch, var(--glass-highlight) 54%, transparent), transparent 44%);
-  backdrop-filter: blur(26px) saturate(1.12);
+  overflow: hidden;
+  background: transparent;
+  backdrop-filter: none;
 }
 
-.studio-chat::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background-image:
-    radial-gradient(circle at 12% 20%, oklch(100% 0 0 / 0.96) 0 1px, transparent 1.55px),
-    radial-gradient(circle at 35% 78%, oklch(84% 0.055 252 / 0.8) 0 0.85px, transparent 1.35px),
-    radial-gradient(circle at 78% 24%, oklch(100% 0 0 / 0.9) 0 1px, transparent 1.55px),
-    radial-gradient(circle at 90% 72%, oklch(78% 0.07 250 / 0.76) 0 0.9px, transparent 1.4px),
-    radial-gradient(circle at 20% 62%, oklch(95% 0.032 235 / 0.78) 0 0.75px, transparent 1.25px);
-  background-size: 210px 210px, 290px 290px, 350px 350px, 260px 260px, 420px 420px;
-  opacity: calc(var(--ambient-star-opacity) * 1.08);
-  filter: drop-shadow(0 0 5px oklch(92% 0.05 255 / var(--ambient-star-glow-opacity)));
-  mix-blend-mode: var(--ambient-blend, normal);
-  animation: starDrift 58s linear infinite, starTwinkle 7.5s ease-in-out infinite alternate;
-}
-
-.studio-chat > * {
+.studio-chat > :not(.creation-notch) {
   position: relative;
   z-index: 1;
 }
@@ -2231,9 +2472,11 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   min-height: 0;
   display: flex;
   flex-direction: column;
-  background: var(--glass-panel);
+  background:
+    linear-gradient(180deg, color-mix(in oklch, var(--glass-highlight) 5%, transparent), transparent 46%),
+    color-mix(in oklch, var(--glass-panel) 14%, transparent);
   border-left: 1px solid var(--glass-border);
-  backdrop-filter: blur(36px) saturate(1.18);
+  backdrop-filter: blur(24px) saturate(1.14);
   overflow: hidden;
   box-shadow: inset 1px 0 0 color-mix(in oklch, var(--glass-highlight) 45%, transparent);
   transition: flex-basis var(--motion-smooth), width var(--motion-smooth), min-width var(--motion-smooth), max-width var(--motion-smooth), background var(--motion-fast), border-color var(--motion-fast), opacity var(--motion-fast);
@@ -2275,8 +2518,8 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  min-width: 64px;
+  gap: 0;
+  min-width: 56px;
   height: 30px;
   padding: 0 12px;
   color: var(--ink-muted);
@@ -2300,29 +2543,53 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   box-shadow: inset 0 1px 0 var(--glass-highlight), 0 1px 2px oklch(0% 0 0 / 0.04);
 }
 
-.workspace-tab-icon {
-  flex: 0 0 auto;
-  width: 14px;
-  height: 14px;
-  stroke-width: 1.9;
-}
-
 .workspace-tab-panel {
   flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
   overflow: auto;
-  background: color-mix(in oklch, var(--bg-subtle) 44%, transparent);
+  background: transparent;
 }
 
 .author-chat {
   display: flex;
   flex-direction: column;
+  position: relative;
   height: 100%;
+  overflow: hidden;
+}
+
+.author-chat-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: calc(var(--creation-notch-clearance) + 14px) 0 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.author-chat-empty {
+  width: var(--chat-content-width);
+  margin: 40px auto 0;
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 2;
+  text-align: center;
+}
+
+.author-chat-empty > :first-child {
+  color: var(--ink-secondary);
+  font-size: 13px;
+}
+
+.author-chat-empty > :not(:first-child) {
+  margin-top: 4px;
 }
 
 .chat-message-row {
-  width: 100%;
+  width: var(--chat-content-width);
+  margin-inline: auto;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -2340,13 +2607,41 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
 }
 
 .chat-message-meta {
-  min-height: 14px;
-  margin-bottom: 2px;
+  min-height: 0;
+  margin-bottom: 3px;
   display: flex;
   align-items: center;
-  gap: 3px;
+  justify-content: flex-end;
+  gap: 4px;
   color: var(--ink-muted);
   font-size: 10px;
+}
+
+.chat-message-actions {
+  width: min(640px, 72%);
+}
+
+.checkpoint-edit-button {
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in oklch, var(--border-subtle) 64%, transparent);
+  border-radius: 7px;
+  background: color-mix(in oklch, var(--bg-elevated) 42%, transparent);
+  color: var(--ink-muted);
+  cursor: pointer;
+  padding: 0;
+  backdrop-filter: blur(14px) saturate(1.1);
+  transition: color var(--motion-fast), background var(--motion-fast), border-color var(--motion-fast), transform var(--motion-fast);
+}
+
+.checkpoint-edit-button:hover {
+  color: var(--ink);
+  border-color: color-mix(in oklch, var(--accent) 28%, var(--border-subtle));
+  background: color-mix(in oklch, var(--bg-elevated) 58%, transparent);
+  transform: translateY(-1px);
 }
 
 .streaming-message-shell {
@@ -2355,7 +2650,14 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
 
 .streaming-segments {
   width: 100%;
-  max-width: 85%;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.assistant-segment-stack {
+  width: min(760px, 100%);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -2367,13 +2669,17 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   border-radius: 12px;
   border-bottom-left-radius: 4px;
   color: var(--ink);
+  max-width: min(760px, 100%);
   background:
-    linear-gradient(180deg, color-mix(in oklch, var(--glass-highlight) 32%, transparent), transparent 74%),
-    var(--bg-elevated);
+    linear-gradient(180deg, color-mix(in oklch, var(--glass-highlight) 7%, transparent), transparent 76%),
+    var(--chat-frost-surface);
+  border: 1px solid color-mix(in oklch, var(--chat-frost-border) 74%, transparent);
   font-size: 13px;
   line-height: 1.6;
   word-break: break-word;
-  box-shadow: 0 1px 0 color-mix(in oklch, var(--glass-highlight) 40%, transparent) inset;
+  backdrop-filter: blur(18px) saturate(1.08);
+  -webkit-backdrop-filter: blur(18px) saturate(1.08);
+  box-shadow: 0 1px 0 color-mix(in oklch, var(--glass-highlight) 8%, transparent) inset;
 }
 
 .streaming-content-bubble {
@@ -2387,8 +2693,8 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   margin-left: 2px;
   border-radius: 999px;
   vertical-align: -0.14em;
-  background: color-mix(in oklch, var(--accent) 84%, white);
-  box-shadow: 0 0 10px color-mix(in oklch, var(--accent) 38%, transparent);
+  background: color-mix(in oklch, var(--accent) 72%, white);
+  box-shadow: 0 0 6px color-mix(in oklch, var(--accent) 22%, transparent);
   animation: cursor-blink 0.95s step-end infinite;
 }
 
@@ -2530,7 +2836,7 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   height: 6px;
   border-radius: 999px;
   background: color-mix(in oklch, var(--thinking) 82%, var(--ink-muted));
-  box-shadow: 0 0 0 3px color-mix(in oklch, var(--thinking) 13%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--thinking) 8%, transparent);
   flex: 0 0 auto;
 }
 
@@ -2539,7 +2845,7 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   position: absolute;
   inset: -5px;
   border-radius: inherit;
-  border: 1px solid color-mix(in oklch, var(--thinking) 30%, transparent);
+  border: 1px solid color-mix(in oklch, var(--thinking) 18%, transparent);
   animation: agent-state-pulse 1.7s ease-out infinite;
 }
 
@@ -2550,27 +2856,33 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   padding: 8px 10px;
   border: 1px solid color-mix(in oklch, var(--thinking) 15%, var(--border-subtle));
   border-radius: 8px;
-  background: color-mix(in oklch, var(--bg-elevated) 54%, transparent);
+  background: color-mix(in oklch, var(--bg-elevated) 36%, transparent);
   color: var(--ink-muted);
   font-size: 11px;
   line-height: 1.65;
   white-space: pre-wrap;
   word-break: break-word;
-  box-shadow: inset 0 1px 0 color-mix(in oklch, var(--glass-highlight) 24%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in oklch, var(--glass-highlight) 10%, transparent);
   animation: toolActivityReveal 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .author-chat-header {
-  flex: 0 0 auto;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 6;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  min-height: 43px;
-  padding: 8px 16px;
-  background: color-mix(in oklch, var(--bg-elevated) 34%, transparent);
-  border-bottom: 1px solid var(--glass-border);
-  backdrop-filter: blur(28px) saturate(1.16);
+  min-height: 0;
+  height: 0;
+  padding: 0 12px;
+  background: transparent;
+  border-bottom: 0;
+  backdrop-filter: none;
+  pointer-events: none;
 }
 
 .author-chat-title,
@@ -2580,6 +2892,7 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
 }
 
 .author-chat-title {
+  display: none;
   min-width: 0;
   gap: 8px;
   color: var(--ink);
@@ -2590,8 +2903,8 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
 .author-chat-tool-summary {
   padding: 2px 7px;
   color: var(--ink-muted);
-  background: color-mix(in oklch, var(--bg-elevated) 50%, transparent);
-  border: 1px solid color-mix(in oklch, var(--glass-border) 72%, transparent);
+  background: color-mix(in oklch, var(--bg-elevated) 30%, transparent);
+  border: 1px solid color-mix(in oklch, var(--glass-border) 56%, transparent);
   border-radius: 999px;
   font-size: 10px;
   font-weight: 500;
@@ -2599,7 +2912,10 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
 
 .author-chat-actions {
   gap: 4px;
-  position: relative;
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  pointer-events: auto;
 }
 
 .chat-scroll {
@@ -2672,25 +2988,27 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   display: flex;
   align-items: flex-end;
   gap: 8px;
-  width: min(760px, calc(100% - 48px));
+  width: var(--chat-content-width);
   margin: 0 auto 18px;
   padding: 10px;
   background:
-    linear-gradient(180deg, color-mix(in oklch, var(--glass-highlight) 42%, transparent), transparent 70%),
-    var(--glass-panel-strong);
-  border: 1px solid var(--glass-border);
+    linear-gradient(180deg, color-mix(in oklch, var(--glass-highlight) 14%, transparent), transparent 72%),
+    var(--chat-frost-surface);
+  border: 1px solid var(--chat-frost-border);
   border-radius: 18px;
-  box-shadow: 0 18px 42px oklch(0% 0 0 / 0.11), 0 1px 0 var(--glass-highlight) inset;
-  backdrop-filter: blur(30px) saturate(1.2);
+  box-shadow:
+    0 12px 34px oklch(0% 0 0 / 0.075),
+    0 1px 0 color-mix(in oklch, var(--glass-highlight) 22%, transparent) inset;
+  backdrop-filter: blur(30px) saturate(1.18);
+  -webkit-backdrop-filter: blur(30px) saturate(1.18);
   transition: background var(--motion-fast), border-color var(--motion-fast), box-shadow var(--motion-fast), transform var(--motion-fast);
 }
 
 .chat-composer:focus-within {
-  border-color: color-mix(in oklch, var(--accent) 34%, var(--glass-border));
+  border-color: color-mix(in oklch, var(--accent) 18%, var(--chat-frost-border));
   box-shadow:
-    0 22px 52px oklch(0% 0 0 / 0.13),
-    0 1px 0 var(--glass-highlight) inset,
-    0 0 0 3px color-mix(in oklch, var(--accent) 12%, transparent);
+    0 14px 38px oklch(0% 0 0 / 0.085),
+    0 1px 0 color-mix(in oklch, var(--glass-highlight) 28%, transparent) inset;
 }
 
 .chat-composer-body {
@@ -2736,7 +3054,7 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
 
 .chat-send-button:hover {
   background: oklch(28% 0.024 260);
-  box-shadow: 0 8px 20px oklch(0% 0 0 / 0.14);
+  box-shadow: 0 6px 16px oklch(0% 0 0 / 0.1);
 }
 
 .chat-send-button:disabled {
@@ -2934,7 +3252,7 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
 }
 
 .user-message-stack {
-  width: min(640px, 85%);
+  width: min(640px, 72%);
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -2942,15 +3260,23 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
 }
 
 .user-message-bubble {
-  max-width: min(640px, 85%);
+  max-width: min(640px, 72%);
   padding: 10px 14px;
   border-radius: 12px 12px 4px;
-  color: white;
-  background: var(--accent);
+  color: var(--ink);
+  background:
+    linear-gradient(180deg, color-mix(in oklch, var(--glass-highlight) 10%, transparent), transparent 78%),
+    var(--chat-frost-surface);
+  border: 1px solid var(--chat-frost-border);
   font-size: 13px;
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;
+  backdrop-filter: blur(22px) saturate(1.12);
+  -webkit-backdrop-filter: blur(22px) saturate(1.12);
+  box-shadow:
+    0 8px 28px oklch(0% 0 0 / 0.045),
+    inset 0 1px 0 color-mix(in oklch, var(--glass-highlight) 16%, transparent);
 }
 
 .user-message-stack .user-message-bubble {
@@ -3080,7 +3406,7 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   color: var(--ink);
-  background: var(--surface-paper);
+  background: transparent;
 }
 
 .chapter-workspace-head {
@@ -3172,21 +3498,28 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   width: calc(100% - 36px);
   padding: 14px;
   color: var(--ink);
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-subtle);
+  background:
+    linear-gradient(180deg, color-mix(in oklch, var(--glass-highlight) 8%, transparent), transparent 46%),
+    var(--chat-frost-surface);
+  border: 1px solid var(--chat-frost-border);
   border-radius: var(--radius-md);
   font-family: var(--font-body);
   font-size: 14px;
   line-height: 1.75;
   resize: none;
   outline: none;
+  backdrop-filter: blur(24px) saturate(1.14);
   transition: border-color 0.12s, background 0.12s, box-shadow 0.12s;
 }
 
 .chapter-workspace-editor:focus {
-  background: var(--bg);
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-soft);
+  background:
+    linear-gradient(180deg, color-mix(in oklch, var(--glass-highlight) 12%, transparent), transparent 46%),
+    color-mix(in oklch, var(--chat-frost-surface) 82%, var(--bg-elevated));
+  border-color: color-mix(in oklch, var(--accent) 28%, var(--chat-frost-border));
+  box-shadow:
+    0 0 0 2px color-mix(in oklch, var(--accent) 10%, transparent),
+    inset 0 1px 0 color-mix(in oklch, var(--glass-highlight) 16%, transparent);
 }
 
 .chapter-workspace-empty {
@@ -3197,7 +3530,7 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   min-height: 100%;
   padding: 32px;
   color: var(--ink-muted);
-  background: var(--bg-subtle);
+  background: transparent;
   font-size: 13px;
   text-align: center;
 }
@@ -3210,8 +3543,7 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   gap: 18px;
   padding: 18px;
   color: var(--ink);
-  background:
-    linear-gradient(180deg, color-mix(in oklch, var(--surface-paper) 92%, transparent), color-mix(in oklch, var(--bg-subtle) 72%, transparent));
+  background: transparent;
 }
 
 .game-script-head {
@@ -3265,8 +3597,9 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   padding: 8px 6px;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
-  background: var(--glass-panel);
+  background: color-mix(in oklch, var(--glass-panel) 40%, transparent);
   box-shadow: inset 0 1px 0 var(--glass-highlight);
+  backdrop-filter: blur(18px) saturate(1.1);
 }
 
 .game-script-metric span {
@@ -3309,10 +3642,11 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
 .game-outline-arc,
 .game-package-row {
   min-width: 0;
-  border: 1px solid var(--border-subtle);
+  border: 1px solid var(--chat-frost-border);
   border-radius: var(--radius-md);
-  background: color-mix(in oklch, var(--bg-elevated) 72%, transparent);
+  background: var(--chat-frost-surface);
   overflow: hidden;
+  backdrop-filter: blur(18px) saturate(1.1);
 }
 
 .game-outline-arc-main,
@@ -3447,7 +3781,7 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   min-height: 100%;
   padding: 32px;
   color: var(--ink-muted);
-  background: var(--bg-subtle);
+  background: transparent;
   font-size: 13px;
   text-align: center;
 }

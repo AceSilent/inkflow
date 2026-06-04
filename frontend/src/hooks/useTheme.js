@@ -6,7 +6,7 @@ export function useTheme() {
     const saved = localStorage.getItem('autonovel-theme') || localStorage.getItem('inkflow-theme')
     if (isThemeId(saved)) return saved
     if (saved === 'dark') return 'ink'
-    return 'mist'
+    return 'ink'
   })
 
   useEffect(() => {

@@ -1,12 +1,11 @@
 import { useId } from 'react'
-import { Gamepad2, ListTree, NotebookTabs, Waypoints } from 'lucide-react'
 import { useI18n } from '../../hooks/useI18n'
 
 const tabs = [
-  { id: 'chapter', labelKey: 'workspace.chapter', icon: NotebookTabs },
-  { id: 'outline', labelKey: 'workspace.outline', icon: ListTree },
-  { id: 'plot', labelKey: 'workspace.plot', icon: Waypoints },
-  { id: 'game', labelKey: 'workspace.game', icon: Gamepad2 },
+  { id: 'chapter', labelKey: 'workspace.chapter' },
+  { id: 'outline', labelKey: 'workspace.outline' },
+  { id: 'plot', labelKey: 'workspace.plot' },
+  { id: 'game', labelKey: 'workspace.game' },
 ]
 
 export function WorkspaceTabs({ activeTab, onTabChange, chapter, outline, plot, game }) {
@@ -19,7 +18,6 @@ export function WorkspaceTabs({ activeTab, onTabChange, chapter, outline, plot, 
       <div className="workspace-tabs" role="tablist" aria-label={t('workspace.label')}>
         {tabs.map(tab => {
           const tabId = `${tabSetId}-${tab.id}`
-          const Icon = tab.icon
 
           return (
             <button
@@ -32,7 +30,6 @@ export function WorkspaceTabs({ activeTab, onTabChange, chapter, outline, plot, 
               className={`workspace-tab ${activeTab === tab.id ? 'active' : ''}`}
               onClick={() => onTabChange(tab.id)}
             >
-              <Icon className="workspace-tab-icon" size={14} aria-hidden="true" />
               {t(tab.labelKey)}
             </button>
           )

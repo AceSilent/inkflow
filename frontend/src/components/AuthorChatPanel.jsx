@@ -2,7 +2,6 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { Send, Trash2, Plus, X, FileText, PenTool, Loader, Square, Paperclip, Gamepad2, Check } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { useI18n } from '../hooks/useI18n'
-import { CreativeFlowNotch } from './CreativeFlowNotch'
 import { MessageBubble, OptionsCard, ThinkingCard, ToolActivityGroup } from './author-chat/MessageCards'
 import {
   applyStreamingPreview,
@@ -384,7 +383,7 @@ export function AuthorChatPanel({
   const [histIdx, setHistIdx] = useState(null)
   const draftBeforeNav = useRef('')
 
-  const bookId = currentBook?.book_id
+  const bookId = currentBook?.book_id || currentBook?.id
   const isUnboundSession = !bookId
   const activeSessionId = draftSessionId || 'session_default'
   const historyEndpoint = bookId
@@ -876,7 +875,6 @@ export function AuthorChatPanel({
       {/* Header */}
       <div className="author-chat-header">
         <div className="author-chat-title">
-          <PenTool size={18} style={{ color: 'var(--accent)' }} />
           <span>{t('authorChat.agentTitle')}</span>
           <span className="author-chat-tool-summary">
             {t('authorChat.toolSummary')}
@@ -889,20 +887,13 @@ export function AuthorChatPanel({
         </div>
       </div>
 
-      <CreativeFlowNotch
-        bookId={bookId}
-        refreshKey={`${messages.length}:${loading ? 'loading' : 'idle'}`}
-        loading={loading}
-      />
-
       {/* Messages */}
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div className="author-chat-scroll">
         {messages.length === 0 && !streamingMsg && (
-          <div style={{ textAlign: 'center', color: 'var(--ink-muted)', marginTop: 40, fontSize: 13, lineHeight: 2 }}>
-            <PenTool size={32} style={{ marginBottom: 8, color: 'var(--accent)' }} />
+          <div className="author-chat-empty">
             <div>{t('authorChat.directChat')}</div>
-            <div style={{ fontSize: 11 }}>{t('authorChat.capabilities')}</div>
-            <div style={{ fontSize: 11, marginTop: 4 }}>{t('authorChat.features')}</div>
+            <div>{t('authorChat.capabilities')}</div>
+            <div>{t('authorChat.features')}</div>
           </div>
         )}
 
@@ -939,8 +930,6 @@ export function AuthorChatPanel({
         {/* Live streaming message */}
         {streamingMsg && (
           <div className="streaming-message-shell chat-message-row chat-message-enter is-assistant">
-            <div className="chat-message-meta"><PenTool size={9} /> {t('authorChat.author')}</div>
-
             {/* Idle heartbeat banner — server reports no LLM tokens for >15s. Cleared on next chunk. */}
             {!streamingMsg.retry && streamingMsg.idleMs >= 15000 && (
               <div style={{

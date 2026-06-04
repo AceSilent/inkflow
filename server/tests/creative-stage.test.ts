@@ -146,5 +146,7 @@ describe('creative stage status', () => {
     const prompt = buildCreativeStagePrompt(tmpDir)
     expect(prompt).toContain('当前阶段：设定库')
     expect(prompt).toContain('阶段门控')
+    expect(prompt).toContain('稳定信息先落盘')
+    expect(prompt).toContain('不要急着进入正文')
   })
 })

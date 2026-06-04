@@ -1,9 +1,20 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 const indexCss = readFileSync(new URL('../../index.css', import.meta.url), 'utf8')
+const studioShell = readFileSync(new URL('./StudioShell.jsx', import.meta.url), 'utf8')
+const useThemeSource = readFileSync(new URL('../../hooks/useTheme.js', import.meta.url), 'utf8')
+const deepSpaceBackdropUrl = new URL('./DeepSpaceBackdrop.jsx', import.meta.url)
+const deepSpaceBackdrop = existsSync(deepSpaceBackdropUrl) ? readFileSync(deepSpaceBackdropUrl, 'utf8') : ''
 const previewHtml = readFileSync(new URL('../../../../docs/design/creative-flow-preview.html', import.meta.url), 'utf8')
 const tauriConfig = readFileSync(new URL('../../../../src-tauri/tauri.conf.json', import.meta.url), 'utf8')
+
+function cssBlock(selector) {
+  const start = indexCss.indexOf(`${selector} {`)
+  if (start === -1) return ''
+  const end = indexCss.indexOf('\n}', start)
+  return end === -1 ? indexCss.slice(start) : indexCss.slice(start, end)
+}
 
 describe('visual polish direction', () => {
   it('adds frosted shell edges and animated theme ambience', () => {
@@ -22,28 +33,196 @@ describe('visual polish direction', () => {
     expect(tauriConfig).toContain('"underWindowBackground"')
   })
 
+  it('defaults new installs to the ink deep-space theme', () => {
+    expect(useThemeSource).toContain("return 'ink'")
+    expect(useThemeSource).not.toContain("return 'mist'")
+  })
+
   it('softens hover, press, and expand/collapse motion', () => {
     expect(indexCss).toContain('--motion-smooth')
     expect(indexCss).toContain('transition: color var(--motion-fast)')
     expect(indexCss).toContain('transition: flex-basis var(--motion-smooth)')
-    expect(indexCss).toContain('transition: max-height var(--motion-smooth)')
-    expect(indexCss).toContain('creationNotchPulse')
+    expect(indexCss).toContain('transition: opacity var(--motion-fast), transform var(--motion-smooth)')
+    expect(indexCss).not.toContain('creationNotchPulse')
   })
 
-  it('keeps dark themes subtle instead of heavy and noisy', () => {
+  it('keeps dark themes deep, warm, and star-rich without dusty noise', () => {
     expect(indexCss).toContain('--ambient-layer-opacity')
     expect(indexCss).toContain('--ambient-sheen-opacity')
     expect(indexCss).toContain('--ambient-star-twinkle-opacity')
+    expect(indexCss).toContain('--deep-space-star-opacity')
+    expect(indexCss).toContain('--deep-space-nebula-opacity')
+    expect(indexCss).toContain('--deep-space-field-opacity')
+    expect(indexCss).toContain('--deep-space-vignette-opacity')
+    expect(indexCss).toContain('sparse-star-field')
+    expect(indexCss).toContain('deepSpaceDrift')
     expect(indexCss).toContain('--frost-sheen-opacity')
     expect(indexCss).toContain('--frost-grain-opacity')
 
-    expect(indexCss).toMatch(/\[data-theme="ink"\], \[data-theme="dark"\][\s\S]*--ambient-star-opacity:\s*0\.24;/)
-    expect(indexCss).toMatch(/\[data-theme="ink"\], \[data-theme="dark"\][\s\S]*--ambient-star-twinkle-opacity:\s*0\.085;/)
-    expect(indexCss).toMatch(/\[data-theme="ink"\], \[data-theme="dark"\][\s\S]*--frost-noise-opacity:\s*0\.08;/)
-    expect(indexCss).toMatch(/\[data-theme="graphite"\][\s\S]*--ambient-star-opacity:\s*0\.2;/)
-    expect(indexCss).toMatch(/\[data-theme="graphite"\][\s\S]*--ambient-star-twinkle-opacity:\s*0\.074;/)
-    expect(indexCss).toMatch(/\[data-theme="graphite"\][\s\S]*--frost-noise-opacity:\s*0\.07;/)
-    expect(indexCss).toContain('.studio-chat::before')
+    expect(indexCss).toMatch(/\[data-theme="ink"\], \[data-theme="dark"\][\s\S]*--ambient-star-opacity:\s*0\.035;/)
+    expect(indexCss).toMatch(/\[data-theme="ink"\], \[data-theme="dark"\][\s\S]*--ambient-star-twinkle-opacity:\s*0\.012;/)
+    expect(indexCss).toMatch(/\[data-theme="ink"\], \[data-theme="dark"\][\s\S]*--deep-space-star-opacity:\s*0\.48;/)
+    expect(indexCss).toMatch(/\[data-theme="ink"\], \[data-theme="dark"\][\s\S]*--deep-space-field-opacity:\s*1;/)
+    expect(indexCss).toMatch(/\[data-theme="ink"\], \[data-theme="dark"\][\s\S]*--deep-space-warm-opacity:\s*0\.9;/)
+    expect(indexCss).toMatch(/\[data-theme="ink"\], \[data-theme="dark"\][\s\S]*--frost-noise-opacity:\s*0\.035;/)
+    expect(indexCss).toMatch(/\[data-theme="graphite"\][\s\S]*--ambient-star-opacity:\s*0\.03;/)
+    expect(indexCss).toMatch(/\[data-theme="graphite"\][\s\S]*--ambient-star-twinkle-opacity:\s*0\.01;/)
+    expect(indexCss).toMatch(/\[data-theme="graphite"\][\s\S]*--deep-space-star-opacity:\s*0\.38;/)
+    expect(indexCss).toMatch(/\[data-theme="graphite"\][\s\S]*--deep-space-field-opacity:\s*0\.92;/)
+    expect(indexCss).toMatch(/\[data-theme="graphite"\][\s\S]*--deep-space-warm-opacity:\s*0\.66;/)
+    expect(indexCss).toMatch(/\[data-theme="graphite"\][\s\S]*--frost-noise-opacity:\s*0\.03;/)
+  })
+
+  it('does not put an independent starfield inside the chat column', () => {
+    expect(indexCss).toContain('--chat-star-opacity')
+    expect(indexCss).toMatch(/\.studio-chat \{[\s\S]*background:\s*transparent;/)
+    expect(indexCss).toMatch(/\.studio-chat \{[\s\S]*backdrop-filter:\s*none;/)
+    expect(indexCss).not.toContain('.studio-chat::before')
+    expect(indexCss).not.toContain('.studio-chat::after')
+  })
+
+  it('covers the entire studio shell with a deep-space mesh, not just the chat center', () => {
+    expect(indexCss).toContain('--deep-space-mesh-opacity')
+    expect(indexCss).toContain('--deep-space-core-opacity')
+    expect(indexCss).toContain('--deep-space-bottom-glow-opacity')
+    expect(indexCss).toContain('--deep-space-shell-star-opacity')
+    expect(indexCss).toContain('--deep-space-cloud-opacity')
+    expect(indexCss).toContain('--deep-space-haze-opacity')
+    expect(indexCss).toMatch(/\.studio-shell \{[\s\S]*deep-space-base/)
+    expect(indexCss).toMatch(/\.studio-shell::before \{[\s\S]*deep-space-mesh/)
+    expect(indexCss).toMatch(/\.studio-shell::after \{[\s\S]*deep-space-stars/)
+    expect(indexCss).toMatch(/\[data-theme="ink"\], \[data-theme="dark"\][\s\S]*--deep-space-mesh-opacity:\s*0\.9;/)
+    expect(indexCss).toMatch(/\[data-theme="ink"\], \[data-theme="dark"\][\s\S]*--deep-space-cloud-opacity:\s*0\.92;/)
+    expect(indexCss).toMatch(/\[data-theme="graphite"\][\s\S]*--deep-space-mesh-opacity:\s*0\.74;/)
+    expect(indexCss).toMatch(/\.studio-library \{[\s\S]*background:[\s\S]*color-mix\(in oklch, var\(--glass-panel\) 12%, transparent\);/)
+    expect(indexCss).toMatch(/\.studio-titlebar \{[\s\S]*background:\s*color-mix\(in oklch, var\(--glass-panel\) 18%, transparent\);/)
+    expect(indexCss).toMatch(/\.workspace-pane \{[\s\S]*background:[\s\S]*color-mix\(in oklch, var\(--glass-panel\) 14%, transparent\);/)
+    expect(indexCss).toMatch(/\.workspace-tab-panel \{[\s\S]*background:\s*transparent;/)
+    expect(indexCss).toMatch(/\.chapter-workspace \{[\s\S]*background:\s*transparent;/)
+    expect(indexCss).toMatch(/\.outline-view \{[\s\S]*background:\s*transparent;/)
+    expect(indexCss).toMatch(/\.plot-graph-view \{[\s\S]*background:\s*transparent;/)
+    expect(indexCss).toMatch(/\.game-script-workspace \{[\s\S]*background:\s*transparent;/)
+  })
+
+  it('renders the deep-space backdrop with a continuous WebGL shader instead of sliced texture bands', () => {
+    expect(studioShell).toContain('DeepSpaceBackdrop')
+    expect(deepSpaceBackdrop).toContain('deep-space-backdrop')
+    expect(deepSpaceBackdrop).toContain('deep-space-backdrop__canvas')
+    expect(deepSpaceBackdrop).toContain('requestAnimationFrame')
+    expect(deepSpaceBackdrop).toContain('VERTEX_SHADER')
+    expect(deepSpaceBackdrop).toContain('DEEP_SPACE_FRAGMENT_SHADER')
+    expect(deepSpaceBackdrop).toContain('gl.TRIANGLE_STRIP')
+    expect(deepSpaceBackdrop).toContain('u_time')
+    expect(deepSpaceBackdrop).toContain('u_res')
+    expect(deepSpaceBackdrop).toContain('hash2')
+    expect(deepSpaceBackdrop).toContain('fbm')
+    expect(deepSpaceBackdrop).toContain('starLayer')
+    expect(deepSpaceBackdrop).toContain('nebula')
+    expect(deepSpaceBackdrop).not.toContain('TEXTURE_SLICE_COUNT')
+    expect(deepSpaceBackdrop).not.toContain('drawTexturedNebula')
+    expect(deepSpaceBackdrop).not.toContain('deepSpaceReferenceUrl')
+    expect(indexCss).toContain('--deep-space-canvas-opacity')
+    expect(indexCss).toContain('--deep-space-warm-opacity')
+    expect(indexCss).toMatch(/\.deep-space-backdrop \{[\s\S]*inset:\s*0;/)
+    expect(indexCss).not.toContain('url("./assets/deep-space-reference.png")')
+    expect(indexCss).toMatch(/\.deep-space-backdrop__canvas \{[\s\S]*width:\s*100%;[\s\S]*height:\s*100%;/)
+  })
+
+  it('keeps deep-space motion GPU-bound with a DPR cap and reduced-motion stop path', () => {
+    expect(deepSpaceBackdrop).toContain('DPR_CAP = 2')
+    expect(deepSpaceBackdrop).toContain('devicePixelRatio')
+    expect(deepSpaceBackdrop).toContain('Math.min')
+    expect(deepSpaceBackdrop).toContain('matchMedia')
+    expect(deepSpaceBackdrop).toContain('prefers-reduced-motion')
+    expect(deepSpaceBackdrop).toContain('drawScene(0)')
+    expect(deepSpaceBackdrop).toContain('requestAnimationFrame(frame)')
+    expect(deepSpaceBackdrop).not.toContain("canvas.getContext('2d')")
+    expect(deepSpaceBackdrop).not.toContain('textureCache')
+    expect(deepSpaceBackdrop).not.toContain('drawImage(')
+    expect(deepSpaceBackdrop).not.toContain('sliceCount = 46')
+    expect(deepSpaceBackdrop).not.toContain('NEBULA_PARTICLE_COUNT = 96')
+    expect(deepSpaceBackdrop).not.toContain('FILAMENT_COUNT = 9')
+    expect(deepSpaceBackdrop).not.toContain('ctx.filter =')
+    expect(deepSpaceBackdrop).not.toContain('reducedMotion?.matches) return')
+  })
+
+  it('keeps dark-space motion visible with dense stars and blue-warm nebula, not dust specks', () => {
+    expect(deepSpaceBackdrop).toContain('STAR_GRID_DENSE = 190.0')
+    expect(deepSpaceBackdrop).toContain('STAR_GRID_FINE = 310.0')
+    expect(deepSpaceBackdrop).toContain('warmCloud')
+    expect(deepSpaceBackdrop).toContain('blueCloud')
+    expect(deepSpaceBackdrop).toContain('vec3(0.74, 0.29, 0.18)')
+    expect(deepSpaceBackdrop).toContain('vec3(0.16, 0.31, 0.50)')
+  })
+
+  it('makes the shader read as moving deep space rather than a nearly static wallpaper', () => {
+    expect(deepSpaceBackdrop).toContain('NEBULA_FLOW_GAIN = 3.25')
+    expect(deepSpaceBackdrop).toContain('STAR_TWINKLE_GAIN = 0.48')
+    expect(deepSpaceBackdrop).toContain('PARALLAX_DRIFT = 0.12')
+    expect(deepSpaceBackdrop).toContain('motionTime = u_time * NEBULA_FLOW_GAIN')
+    expect(deepSpaceBackdrop).toContain('flowWarp')
+    expect(deepSpaceBackdrop).toContain('starUv')
+    expect(deepSpaceBackdrop).not.toContain('time * 0.011')
+    expect(deepSpaceBackdrop).not.toContain('time * 0.018, -time * 0.012')
+  })
+
+  it('keeps the creation notch compact when the current flow label is short', () => {
+    expect(indexCss).toMatch(/\.creation-notch-shell \{[\s\S]*width:\s*fit-content;/)
+    expect(indexCss).toMatch(/\.creation-notch \{[\s\S]*top:\s*0;/)
+    expect(indexCss).toMatch(/\.creation-notch \{[\s\S]*left:\s*50%;/)
+    expect(indexCss).toMatch(/\.creation-notch \{[\s\S]*transform:\s*translateX\(-50%\);/)
+    expect(indexCss).toMatch(/\.creation-notch-shell \{[\s\S]*grid-template-columns:\s*13px auto 13px;/)
+    expect(indexCss).toMatch(/\.creation-notch-shell \{[\s\S]*padding:\s*4px 8px 7px;/)
+    expect(indexCss).toMatch(/\.creation-notch-shell \{[\s\S]*min-width:\s*104px;/)
+    expect(indexCss).toMatch(/\.creation-notch-pull-handle \{[\s\S]*width:\s*13px;/)
+    expect(indexCss).toMatch(/\.creation-notch-progress-track \{[\s\S]*left:\s*12px;[\s\S]*right:\s*12px;/)
+    expect(indexCss).toContain('.creation-notch-balance-spacer')
+    expect(indexCss).toContain('.creation-notch-progress-track')
+    expect(indexCss).toContain('.creation-notch-progress-fill')
+    expect(indexCss).toMatch(/\.creation-notch-panel \{[\s\S]*width:\s*min\(536px/)
+    expect(indexCss).not.toMatch(/\.creation-notch-shell \{[\s\S]*width:\s*min\(292px/)
+    expect(indexCss).not.toContain('.creation-notch-panel-head')
+  })
+
+  it('floats the creative flow panel over chat instead of taking layout height', () => {
+    expect(indexCss).toMatch(/\.creation-notch \{[\s\S]*position:\s*absolute;/)
+    expect(indexCss).toMatch(/\.creation-notch \{[\s\S]*pointer-events:\s*none;/)
+    expect(indexCss).toMatch(/\.creation-notch-shell \{[\s\S]*pointer-events:\s*auto;/)
+    expect(indexCss).toMatch(/\.creation-notch-panel \{[\s\S]*position:\s*absolute;/)
+    expect(indexCss).toMatch(/\.creation-notch-panel \{[\s\S]*top:\s*calc\(100% \+ 6px\);/)
+    expect(indexCss).not.toMatch(/\.creation-notch\.expanded \{[\s\S]*max-height:\s*228px;/)
+  })
+
+  it('keeps chat content below the floating creation notch without moving on expand', () => {
+    expect(indexCss).toMatch(/\.studio-chat \{[\s\S]*overflow:\s*hidden;/)
+    expect(indexCss).toContain('.studio-chat > :not(.creation-notch)')
+    expect(indexCss).toContain('--creation-notch-clearance: 34px;')
+    expect(indexCss).toMatch(/\.author-chat-scroll \{[\s\S]*padding:\s*calc\(var\(--creation-notch-clearance\) \+ 14px\) 0 20px;/)
+    expect(indexCss).toMatch(/\.author-chat-header \{[\s\S]*position:\s*absolute;/)
+    expect(indexCss).toMatch(/\.author-chat-header \{[\s\S]*height:\s*0;/)
+    expect(indexCss).toMatch(/\.author-chat-title \{[\s\S]*display:\s*none;/)
+  })
+
+  it('keeps messages and composer on one centered chat axis', () => {
+    expect(indexCss).toContain('--chat-content-width: min(880px, calc(100% - 48px));')
+    expect(indexCss).toContain('.author-chat-scroll')
+    expect(indexCss).toMatch(/\.chat-message-row \{[\s\S]*width:\s*var\(--chat-content-width\);[\s\S]*margin-inline:\s*auto;/)
+    expect(indexCss).toMatch(/\.chat-composer \{[\s\S]*width:\s*var\(--chat-content-width\);/)
+    expect(indexCss).toMatch(/\.user-message-stack \{[\s\S]*width:\s*min\(640px, 72%\);/)
+    expect(indexCss).toContain('.assistant-segment-stack')
+  })
+
+  it('uses frosted glass surfaces without heavy colored glow on chat and composer', () => {
+    const userMessageBubbleCss = cssBlock('.user-message-bubble')
+
+    expect(indexCss).toContain('--chat-frost-surface')
+    expect(indexCss).toContain('--chat-frost-border')
+    expect(indexCss).toMatch(/\.chat-composer \{[\s\S]*background:[\s\S]*var\(--chat-frost-surface\);/)
+    expect(indexCss).toMatch(/\.chat-composer \{[\s\S]*backdrop-filter:\s*blur\(30px\) saturate\(1\.18\);/)
+    expect(indexCss).toMatch(/\.assistant-message-bubble,[\s\S]*\.streaming-content-bubble \{[\s\S]*var\(--chat-frost-surface\);/)
+    expect(indexCss).toMatch(/\.user-message-bubble \{[\s\S]*background:[\s\S]*var\(--chat-frost-surface\);/)
+    expect(indexCss).toMatch(/\.user-message-bubble \{[\s\S]*box-shadow:[\s\S]*0 8px 28px oklch\(0% 0 0 \/ 0\.045\)/)
+    expect(userMessageBubbleCss).not.toContain('var(--accent)')
   })
 
   it('animates chat messages and live streaming text without changing layout', () => {

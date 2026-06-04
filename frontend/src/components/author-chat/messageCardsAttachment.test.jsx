@@ -45,6 +45,9 @@ describe('MessageBubble attachment rendering', () => {
     expect(html).toContain('python')
     expect(html).toContain('请读取')
     expect(html).not.toContain('--- 附件')
+    expect(html).not.toContain('authorChat.you')
+    expect(html).not.toContain('作者')
+    expect(html).not.toContain('lucide-user')
   })
 
   it('renders tool calls as compact activity groups instead of individual cards', () => {
@@ -63,5 +66,7 @@ describe('MessageBubble attachment rendering', () => {
     expect(html).toContain('已探索 2 个文件')
     expect(html).toContain('已编辑 2 个文件')
     expect(html).not.toContain('#00BCD4')
+    expect(html).not.toContain('authorChat.author')
+    expect(html).not.toContain('lucide-pen-tool')
   })
 })

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Loader, ChevronDown, ChevronRight, User, PenTool, FileText, Pencil, SquareTerminal } from 'lucide-react'
+import { Loader, ChevronDown, ChevronRight, FileText, Pencil, SquareTerminal } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { useI18n } from '../../hooks/useI18n'
 import { messageDisplayParts, visibleUserMessageContent } from './messageUtils'
@@ -213,39 +213,22 @@ export function MessageBubble({ msg, onOptionSelect, optionsDisabled, onCheckpoi
   const canEditCheckpoint = isUser && msg.id && msg.checkpoint_id && !checkpointEditDisabled
 
   return (
-    <div className={`chat-message-row chat-message-enter ${isUser ? 'is-user' : 'is-assistant'}`} style={{
-      display: 'flex', flexDirection: 'column',
-      alignItems: isUser ? 'flex-end' : 'flex-start',
-    }}>
-      <div className="chat-message-meta" style={{ fontSize: 10, color: 'var(--ink-muted)', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 3 }}>
-        {isUser ? <><User size={9} /> {t('authorChat.you')}</> : <><PenTool size={9} /> {t('authorChat.author')}</>}
-        {canEditCheckpoint && (
+    <div className={`chat-message-row chat-message-enter ${isUser ? 'is-user' : 'is-assistant'}`}>
+      {canEditCheckpoint && (
+        <div className="chat-message-meta chat-message-actions">
           <button
             type="button"
             onClick={() => onCheckpointEdit?.(msg)}
             title="编辑并从这里重新运行"
-            style={{
-              marginLeft: 4,
-              width: 18,
-              height: 18,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: 5,
-              background: 'var(--bg-elevated)',
-              color: 'var(--ink-muted)',
-              cursor: 'pointer',
-              padding: 0,
-            }}
+            className="checkpoint-edit-button"
           >
             <Pencil size={10} />
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {!isUser && msg.segments ? (
-        <div style={{ maxWidth: '85%', display: 'flex', flexDirection: 'column', gap: 4, width: '100%' }}>
+        <div className="assistant-segment-stack">
           {msg.thinking && !msg.segments.some(s => s.type === 'thinking') && (
             <ThinkingCard segment={{ text: msg.thinking }} t={t} />
           )}
@@ -253,12 +236,7 @@ export function MessageBubble({ msg, onOptionSelect, optionsDisabled, onCheckpoi
             seg.type === 'tool_group' ? (
               <ToolActivityGroup key={i} segments={seg.segments} />
             ) : seg.type === 'content' ? (
-              <div key={i} className="markdown-chat assistant-message-bubble" style={{
-                padding: '10px 14px', borderRadius: 12,
-                fontSize: 13, lineHeight: 1.6, wordBreak: 'break-word',
-                background: 'var(--bg-elevated)', color: 'var(--ink)',
-                borderBottomLeftRadius: 4,
-              }}>
+              <div key={i} className="markdown-chat assistant-message-bubble">
                 <ReactMarkdown>{seg.text}</ReactMarkdown>
               </div>
             ) : seg.type === 'thinking' ? (
@@ -271,16 +249,7 @@ export function MessageBubble({ msg, onOptionSelect, optionsDisabled, onCheckpoi
       ) : isUser ? (
         <UserMessageContent msg={msg} t={t} />
       ) : (
-        <div className={isUser ? '' : 'markdown-chat assistant-message-bubble'} style={{
-          maxWidth: '85%', padding: '10px 14px', borderRadius: 12,
-          fontSize: 13, lineHeight: 1.6,
-          whiteSpace: isUser ? 'pre-wrap' : 'normal',
-          wordBreak: 'break-word',
-          background: isUser ? 'var(--accent)' : 'var(--bg-elevated)',
-          color: isUser ? 'white' : 'var(--ink)',
-          borderBottomRightRadius: isUser ? 4 : 12,
-          borderBottomLeftRadius: isUser ? 12 : 4,
-        }}>
+        <div className="markdown-chat assistant-message-bubble">
           <ReactMarkdown>{msg.content}</ReactMarkdown>
         </div>
       )}

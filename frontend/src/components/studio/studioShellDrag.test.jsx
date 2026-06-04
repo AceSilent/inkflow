@@ -76,4 +76,67 @@ describe('StudioShell drag region', () => {
     expect(html).not.toContain('lucide-chevron-left')
     expect(html).not.toContain('lucide-chevron-right')
   })
+
+  it('mounts the creative flow notch as a direct chat overlay for the active book', () => {
+    const html = renderToStaticMarkup(
+      <I18nContext.Provider value={{ t: key => key }}>
+        <StudioShell
+          theme="mist"
+          currentBook={{ book_id: 'book_a', title: 'Book A' }}
+          sidebar={<div>sidebar</div>}
+          chat={<div>chat</div>}
+          chapter={<div>chapter</div>}
+          outline={<div>outline</div>}
+          plot={<div>plot</div>}
+          activeWorkspaceTab="chapter"
+          onWorkspaceTabChange={() => {}}
+        />
+      </I18nContext.Provider>
+    )
+
+    expect(html).toContain('<section class="studio-chat"><section class="creation-notch')
+    expect(html).toContain('creation-notch-shell')
+  })
+
+  it('accepts tree-style book ids for the creative flow overlay', () => {
+    const html = renderToStaticMarkup(
+      <I18nContext.Provider value={{ t: key => key }}>
+        <StudioShell
+          theme="mist"
+          currentBook={{ id: 'book_from_tree', title: 'Book From Tree' }}
+          sidebar={<div>sidebar</div>}
+          chat={<div>chat</div>}
+          chapter={<div>chapter</div>}
+          outline={<div>outline</div>}
+          plot={<div>plot</div>}
+          activeWorkspaceTab="chapter"
+          onWorkspaceTabChange={() => {}}
+        />
+      </I18nContext.Provider>
+    )
+
+    expect(html).toContain('creation-notch')
+    expect(html).toContain('Book From Tree')
+  })
+
+  it('keeps the creative flow overlay visible when only a book title is available', () => {
+    const html = renderToStaticMarkup(
+      <I18nContext.Provider value={{ t: key => key }}>
+        <StudioShell
+          theme="mist"
+          currentBook={{ title: 'Title Only' }}
+          sidebar={<div>sidebar</div>}
+          chat={<div>chat</div>}
+          chapter={<div>chapter</div>}
+          outline={<div>outline</div>}
+          plot={<div>plot</div>}
+          activeWorkspaceTab="chapter"
+          onWorkspaceTabChange={() => {}}
+        />
+      </I18nContext.Provider>
+    )
+
+    expect(html).toContain('creation-notch')
+    expect(html).toContain('Title Only')
+  })
 })

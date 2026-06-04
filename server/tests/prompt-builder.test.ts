@@ -55,6 +55,16 @@ describe('buildAuthorPrompt', () => {
     expect(prompt).toContain('已绑定作品')
   })
 
+  it('includes a CLAUDE.md-like runtime contract for project lifecycle decisions', () => {
+    const prompt = buildAuthorPrompt({ creativeStage: '当前阶段：设定库' })
+
+    expect(prompt).toContain('# 运行规约')
+    expect(prompt).toContain('像 CLAUDE.md 一样约束每一轮')
+    expect(prompt).toContain('已绑定作品只能继续当前书')
+    expect(prompt).toContain('信息足够稳定时先询问是否落盘')
+    expect(prompt).toContain('不要急着询问是否写正文')
+  })
+
   it('should include memory when provided', () => {
     const prompt = buildAuthorPrompt({ memory: '[核心记忆] 测试原则' })
     expect(prompt).toContain('# 记忆')

@@ -35,6 +35,7 @@ export default function App() {
   const [createWorkOpen, setCreateWorkOpen] = useState(false)
   const [dataVersion, setDataVersion] = useState(0)
   const { toasts, addToast, removeToast } = useToast()
+  const currentBookId = currentBook?.book_id || currentBook?.id
 
   const refreshData = useCallback(() => {
     setDataVersion(prev => prev + 1)
@@ -167,13 +168,14 @@ export default function App() {
       <StudioShell
         theme={theme}
         currentBook={currentBook}
+        flowRefreshKey={dataVersion}
         activeWorkspaceTab={activeWorkspaceTab}
         onWorkspaceTabChange={setActiveWorkspaceTab}
         sidebar={sidebarSurface}
         chat={chatSurface}
         chapter={
           <ChapterWorkspace
-            bookId={currentBook?.book_id}
+            bookId={currentBookId}
             chapter={workspaceChapter}
             dataVersion={dataVersion}
             addToast={addToast}

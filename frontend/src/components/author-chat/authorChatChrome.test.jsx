@@ -38,13 +38,14 @@ function renderAuthorChat() {
 }
 
 describe('AuthorChatPanel chrome', () => {
-  it('uses the creation notch instead of the old workflow timeline', () => {
+  it('keeps legacy workflow chrome out of the chat component', () => {
     const html = renderAuthorChat()
 
     expect(html).toContain('作者 Agent')
-    expect(html).toContain('creation-notch')
-    expect(html).toContain('creation-notch-shell')
-    expect(html).toContain('creation-notch-timeline')
+    expect(html).toContain('author-chat-scroll')
+    expect(html).not.toContain('creation-notch')
+    expect(html).not.toContain('creation-notch-shell')
+    expect(html).not.toContain('creation-notch-timeline')
     expect(html).not.toContain('agent-run-timeline')
     expect(html).not.toContain('创作流程')
     expect(html).not.toContain('Context')

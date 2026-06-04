@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { PanelRightClose, PanelRightOpen } from 'lucide-react'
+import { CreativeFlowNotch } from '../CreativeFlowNotch'
+import { DeepSpaceBackdrop } from './DeepSpaceBackdrop'
 import { WorkspacePane } from './WorkspacePane'
 import { WorkspaceTabs } from './WorkspaceTabs'
 import { startNativeWindowDrag } from './nativeWindowDrag'
@@ -45,9 +47,11 @@ export function StudioShell({
   game,
   activeWorkspaceTab,
   onWorkspaceTabChange,
+  flowRefreshKey,
 }) {
   const { t } = useI18n()
-  const bookId = currentBook?.book_id
+  const bookId = currentBook?.book_id || currentBook?.id
+  const flowBookId = bookId || (currentBook ? '__current__' : '')
   const resizeCleanupRef = useRef(null)
   const [viewportWidth, setViewportWidth] = useState(() => currentViewportWidth())
   const [layout, setLayout] = useState(() => loadNormalizedWorkspaceLayout(bookId))
@@ -182,6 +186,8 @@ export function StudioShell({
       data-theme={theme}
       style={{ '--studio-titlebar-left-inset': `${studioChromeLayout.titlebarLeftInset}px` }}
     >
+      <DeepSpaceBackdrop />
+
       <header className="studio-titlebar" data-tauri-drag-region="deep" onMouseDownCapture={startNativeWindowDrag}>
         <div className="studio-titlebar-drag-region" data-tauri-drag-region />
         <div className="studio-titlebar-context" aria-hidden={!currentBook}>
@@ -207,6 +213,10 @@ export function StudioShell({
 
       <main className="studio-main">
         <section className="studio-chat">
+          <CreativeFlowNotch
+            bookId={flowBookId}
+            refreshKey={flowRefreshKey}
+          />
           {chat}
         </section>
         <WorkspacePane

@@ -1,16 +1,19 @@
-import { AlertCircle, Check, ChevronDown, Circle, Loader2 } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useI18n } from '../hooks/useI18n'
 import { buildStageStates } from './creativeFlowStages'
 
-function StageGlyph({ state, loading }) {
-  if (loading && state === 'current') return <Loader2 size={12} className="creation-notch-spin" />
-  if (state === 'done') return <Check size={12} />
-  if (state === 'blocked') return <AlertCircle size={12} />
-  return <Circle size={12} />
+function StageMarker({ state }) {
+  const className = [
+    'creation-notch-flow-bar',
+    `is-${state}`,
+    state === 'current' ? 'is-breathing' : '',
+  ].filter(Boolean).join(' ')
+
+  return <span className={className} aria-hidden="true" />
 }
 
-export function CreativeFlowNotch({ bookId, refreshKey, loading }) {
+export function CreativeFlowNotch({ bookId, refreshKey }) {
   const { t } = useI18n()
   const [stageStatus, setStageStatus] = useState({ bookId: null, data: null, error: '' })
   const [expanded, setExpanded] = useState(false)
@@ -38,9 +41,11 @@ export function CreativeFlowNotch({ bookId, refreshKey, loading }) {
   if (!bookId) return null
 
   const currentStage = stages.find(stage => stage.state === 'current') || stages.find(stage => stage.state === 'todo') || stages[0]
+  const currentStageIndex = Math.max(0, stages.findIndex(stage => stage.id === currentStage?.id))
+  const progressPercent = stages.length > 1 ? Math.max(10, Math.round((currentStageIndex / (stages.length - 1)) * 100)) : 100
   const currentLabel = status?.label || t(currentStage?.labelKey || 'creativeFlow.ready')
-  const summary = error || status?.nextAction || t('creativeFlow.waiting')
   const blockers = status?.blockers || []
+  const panelNote = error || blockers.slice(0, 2).join(' · ')
 
   return (
     <section className={`creation-notch ${expanded ? 'expanded' : 'collapsed'}`} aria-label={t('creativeFlow.label')}>
@@ -50,22 +55,22 @@ export function CreativeFlowNotch({ bookId, refreshKey, loading }) {
         aria-expanded={expanded}
         aria-controls="creation-notch-panel"
         onClick={() => setExpanded(value => !value)}
+        style={{ '--creation-progress': `${progressPercent}%` }}
       >
+        <span className="creation-notch-balance-spacer" aria-hidden="true" />
         <span className="creation-notch-current">
-          <span className="creation-notch-orb" />
-          <span>{t('creativeFlow.current')}：{currentLabel}</span>
+          <span className="creation-notch-current-label">{currentLabel}</span>
         </span>
-        <span className="creation-notch-summary">{summary}</span>
         <span className="creation-notch-pull-handle" aria-hidden="true">
-          <ChevronDown size={13} />
+          <ChevronDown size={10} strokeWidth={2.25} />
+        </span>
+        <span className="creation-notch-progress-track" aria-hidden="true">
+          <span className="creation-notch-progress-fill is-breathing" />
         </span>
       </button>
 
       <div id="creation-notch-panel" className="creation-notch-panel" aria-hidden={!expanded}>
-        <div className="creation-notch-panel-head">
-          <span>{currentLabel}</span>
-          <p>{summary}</p>
-        </div>
+        {panelNote && <p className="creation-notch-panel-note">{panelNote}</p>}
         {blockers.length > 0 && (
           <div className="creation-notch-blockers">
             {blockers.slice(0, 2).map(item => <span key={item}>{item}</span>)}
@@ -74,9 +79,7 @@ export function CreativeFlowNotch({ bookId, refreshKey, loading }) {
         <ol className="creation-notch-timeline">
           {stages.map(stage => (
             <li key={stage.id} className={`creation-notch-stage ${stage.state}`}>
-              <span className="creation-notch-dot">
-                <StageGlyph state={stage.state} loading={loading} />
-              </span>
+              <StageMarker state={stage.state} />
               <span>{t(stage.labelKey)}</span>
             </li>
           ))}
