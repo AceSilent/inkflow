@@ -44,14 +44,14 @@ describe('buildSystemPrompt', () => {
 describe('buildAuthorPrompt', () => {
   it('should include core identity', () => {
     const prompt = buildAuthorPrompt({})
-    expect(prompt).toContain('核心创作引擎')
+    expect(prompt).toContain('共同作者')
     expect(prompt).toContain('load_skill')
   })
 
   it('states that bound author chats must not create another book', () => {
     const prompt = buildAuthorPrompt({})
 
-    expect(prompt).toContain('禁止调用 create_book')
+    expect(prompt).toContain('不要调用 create_book')
     expect(prompt).toContain('已绑定作品')
   })
 
@@ -61,8 +61,9 @@ describe('buildAuthorPrompt', () => {
     expect(prompt).toContain('# 运行规约')
     expect(prompt).toContain('像 CLAUDE.md 一样约束每一轮')
     expect(prompt).toContain('已绑定作品只能继续当前书')
-    expect(prompt).toContain('信息足够稳定时先询问是否落盘')
-    expect(prompt).toContain('不要急着询问是否写正文')
+    expect(prompt).toContain('先判断用户这一轮是在讨论、查询、批评、修订、写作还是落盘')
+    expect(prompt).toContain('不要用夸赞替代回应')
+    expect(prompt).toContain('不要急着把话题推到写正文')
   })
 
   it('should include memory when provided', () => {
@@ -88,17 +89,31 @@ describe('buildAuthorPrompt', () => {
     const prompt = buildAuthorPrompt({ creativeStage: '当前阶段：剧情图' })
     expect(prompt).toContain('# 创作阶段')
     expect(prompt).toContain('当前阶段：剧情图')
-    expect(prompt).toContain('阶段推进')
   })
 
-  it('should front-load common AI-tone prohibitions before drafting', () => {
+  it('keeps transient workbench state out of static prompt sections', () => {
+    const prompt = buildAuthorPrompt({ recentObservations: '来自当前热区历史：刚读过 04_Drafts/ch01.md' })
+    expect(prompt).not.toContain('# 最近工具观察')
+    expect(prompt).not.toContain('来自当前热区历史')
+  })
+
+  it('keeps writing preferences soft in the default prompt', () => {
     const prompt = buildAuthorPrompt({})
-    expect(prompt).toContain('正文生成硬门槛')
+    expect(prompt).toContain('# 写作偏好')
+    expect(prompt).toContain('默认偏好')
     expect(prompt).toContain('密集镜头编排')
     expect(prompt).toContain('破折号')
     expect(prompt).toContain('强排比')
     expect(prompt).toContain('后置说明')
     expect(prompt).toContain('行动链')
+    expect(prompt).not.toContain('正文生成硬门槛')
+    expect(prompt).not.toContain('# 保存前自检')
+  })
+
+  it('includes save self-check only when explicitly requested by the caller', () => {
+    const prompt = buildAuthorPrompt({ includeSaveSelfCheck: true })
+    expect(prompt).toContain('# 保存前自检')
+    expect(prompt).toContain('保存草稿前自检')
   })
 })
 

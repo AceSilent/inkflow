@@ -27,7 +27,7 @@ import { getModelContextWindow, evaluateBudgetTier } from '../context/model-wind
 import { appendRunEvent, createRunId, loadRecentRuns, type RunTimelineEvent, type RunEventStatus } from '../runs/run-timeline.js'
 import { clearAuthorChatSession, loadAuthorChatConfig, persistUsageBestEffort, previewValue } from './author-chat-support.js'
 import { ReasoningSegmentAccumulator } from './stream-segments.js'
-import { persistAuthorChatTurn, prepareHistoryForAuthorChatSend, type AuthorChatTurnStatus } from './author-chat-persistence.js'
+import { buildTransientWorkbenchStateMessages, persistAuthorChatTurn, prepareHistoryForAuthorChatSend, renderRecentToolObservationsForPrompt, stripTransientWorkbenchStateMessages, type AuthorChatTurnStatus } from './author-chat-persistence.js'
 import { renderUserMessageForModel, summarizeAttachmentsForCheckpoint, type ChatAttachment } from './chat-attachments.js'
 import { createProvider, type ProviderProgressEvent } from '../llm/provider.js'
 import { extractMemories, ingestExtracted } from '../memory/extractor.js'
@@ -449,12 +449,17 @@ export async function authorChatRoutes(app: FastifyInstance) {
         )
         timeline('history_load_done', '对话历史已读取', 'done', { meta: { messages: rawHistory.length } })
         const replayableHistory = rawHistory.filter((m) => !(m as any).status)
+        const recentObservations = renderRecentToolObservationsForPrompt(replayableHistory)
         // For LLM context: drop pairs marked status='incomplete' / 'aborted'
         // (failed or cancelled turns are kept on disk for UI replay but must
         // never be replayed to the model — partial assistant content + an
         // unanswered user message would corrupt subsequent reasoning).
         // Also strip UI-only metadata (`thinking`, `segments`, `status`).
-        const history: ModelMessage[] = replayableHistory.map(toModelMessage)
+        const workbenchStateMessages = buildTransientWorkbenchStateMessages(recentObservations)
+        const history: ModelMessage[] = [
+          ...replayableHistory.map(toModelMessage),
+          ...workbenchStateMessages,
+        ]
         persistAssistant = (status: AuthorChatTurnStatus = 'incomplete') => {
           persistAuthorChatTurn({
             dataDir,
@@ -756,7 +761,7 @@ export async function authorChatRoutes(app: FastifyInstance) {
               const extracted = await extractMemories({
                 event: 'user_message',
                 llmConfig,
-                recentHistory: history.slice(-5),
+                recentHistory: stripTransientWorkbenchStateMessages(history).slice(-5),
                 userMessage: modelUserMessage,
                 bookId,
               })

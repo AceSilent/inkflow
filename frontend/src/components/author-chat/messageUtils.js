@@ -67,7 +67,11 @@ export function hasAssistantReplyAfterUser(messages = [], userContent = '') {
 export function shouldSubmitComposerKey(event, composing = false) {
   return event?.key === 'Enter'
     && !event.shiftKey
+    && event.keyCode !== 229
+    && event.which !== 229
     && !event.nativeEvent?.isComposing
+    && event.nativeEvent?.keyCode !== 229
+    && event.nativeEvent?.which !== 229
     && !composing
 }
 

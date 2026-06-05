@@ -9,7 +9,7 @@ export interface DecayRule {
 export const LARGE_RESULT_TOOLS: Record<string, DecayRule> = {
   read_file: {
     minChars: 10000,
-    placeholder: (args, len) => `[read_file('${args?.path ?? '?'}'): ${len} chars, re-fetch via read_file() if needed]`,
+    placeholder: (args, len) => `[read_file('${args?.relative_path ?? args?.path ?? '?'}'): ${len} chars, re-fetch via read_file() if needed]`,
   },
   read_outline: {
     minChars: 5000,

@@ -334,4 +334,20 @@ describe('Author Chat Stream Segment Accumulator', () => {
     ])
     expect(events.map(e => e.type)).toEqual(['content', 'tool_start', 'tool_done', 'content'])
   })
+
+  it('keeps a useful tool result excerpt for next-turn workbench state', () => {
+    const events: StreamSegmentEvent[] = []
+    const acc = new ReasoningSegmentAccumulator((event) => events.push(event))
+    const longResult = '章节内容。'.repeat(80)
+
+    acc.addToolCall('read_file', { relative_path: '04_Drafts/ch01.md' })
+    acc.addToolResult('read_file', longResult)
+
+    const toolSegment = acc.segments[0]
+    expect(toolSegment.type).toBe('tool_call')
+    if (toolSegment.type === 'tool_call') {
+      expect(toolSegment.result?.length).toBeGreaterThan(200)
+      expect(toolSegment.result).toBe(longResult)
+    }
+  })
 })

@@ -49,6 +49,8 @@ describe('author chat message utils', () => {
     expect(shouldSubmitComposerKey({ key: 'Enter', shiftKey: false }, false)).toBe(true)
     expect(shouldSubmitComposerKey({ key: 'Enter', shiftKey: true }, false)).toBe(false)
     expect(shouldSubmitComposerKey({ key: 'Enter', shiftKey: false, nativeEvent: { isComposing: true } }, false)).toBe(false)
+    expect(shouldSubmitComposerKey({ key: 'Enter', shiftKey: false, keyCode: 229 }, false)).toBe(false)
+    expect(shouldSubmitComposerKey({ key: 'Enter', shiftKey: false, nativeEvent: { keyCode: 229 } }, false)).toBe(false)
     expect(shouldSubmitComposerKey({ key: 'Enter', shiftKey: false }, true)).toBe(false)
   })
 

@@ -23,6 +23,7 @@ export interface PromptContext {
   plotLedger?: string
   styleProfile?: string
   creativeStage?: string
+  includeSaveSelfCheck?: boolean
   [key: string]: unknown
 }
 
@@ -65,12 +66,13 @@ export const AUTHOR_SECTIONS: PromptSection[] = [
     contentFn: () => readPromptFile('author_runtime_contract.md'),
   },
   {
-    title: '写作硬门槛',
+    title: '写作偏好',
     contentFn: () => readPromptFile('writing_guardrails.md'),
   },
   {
     title: '保存前自检',
     contentFn: () => readPromptFile('self_check_before_save.md'),
+    condition: (ctx) => ctx.includeSaveSelfCheck === true,
   },
   {
     title: '创作阶段',

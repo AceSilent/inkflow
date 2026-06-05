@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { decayToolResults, LARGE_RESULT_TOOLS, PRESERVE_ALWAYS } from '../src/context/decay.js'
 import type { ModelMessage } from 'ai'
 
-function toolResultMsg(toolName: string, content: string): ModelMessage {
+function toolResultMsg(toolName: string, content: string, args?: Record<string, unknown>): ModelMessage {
   return {
     role: 'tool',
     content: [{
@@ -10,6 +10,7 @@ function toolResultMsg(toolName: string, content: string): ModelMessage {
       toolCallId: `call_${toolName}`,
       toolName,
       output: { type: 'text', value: content },
+      ...(args ? { args } : {}),
     }] as any,
   }
 }
@@ -75,5 +76,20 @@ describe('decayToolResults', () => {
     const zones = { hot: [], warm: [decayed], cold: [] }
     const result = decayToolResults([decayed], zones)
     expect(result[0]).toBe(decayed)  // unchanged
+  })
+
+  it('uses read_file relative_path in decay placeholder', () => {
+    const original = toolResultMsg(
+      'read_file',
+      'X'.repeat(12000),
+      { relative_path: '04_Drafts/ch01.md' },
+    )
+    const zones = { hot: [], warm: [original], cold: [] }
+
+    const result = decayToolResults([original], zones)
+    const content = JSON.stringify(result[0].content)
+
+    expect(content).toContain("read_file('04_Drafts/ch01.md')")
+    expect(content).not.toContain("read_file('?')")
   })
 })

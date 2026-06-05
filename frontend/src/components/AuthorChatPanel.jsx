@@ -39,8 +39,19 @@ function readInitialChatMode() {
 
 function CheckpointEditComposer({ value, onChange, onCancel, onSubmit, disabled }) {
   const { t } = useI18n()
+  const composingRef = useRef(false)
+  const compositionJustEndedRef = useRef(false)
   const submit = () => {
     if (!disabled && value.trim()) onSubmit()
+  }
+  const handleCompositionStart = () => {
+    composingRef.current = true
+    compositionJustEndedRef.current = false
+  }
+  const handleCompositionEnd = () => {
+    composingRef.current = false
+    compositionJustEndedRef.current = true
+    window.setTimeout(() => { compositionJustEndedRef.current = false }, 0)
   }
 
   return (
@@ -59,8 +70,10 @@ function CheckpointEditComposer({ value, onChange, onCancel, onSubmit, disabled 
         value={value}
         disabled={disabled}
         onChange={event => onChange(event.target.value)}
+        onCompositionStart={handleCompositionStart}
+        onCompositionEnd={handleCompositionEnd}
         onKeyDown={event => {
-          if (event.key === 'Enter' && !event.shiftKey) {
+          if (shouldSubmitComposerKey(event, composingRef.current || compositionJustEndedRef.current)) {
             event.preventDefault()
             submit()
           }
@@ -305,6 +318,7 @@ export function NoBookChatStarter({
   const [attachments, setAttachments] = useState([])
   const fileInputRef = useRef(null)
   const composingRef = useRef(false)
+  const compositionJustEndedRef = useRef(false)
 
   const submit = () => {
     const text = draft.trim()
@@ -334,6 +348,17 @@ export function NoBookChatStarter({
     setAttachments(prev => prev.filter((_, i) => i !== idx))
   }
 
+  const handleCompositionStart = () => {
+    composingRef.current = true
+    compositionJustEndedRef.current = false
+  }
+
+  const handleCompositionEnd = () => {
+    composingRef.current = false
+    compositionJustEndedRef.current = true
+    window.setTimeout(() => { compositionJustEndedRef.current = false }, 0)
+  }
+
   return (
     <div className="author-chat no-book-chat">
       <div className="chat-scroll">
@@ -360,10 +385,10 @@ export function NoBookChatStarter({
           <textarea
             value={draft}
             onChange={event => setDraft(event.target.value)}
-            onCompositionStart={() => { composingRef.current = true }}
-            onCompositionEnd={() => { composingRef.current = false }}
+            onCompositionStart={handleCompositionStart}
+            onCompositionEnd={handleCompositionEnd}
             onKeyDown={event => {
-              if (shouldSubmitComposerKey(event, composingRef.current)) {
+              if (shouldSubmitComposerKey(event, composingRef.current || compositionJustEndedRef.current)) {
                 event.preventDefault()
                 submit()
               }
@@ -437,6 +462,7 @@ export function AuthorChatPanel({
   const fileInputRef = useRef(null)
   const abortRef = useRef(null)
   const composingRef = useRef(false)
+  const compositionJustEndedRef = useRef(false)
   const [chatMode, setChatModeState] = useState(readInitialChatMode)
   // Up/Down arrow history navigation. histIdx is the offset back from the
   // newest sent message; null means "currently editing fresh input".
@@ -887,8 +913,19 @@ export function AuthorChatPanel({
     }
   }
 
+  const handleCompositionStart = () => {
+    composingRef.current = true
+    compositionJustEndedRef.current = false
+  }
+
+  const handleCompositionEnd = () => {
+    composingRef.current = false
+    compositionJustEndedRef.current = true
+    window.setTimeout(() => { compositionJustEndedRef.current = false }, 0)
+  }
+
   const handleKeyDown = (e) => {
-    if (shouldSubmitComposerKey(e, composingRef.current)) {
+    if (shouldSubmitComposerKey(e, composingRef.current || compositionJustEndedRef.current)) {
       e.preventDefault()
       handleSend()
       return
@@ -1018,8 +1055,8 @@ export function AuthorChatPanel({
             value={input}
             onChange={e => updateInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            onCompositionStart={() => { composingRef.current = true }}
-            onCompositionEnd={() => { composingRef.current = false }}
+            onCompositionStart={handleCompositionStart}
+            onCompositionEnd={handleCompositionEnd}
             placeholder={t('authorChat.placeholder')} rows={1}
           />
         </ChatComposerBody>

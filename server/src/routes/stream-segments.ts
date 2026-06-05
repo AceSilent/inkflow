@@ -16,6 +16,7 @@ export type StreamSegmentEvent =
   | { type: 'options'; description: string; options: string[] }
 
 type SegmentMode = 'content' | 'thinking'
+const TOOL_RESULT_PREVIEW_CHARS = 1200
 
 export class ReasoningSegmentAccumulator {
   readonly segments: AssistantSegment[] = []
@@ -63,7 +64,7 @@ export class ReasoningSegmentAccumulator {
   }
 
   addToolResult(name: string, output: unknown): void {
-    const preview = String(output).slice(0, 200)
+    const preview = String(output).slice(0, TOOL_RESULT_PREVIEW_CHARS)
     this.finishTool(name, preview)
   }
 

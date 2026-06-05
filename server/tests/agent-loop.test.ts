@@ -5,7 +5,7 @@ import { createAllTools } from '../src/tools/index.js'
 describe('Agent Loop Integration', () => {
   it('should build a valid system prompt', () => {
     const prompt = buildAuthorPrompt({})
-    expect(prompt).toContain('核心创作引擎')
+    expect(prompt).toContain('共同作者')
     expect(prompt).toContain('load_skill')
     expect(prompt).not.toContain('# 记忆')
   })

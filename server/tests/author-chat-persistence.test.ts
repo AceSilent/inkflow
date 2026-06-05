@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { persistAuthorChatTurn, prepareHistoryForAuthorChatSend } from '../src/routes/author-chat-persistence.js'
+import { buildTransientWorkbenchStateMessages, persistAuthorChatTurn, prepareHistoryForAuthorChatSend, renderRecentToolObservationsForPrompt, stripTransientWorkbenchStateMessages } from '../src/routes/author-chat-persistence.js'
 import { loadHistoryFull } from '../src/routes/chat-history.js'
 
 let tmpDir: string
@@ -92,5 +92,42 @@ describe('author chat persistence', () => {
     ]
 
     expect(() => prepareHistoryForAuthorChatSend(history, 'm1')).toThrow('restored user message')
+  })
+
+  it('derives recent tool observations from persisted assistant segments', () => {
+    const prompt = renderRecentToolObservationsForPrompt([
+      {
+        role: 'assistant',
+        content: '我看过了。',
+        segments: [
+          {
+            type: 'tool_call',
+            name: 'read_file',
+            status: 'done',
+            argsPreview: '{"relative_path":"04_Drafts/ch01.md"}',
+            result: '尸体倒在泥水里，双手交叠在胸前。',
+          },
+        ],
+      } as any,
+    ])
+
+    expect(prompt).toContain('对话历史中已有')
+    expect(prompt).toContain('不是新的长期记忆')
+    expect(prompt).toContain('read_file(04_Drafts/ch01.md)')
+    expect(prompt).toContain('尸体倒在泥水里')
+  })
+
+  it('keeps transient workbench state out of memory extraction history', () => {
+    const workbench = buildTransientWorkbenchStateMessages('刚读过 04_Drafts/ch01.md')
+    const messages = [
+      { role: 'user' as const, content: '刚才那段不满意' },
+      ...workbench,
+      { role: 'assistant' as const, content: '我会按刚才读过的版本继续讨论。' },
+    ]
+
+    expect(stripTransientWorkbenchStateMessages(messages as any)).toEqual([
+      { role: 'user', content: '刚才那段不满意' },
+      { role: 'assistant', content: '我会按刚才读过的版本继续讨论。' },
+    ])
   })
 })
