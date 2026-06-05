@@ -2,7 +2,7 @@ import crypto from 'crypto'
 import fs from 'fs'
 import path from 'path'
 import { ensureDir, safeReadJson, writeJson } from '../utils/file-io.js'
-import { listMemories, type MemoryEntry } from '../memory/memory-service.js'
+import { listMemories, writeMemory, type MemoryEntry } from '../memory/memory-service.js'
 import { parseMarkdownMemory } from '../memory/markdown-io.js'
 import type { ChatHistoryMessage } from '../routes/chat-history.js'
 import type { AssistantSegment } from '../routes/stream-segments.js'
@@ -57,6 +57,7 @@ export interface WorkingSet {
 export interface ObservationMigrationResult {
   migratedEvents: number
   indexedMemories: number
+  materializedMemories: number
   manifestPath: string
 }
 
@@ -478,6 +479,104 @@ function findSessionSummaries(dataDir: string, bookId: string): MemoryEntry[] {
     .filter((entry): entry is MemoryEntry => !!entry)
 }
 
+function memoryHeading(entry: MemoryEntry): string {
+  return entry.body.match(/^#\s+(.+)$/m)?.[1]?.trim() || entry.frontmatter.type
+}
+
+function memoryDigestLine(entry: MemoryEntry): string {
+  const body = entry.body
+    .replace(/^#[^\n]*\n+/, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return `- ${memoryHeading(entry)}：${body.slice(0, 180)}${body.length > 180 ? '...' : ''}`
+}
+
+function memoryMatches(entry: MemoryEntry, keywords: string[]): boolean {
+  const haystack = [
+    entry.frontmatter.type,
+    ...(entry.frontmatter.tags ?? []),
+    memoryHeading(entry),
+    entry.body.slice(0, 240),
+  ].join(' ').toLowerCase()
+  return keywords.some(keyword => haystack.includes(keyword.toLowerCase()))
+}
+
+function digestId(bookId: string, name: string): string {
+  const safeBook = bookId.replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 48) || 'book'
+  return `mem_${safeBook}_migration_${name}`
+}
+
+function materializeMigrationMemoryDigests(dataDir: string, bookId: string): number {
+  const all = listMemories(dataDir, 'all')
+  const existingIds = new Set(all.map(entry => entry.frontmatter.id))
+  const pending = all
+    .filter(entry =>
+      entry.frontmatter.status === 'pending'
+      && entry.frontmatter.confidence >= 0.75
+      && (entry.frontmatter.book_id === bookId || entry.frontmatter.scope === 'user'),
+    )
+    .sort((a, b) => {
+      if (b.frontmatter.confidence !== a.frontmatter.confidence) return b.frontmatter.confidence - a.frontmatter.confidence
+      return a.frontmatter.created_at.localeCompare(b.frontmatter.created_at)
+    })
+
+  if (pending.length === 0) return 0
+
+  const groups = [
+    {
+      name: 'world',
+      type: 'fact',
+      title: '迁移记忆：世界与核心设定',
+      keywords: ['世界', '设定', '主角', '角色', '警署', '格雷赫文', 'fact', 'setting', 'character'],
+    },
+    {
+      name: 'outline',
+      type: 'plot_note',
+      title: '迁移记忆：大纲与剧情结构',
+      keywords: ['大纲', '第一卷', '章节', '剧情', 'plot', 'outline', 'volume', 'pacing'],
+    },
+    {
+      name: 'style',
+      type: 'preference',
+      title: '迁移记忆：作者偏好与协作方式',
+      keywords: ['偏好', 'ai腔', '旁白', '讲解', '同步', 'workflow', 'style', 'preference'],
+    },
+  ]
+
+  let written = 0
+  const used = new Set<string>()
+  for (const group of groups) {
+    const id = digestId(bookId, group.name)
+    if (existingIds.has(id)) continue
+    const entries = pending
+      .filter(entry => !used.has(entry.frontmatter.id) && memoryMatches(entry, group.keywords))
+      .slice(0, 6)
+    if (entries.length === 0) continue
+    for (const entry of entries) used.add(entry.frontmatter.id)
+
+    writeMemory(dataDir, {
+      id,
+      scope: 'book',
+      book_id: bookId,
+      type: group.type,
+      confidence: 0.92,
+      tags: ['migration_digest', group.name],
+      source: 'user_remember',
+      source_event: 'migration_digest',
+      status: 'active',
+      created_at: nowIso(),
+      approved_at: nowIso(),
+    }, [
+      `# ${group.title}`,
+      '',
+      ...entries.map(memoryDigestLine),
+    ].join('\n'))
+    written += 1
+  }
+
+  return written
+}
+
 function legacyMemoryId(relativePath: string): string {
   return `legacy_${relativePath.replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '')}`
 }
@@ -567,6 +666,7 @@ export function ensureObservationMigration(dataDir: string, bookId: string): Obs
   inkflowDir(dataDir, bookId)
   const migratedEvents = appendObservationEvents(dataDir, bookId, migrateEventsFromHistory(dataDir, bookId))
   rebuildWorkingSet(dataDir, bookId)
+  const materializedMemories = materializeMigrationMemoryDigests(dataDir, bookId)
   const indexedMemories = writeMemoryManifest(dataDir, bookId)
   const manifestPath = migrationManifestPath(dataDir, bookId)
   writeJson(manifestPath, {
@@ -575,8 +675,9 @@ export function ensureObservationMigration(dataDir: string, bookId: string): Obs
     migratedAt: nowIso(),
     migratedEvents,
     indexedMemories,
+    materializedMemories,
   })
-  return { migratedEvents, indexedMemories, manifestPath }
+  return { migratedEvents, indexedMemories, materializedMemories, manifestPath }
 }
 
 export function renderWorkingSetForPrompt(dataDir: string, bookId: string, limit = 8): string {

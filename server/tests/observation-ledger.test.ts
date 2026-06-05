@@ -3,6 +3,7 @@ import fs from 'fs'
 import os from 'os'
 import path from 'path'
 import { writeMemory } from '../src/memory/memory-service.js'
+import { buildMemoryContext } from '../src/memory/context-builder.js'
 import {
   ensureObservationMigration,
   loadObservationEvents,
@@ -141,6 +142,51 @@ describe('observation ledger', () => {
         filePath: path.relative(path.join(dataDir, bookId), memoryPath),
       }),
     ])
+  })
+
+  it('materializes high-confidence pending book memories into active migration digests', () => {
+    writeMemory(dataDir, {
+      id: 'mem_pending_world',
+      scope: 'book',
+      type: 'fact',
+      confidence: 0.95,
+      tags: ['世界观'],
+      source: 'auto_extract',
+      status: 'pending',
+      created_at: '2026-06-06T00:00:00.000Z',
+      book_id: bookId,
+    }, '# 格雷赫文设定\n\n舞台是工业与宗教交织的格雷赫文。')
+    writeMemory(dataDir, {
+      id: 'mem_pending_style',
+      scope: 'book',
+      type: 'preference',
+      confidence: 0.9,
+      tags: ['AI腔'],
+      source: 'auto_extract',
+      status: 'pending',
+      created_at: '2026-06-06T00:00:01.000Z',
+      book_id: bookId,
+    }, '# 叙述偏好\n\n避免旁白讲解和首先其次式列举。')
+
+    const result = ensureObservationMigration(dataDir, bookId)
+    const ctx = buildMemoryContext(dataDir, bookId)
+    const manifest = JSON.parse(fs.readFileSync(path.join(dataDir, bookId, '.inkflow', 'memory_manifest.json'), 'utf8'))
+
+    expect(result.materializedMemories).toBeGreaterThanOrEqual(2)
+    expect(ctx).toContain('格雷赫文')
+    expect(ctx).toContain('旁白讲解')
+    expect(manifest.entries).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'mem_book1_migration_world',
+        status: 'active',
+        tags: expect.arrayContaining(['migration_digest']),
+      }),
+      expect.objectContaining({
+        id: 'mem_book1_migration_style',
+        status: 'active',
+        tags: expect.arrayContaining(['migration_digest']),
+      }),
+    ]))
   })
 
   it('indexes legacy project memory json files as migrated memory artifacts', () => {
