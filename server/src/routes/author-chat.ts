@@ -22,12 +22,14 @@ import { composeHooks, type ToolHooks } from '../tools/base-tool.js'
 import { createSnapshot } from '../snapshots/snapshots.js'
 import { processContext, type ContextMode } from '../context/decision.js'
 import { createSessionState, updateSessionStateAfterToolCall } from '../context/session-state.js'
+import { ensureObservationMigration, recordToolObservation, renderWorkingSetForPrompt } from '../context/observation-ledger.js'
+import { buildMemoryContext } from '../memory/context-builder.js'
 import { loadBreakerState, resetBreaker } from '../context/circuit-breaker.js'
 import { getModelContextWindow, evaluateBudgetTier } from '../context/model-window.js'
 import { appendRunEvent, createRunId, loadRecentRuns, type RunTimelineEvent, type RunEventStatus } from '../runs/run-timeline.js'
 import { clearAuthorChatSession, loadAuthorChatConfig, persistUsageBestEffort, previewValue } from './author-chat-support.js'
 import { ReasoningSegmentAccumulator } from './stream-segments.js'
-import { buildTransientWorkbenchStateMessages, persistAuthorChatTurn, prepareHistoryForAuthorChatSend, renderRecentToolObservationsForPrompt, stripTransientWorkbenchStateMessages, type AuthorChatTurnStatus } from './author-chat-persistence.js'
+import { buildTransientWorkbenchStateMessages, persistAuthorChatTurn, prepareHistoryForAuthorChatSend, stripTransientWorkbenchStateMessages, type AuthorChatTurnStatus } from './author-chat-persistence.js'
 import { renderUserMessageForModel, summarizeAttachmentsForCheckpoint, type ChatAttachment } from './chat-attachments.js'
 import { createProvider, type ProviderProgressEvent } from '../llm/provider.js'
 import { extractMemories, ingestExtracted } from '../memory/extractor.js'
@@ -449,7 +451,22 @@ export async function authorChatRoutes(app: FastifyInstance) {
         )
         timeline('history_load_done', '对话历史已读取', 'done', { meta: { messages: rawHistory.length } })
         const replayableHistory = rawHistory.filter((m) => !(m as any).status)
-        const recentObservations = renderRecentToolObservationsForPrompt(replayableHistory)
+        try {
+          const migration = ensureObservationMigration(dataDir, bookId)
+          timeline('observation_migration_done', '工作台观察索引已同步', 'done', {
+            meta: { migratedEvents: migration.migratedEvents, indexedMemories: migration.indexedMemories },
+          }, false)
+        } catch (obsErr) {
+          app.log.warn({ err: obsErr, bookId }, '[author-chat] observation migration failed; continuing without workbench index')
+          timeline('observation_migration_error', '工作台观察索引同步失败，继续执行', 'error', {
+            error: String((obsErr as any)?.message ?? obsErr).slice(0, 500),
+          }, false)
+        }
+        const recentObservations = renderWorkingSetForPrompt(dataDir, bookId)
+        const memoryContext = buildMemoryContext(dataDir, bookId)
+        timeline('memory_context_done', '长期记忆已载入', 'done', {
+          meta: { chars: memoryContext.length },
+        }, false)
         // For LLM context: drop pairs marked status='incomplete' / 'aborted'
         // (failed or cancelled turns are kept on disk for UI replay but must
         // never be replayed to the model — partial assistant content + an
@@ -559,6 +576,29 @@ export async function authorChatRoutes(app: FastifyInstance) {
           },
         }
 
+        const observationHook: ToolHooks = {
+          async afterToolCall(name, args, result) {
+            recordToolObservation(
+              dataDir,
+              bookId,
+              name,
+              args && typeof args === 'object' ? args as Record<string, unknown> : {},
+              result,
+              result.startsWith('[BLOCKED]') ? 'error' : 'done',
+            )
+          },
+          async onToolError(name, args, err) {
+            recordToolObservation(
+              dataDir,
+              bookId,
+              name,
+              args && typeof args === 'object' ? args as Record<string, unknown> : {},
+              String((err as any)?.message ?? err),
+              'error',
+            )
+          },
+        }
+
         timeline('agent_loop_start', '模型与工具链运行中', 'running')
         sse({ type: 'status', phase: 'agent_loop' })
 
@@ -596,12 +636,14 @@ export async function authorChatRoutes(app: FastifyInstance) {
           history: newMessages,
           llmConfig,
           toolRegistry,
+          memoryContext,
           mode,
           abortSignal: abortController.signal,
           hooks: composeHooks(
             createStatsHooks(dataDir, bookId),
             createTipHooks(dataDir, bookId, (evt) => sse(evt)),
             sessionStateHook,
+            observationHook,
             timelineHook,
           ),
           onProgress: (evt) => {

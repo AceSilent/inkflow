@@ -17,10 +17,12 @@ beforeEach(() => {
   const bookDir = path.join(TEST_DIR, BOOK_ID)
   fs.mkdirSync(path.join(bookDir, '02_Outlines'), { recursive: true })
   fs.mkdirSync(path.join(bookDir, '.snapshots', 'old_snap'), { recursive: true })
+  fs.mkdirSync(path.join(bookDir, '.inkflow', 'observations'), { recursive: true })
   fs.writeFileSync(path.join(bookDir, '02_Outlines', 'outline.json'), '{"ok":true}', 'utf8')
   fs.writeFileSync(path.join(bookDir, 'audit_log.jsonl'), '{"tool":"x"}\n', 'utf8')
   fs.writeFileSync(path.join(bookDir, 'chapter.md.bak'), 'backup', 'utf8')
   fs.writeFileSync(path.join(bookDir, '.snapshots', 'old_snap', 'leak.txt'), 'old', 'utf8')
+  fs.writeFileSync(path.join(bookDir, '.inkflow', 'observations', 'working_set.json'), '{}', 'utf8')
 })
 
 afterEach(() => {
@@ -36,6 +38,7 @@ describe('snapshots', () => {
     expect(fs.existsSync(path.join(snapDir, '_meta.json'))).toBe(true)
     expect(fs.existsSync(path.join(snapDir, '02_Outlines', 'outline.json'))).toBe(true)
     expect(fs.existsSync(path.join(snapDir, '.snapshots'))).toBe(false)
+    expect(fs.existsSync(path.join(snapDir, '.inkflow'))).toBe(false)
     expect(fs.existsSync(path.join(snapDir, 'audit_log.jsonl'))).toBe(false)
     expect(fs.existsSync(path.join(snapDir, 'chapter.md.bak'))).toBe(false)
     expect(listSnapshots(TEST_DIR, BOOK_ID)[0].id).toBe(meta.id)

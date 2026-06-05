@@ -6,7 +6,8 @@
  *   books/{bookId}/.snapshots/snap_{ts}/        — copy of book content at point-in-time
  *   books/{bookId}/.snapshots/snap_{ts}/_meta.json  — { id, created_at, label }
  *
- * Excluded from snapshots: .snapshots/ itself, *.bak, audit_log.jsonl (rotates).
+ * Excluded from snapshots: .snapshots/ itself, .inkflow runtime indexes, *.bak,
+ * audit_log.jsonl (rotates).
  */
 import fs from 'fs'
 import path from 'path'
@@ -47,6 +48,7 @@ function snapPath(dataDir: string, bookId: string, snapId: string): string {
 function isExcluded(absPath: string): boolean {
   const base = path.basename(absPath)
   if (base === SNAPSHOTS_DIR) return true
+  if (base === '.inkflow') return true
   if (base === '.draft_history') return true
   if (base.endsWith('.bak')) return true
   if (base === 'audit_log.jsonl') return true
