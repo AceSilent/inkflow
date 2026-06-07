@@ -7,6 +7,7 @@ import {
   readMemory,
   listMemories,
   moveMemory,
+  updateMemory,
   deleteMemory,
   rewriteIndex,
 } from '../src/memory/memory-service.js'
@@ -70,6 +71,46 @@ describe('memory-service', () => {
     expect(pending.find(m => m.frontmatter.id === 'c')).toBeUndefined()
     const active = listMemories(tmpDir, 'active')
     expect(active.find(m => m.frontmatter.id === 'c')?.frontmatter.status).toBe('active')
+  })
+
+  it('updateMemory changes body without serializing body into frontmatter', async () => {
+    const fm = sampleFrontmatter({ id: 'update-body', scope: 'book', status: 'active', book_id: 'book1' })
+    const filePath = writeMemory(tmpDir, fm, '# old\n\nold body')
+
+    await updateMemory(tmpDir, 'update-body', { body: '# new\n\nnew body' })
+
+    const raw = fs.readFileSync(filePath, 'utf8')
+    expect(raw).not.toContain('\nbody:')
+    expect(readMemory(tmpDir, 'update-body')?.body).toContain('new body')
+  })
+
+  it('updateMemory removes a legacy leaked body key from frontmatter', async () => {
+    const filePath = path.join(tmpDir, 'book1', 'memories', 'legacy-leak.md')
+    fs.mkdirSync(path.dirname(filePath), { recursive: true })
+    fs.writeFileSync(filePath, [
+      '---',
+      'id: legacy-leak',
+      'scope: book',
+      'type: preference',
+      'confidence: 0.8',
+      'tags: []',
+      'source: auto_extract',
+      'status: active',
+      'created_at: 2026-04-18T00:00:00Z',
+      'book_id: book1',
+      'body: leaked value',
+      '---',
+      '',
+      '# old',
+      '',
+      'old body',
+    ].join('\n'), 'utf8')
+
+    await updateMemory(tmpDir, 'legacy-leak', { body: '# new\n\nnew body' })
+
+    const raw = fs.readFileSync(filePath, 'utf8')
+    expect(raw).not.toContain('\nbody:')
+    expect(readMemory(tmpDir, 'legacy-leak')?.body).toContain('new body')
   })
 
   it('deleteMemory removes file', async () => {

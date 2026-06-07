@@ -7,6 +7,7 @@ import { loadHistoryFull, saveHistory } from './chat-history.js'
 import { createSessionState } from '../context/session-state.js'
 import { processContext } from '../context/decision.js'
 import { getModelContextWindow } from '../context/model-window.js'
+import { organizePendingMemories } from '../memory/organizer.js'
 
 export interface SessionRoutesOptions {
   dataDir?: string
@@ -18,8 +19,9 @@ export async function sessionRoutes(app: FastifyInstance, opts: SessionRoutesOpt
   app.delete<{ Params: { bookId: string } }>('/books/:bookId/session', async (req, reply) => {
     try {
       const bookId = sanitizePathSegment(req.params.bookId, 'bookId')
+      const memoryCheckpoint = await organizePendingMemories(dataDir, bookId)
       clearAuthorChatSession(dataDir, bookId)
-      return { ok: true }
+      return { ok: true, memory_checkpoint: memoryCheckpoint }
     } catch (e) {
       return reply.code(400).send({ error: String((e as Error).message) })
     }

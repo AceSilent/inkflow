@@ -162,8 +162,10 @@ export async function updateMemory(
   const entry = readMemory(dataDir, id)
   if (!entry) throw new Error(`Memory not found: ${id}`)
   await withFileLock(entry.filePath, async () => {
-    const updated: MemoryFrontmatter = { ...entry.frontmatter, ...patch }
-    const body = patch.body ?? entry.body
+    const { body: patchedBody, ...frontmatterPatch } = patch
+    const { body: _legacyLeakedBody, ...currentFrontmatter } = entry.frontmatter as MemoryFrontmatter & { body?: unknown }
+    const updated: MemoryFrontmatter = { ...currentFrontmatter, ...frontmatterPatch }
+    const body = patchedBody ?? entry.body
     fs.unlinkSync(entry.filePath)
     writeMemory(dataDir, updated, body)
   })

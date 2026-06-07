@@ -16,6 +16,8 @@ import { loadHistoryFull as loadSharedHistoryFull, saveHistory as saveSharedHist
 import { appendRunEvent } from '../src/runs/run-timeline.js'
 import { ReasoningSegmentAccumulator, type StreamSegmentEvent } from '../src/routes/stream-segments.js'
 import { REASONING_CLOSE, REASONING_OPEN } from '../src/llm/provider.js'
+import { buildMemoryContext } from '../src/memory/context-builder.js'
+import { listMemories, writeMemory } from '../src/memory/memory-service.js'
 
 const TEST_DIR = path.join(process.cwd(), '__test_author_chat__')
 
@@ -288,6 +290,44 @@ describe('Author Chat Session Clear', () => {
     expect(fs.existsSync(path.join(bookDir, 'runs'))).toBe(false)
     expect(fs.existsSync(path.join(bookDir, 'last_usage.json'))).toBe(false)
     expect(fs.existsSync(path.join(bookDir, 'context_log.jsonl'))).toBe(false)
+  })
+
+  it('organizes pending memories before clearing chat through the route', async () => {
+    const previousDataDir = process.env.AUTONOVEL_DATA_DIR
+    process.env.AUTONOVEL_DATA_DIR = TEST_DIR
+    const bookId = 'book-clear-memory'
+    try {
+      fs.mkdirSync(path.join(TEST_DIR, bookId), { recursive: true })
+      saveSharedHistory(TEST_DIR, bookId, [
+        { role: 'user', content: '先记住这个修改偏好' },
+        { role: 'assistant', content: '已记住' },
+      ])
+      writeMemory(TEST_DIR, {
+        id: 'mem_pending_clear_style',
+        scope: 'book',
+        type: 'preference',
+        confidence: 0.95,
+        tags: ['AI腔'],
+        source: 'auto_extract',
+        status: 'pending',
+        created_at: '2026-06-08T00:00:00.000Z',
+        book_id: bookId,
+      }, '# 现场观察语感\n\n避免堆比喻，案发现场优先使用物理白描。')
+
+      const app = Fastify()
+      await app.register(authorChatRoutes)
+      const response = await app.inject({ method: 'DELETE', url: `/api/v1/author-chat/${bookId}/history` })
+      await app.close()
+
+      expect(response.statusCode).toBe(200)
+      expect(JSON.parse(response.body).memory_checkpoint).toMatchObject({ processed: 1, archived: 1 })
+      expect(loadSharedHistoryFull(TEST_DIR, bookId)).toEqual([])
+      expect(listMemories(TEST_DIR, 'pending').map(entry => entry.frontmatter.id)).not.toContain('mem_pending_clear_style')
+      expect(buildMemoryContext(TEST_DIR, bookId)).toContain('避免堆比喻')
+    } finally {
+      if (previousDataDir === undefined) delete process.env.AUTONOVEL_DATA_DIR
+      else process.env.AUTONOVEL_DATA_DIR = previousDataDir
+    }
   })
 })
 

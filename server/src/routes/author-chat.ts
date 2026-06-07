@@ -33,6 +33,7 @@ import { buildTransientWorkbenchStateMessages, persistAuthorChatTurn, prepareHis
 import { renderUserMessageForModel, summarizeAttachmentsForCheckpoint, type ChatAttachment } from './chat-attachments.js'
 import { createProvider, type ProviderProgressEvent } from '../llm/provider.js'
 import { extractMemories, ingestExtracted } from '../memory/extractor.js'
+import { organizePendingMemories } from '../memory/organizer.js'
 
 const loadConfig = loadAuthorChatConfig
 export { persistUsageBestEffort }
@@ -293,8 +294,9 @@ export async function authorChatRoutes(app: FastifyInstance) {
       try {
         const bookId = sanitizePathSegment(request.params.bookId, 'bookId')
         const { dataDir } = loadConfig()
+        const memoryCheckpoint = await organizePendingMemories(dataDir, bookId)
         clearAuthorChatSession(dataDir, bookId)
-        return { status: 'ok' }
+        return { status: 'ok', memory_checkpoint: memoryCheckpoint }
       } catch (err: any) {
         reply.code(400)
         return { error: err.message }
@@ -810,7 +812,19 @@ export async function authorChatRoutes(app: FastifyInstance) {
               if (extracted.length > 0) {
                 await ingestExtracted(dataDir, extracted)
               }
+              const organized = await organizePendingMemories(dataDir, bookId)
               timeline('memory_extract_done', '后台记忆提取完成', 'done', { meta: { extracted: extracted.length } }, false)
+              if (organized.processed > 0 || organized.skippedLowConfidence > 0 || organized.skippedNoGroup > 0) {
+                timeline('memory_organize_done', '后台记忆整理完成', 'done', {
+                  meta: {
+                    processed: organized.processed,
+                    archived: organized.archived,
+                    createdDigests: organized.createdDigests,
+                    updatedDigests: organized.updatedDigests,
+                    pendingRemaining: organized.pendingRemaining,
+                  },
+                }, false)
+              }
             } catch (e) {
               console.warn('[author-chat] memory extraction failed:', e)
               timeline('memory_extract_error', '后台记忆提取失败', 'error', { error: String((e as any)?.message ?? e).slice(0, 500) }, false)

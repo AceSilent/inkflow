@@ -65,7 +65,10 @@ describe('session routes', () => {
     const response = await app.inject({ method: 'DELETE', url: `/api/v1/books/${bookId}/session` })
 
     expect(response.statusCode).toBe(200)
-    expect(JSON.parse(response.body)).toEqual({ ok: true })
+    expect(JSON.parse(response.body)).toMatchObject({
+      ok: true,
+      memory_checkpoint: { processed: 0, archived: 0, pendingRemaining: 0 },
+    })
     expect(fs.existsSync(path.join(bookDir, 'author_chat_history.json'))).toBe(true)
     expect(JSON.parse(fs.readFileSync(path.join(bookDir, 'author_chat_history.json'), 'utf8'))).toEqual([])
     expect(fs.existsSync(path.join(bookDir, 'runs'))).toBe(false)
