@@ -13,6 +13,7 @@ import { bookResourcePath } from '../api/books'
 import { useI18n } from '../hooks/useI18n'
 import { bottomSidebarActions, primarySidebarActions } from './studio/sidebarNavigation'
 import { fetchExplorerTree } from './sidebarTreeFetch'
+import { resolveRestoredBookSelection } from './sidebarSelection'
 
 function matchesTreeQuery(node, query) {
   const normalized = query.trim().toLowerCase()
@@ -53,6 +54,7 @@ const treeIcons = {
 export function Sidebar({ activePanel, addToast, onSelect, onBookSelect, onNewConversation, onCreateBookClick, onActivityClick, dataVersion }) {
   const { t } = useI18n()
   const [selectedId, setSelectedId] = useState(null)
+  const [selectedBookId, setSelectedBookId] = useState(null)
   const [searchQuery, setSearchQuery] = useState('')
 
   const [treeData, setTreeData] = useState([])
@@ -73,9 +75,15 @@ export function Sidebar({ activePanel, addToast, onSelect, onBookSelect, onNewCo
     setTreeData(tree)
     const books = tree.filter(n => n.type === 'book')
     const savedBookId = localStorage.getItem('autonovel:lastBookId')
-    const restored = books.find(n => n.id === savedBookId) || (!selectedId ? books[books.length - 1] : null)
-    if (restored && selectedId !== restored.id) {
-      setSelectedId(restored.id)
+    const { restored, nextSelectedNodeId } = resolveRestoredBookSelection({
+      books,
+      savedBookId,
+      selectedNodeId: selectedId,
+      selectedBookId,
+    })
+    if (restored) {
+      setSelectedId(nextSelectedNodeId)
+      setSelectedBookId(restored.id)
       onBookSelect?.({ book_id: restored.id, title: restored.label })
     }
     if (showFeedback) addToast?.(t('sidebar.refreshed'), 'success')
@@ -92,6 +100,7 @@ export function Sidebar({ activePanel, addToast, onSelect, onBookSelect, onNewCo
     onActivityClick?.('explorer')
     if (node.type === 'book') {
       localStorage.setItem('autonovel:lastBookId', node.id)
+      setSelectedBookId(node.id)
       onBookSelect?.({ book_id: node.id, title: node.label })
     }
     if (node.type === 'scene') {
@@ -99,7 +108,11 @@ export function Sidebar({ activePanel, addToast, onSelect, onBookSelect, onNewCo
     }
     if (node.type === 'chapter' || node.type === 'volume' || node.type === 'draft') {
       // Also set book context so ChapterWorkbench gets the bookId
-      if (bookId) onBookSelect?.({ book_id: bookId, title: '' })
+      if (bookId) {
+        localStorage.setItem('autonovel:lastBookId', bookId)
+        setSelectedBookId(bookId)
+        onBookSelect?.({ book_id: bookId, title: '' })
+      }
       onSelect?.({ id: node.id, label: node.label, type: node.type, summary: node.summary, bookId })
     }
   }
@@ -120,6 +133,7 @@ export function Sidebar({ activePanel, addToast, onSelect, onBookSelect, onNewCo
         addToast?.(t('sidebar.deleted').replace('{label}', node.label), 'success')
         onBookSelect?.(null)  // Clear current book
         setSelectedId(null)
+        setSelectedBookId(null)
         fetchTree()
       } else {
         addToast?.(t('sidebar.deleteFailed'), 'error')
@@ -132,6 +146,7 @@ export function Sidebar({ activePanel, addToast, onSelect, onBookSelect, onNewCo
   const handlePrimaryAction = (id) => {
     if (id === 'new-chat') {
       setSelectedId(null)
+      setSelectedBookId(null)
       setSearchQuery('')
       onNewConversation?.()
       return
