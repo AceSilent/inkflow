@@ -6,6 +6,7 @@ const designTokens = readFileSync(new URL('../../design-tokens.css', import.meta
 const studioShell = readFileSync(new URL('./StudioShell.jsx', import.meta.url), 'utf8')
 const useThemeSource = readFileSync(new URL('../../hooks/useTheme.js', import.meta.url), 'utf8')
 const authorChatPanel = readFileSync(new URL('../AuthorChatPanel.jsx', import.meta.url), 'utf8')
+const settingsPanel = readFileSync(new URL('../SettingsPanel.jsx', import.meta.url), 'utf8')
 const locales = readFileSync(new URL('../../i18n/locales.js', import.meta.url), 'utf8')
 const outlineView = readFileSync(new URL('../OutlineView.jsx', import.meta.url), 'utf8')
 const sidebar = readFileSync(new URL('../Sidebar.jsx', import.meta.url), 'utf8')
@@ -209,6 +210,18 @@ describe('visual polish direction', () => {
     expect(indexCss).toMatch(/\.author-chat-header \{[\s\S]*position:\s*absolute;/)
     expect(indexCss).toMatch(/\.author-chat-header \{[\s\S]*height:\s*0;/)
     expect(indexCss).toMatch(/\.author-chat-title \{[\s\S]*display:\s*none;/)
+  })
+
+  it('lets settings scroll inside the fixed chat surface', () => {
+    expect(indexCss).toMatch(/\.settings-panel \{[\s\S]*height:\s*100%;/)
+    expect(indexCss).toMatch(/\.settings-panel \{[\s\S]*overflow-y:\s*auto;/)
+    expect(indexCss).toMatch(/\.settings-panel-inner \{[\s\S]*max-width:\s*680px;/)
+  })
+
+  it('keeps the settings title text-only without a decorative icon', () => {
+    expect(settingsPanel).toContain('className="settings-panel-title"')
+    const titleBlock = settingsPanel.match(/<h2 className="settings-panel-title">[\s\S]*?<\/h2>/)?.[0] || ''
+    expect(titleBlock).not.toContain('<Globe')
   })
 
   it('keeps messages and composer on one centered chat axis', () => {

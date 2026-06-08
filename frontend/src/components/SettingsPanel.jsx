@@ -155,14 +155,20 @@ export function SettingsPanel({ addToast, theme, toggleTheme, currentBook }) {
   }
 
   if (loading || !settings) {
-    return <div style={{ padding: 40, textAlign: 'center' }}>{t('settings.loading')}</div>
+    return (
+      <div className="settings-panel">
+        <div className="settings-panel-inner settings-panel-loading">
+          {t('settings.loading')}
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div style={{ maxWidth: 680, margin: '0 auto', paddingBottom: 40 }}>
+    <div className="settings-panel">
+      <div className="settings-panel-inner">
       {/* Header aligned like Brainstorm */}
-      <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 24, display: 'flex', alignItems: 'center', gap: 8 }}>
-        <Globe size={18} style={{ color: 'var(--accent)' }} /> 
+      <h2 className="settings-panel-title">
         {t('settings.title') || 'Settings'}
       </h2>
 
@@ -330,8 +336,9 @@ export function SettingsPanel({ addToast, theme, toggleTheme, currentBook }) {
         </div>
       </Section>
 
-      <div style={{ position: 'sticky', bottom: 0, padding: '16px 0', background: 'var(--bg)', display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--border-subtle)', marginTop: 24 }}>
+      <div className="settings-panel-actions">
         <button className="btn btn-primary btn-lg" onClick={handleSave}><Save size={14} /> {t('settings.save') || 'Save Changes'}</button>
+      </div>
       </div>
     </div>
   )
