@@ -113,11 +113,13 @@ describe('visual polish direction', () => {
     expect(indexCss).toMatch(/\.game-script-workspace \{[\s\S]*background:\s*transparent;/)
   })
 
-  it('mounts the per-theme atmosphere backdrop in the studio shell', () => {
-    // DeepSpaceBackdrop.jsx is retained as a fallback but no longer referenced;
-    // StudioShell now mounts the theme-aware AtmosphereBackdrop.
-    expect(studioShell).toContain('AtmosphereBackdrop')
-    expect(studioShell).not.toContain('DeepSpaceBackdrop')
+  it('mounts the deep-space backdrop in the studio shell', () => {
+    // The themed AtmosphereBackdrop fails to compile its shader under the Tauri
+    // desktop's WKWebView, so the studio shell mounts the simpler, proven
+    // DeepSpaceBackdrop. AtmosphereBackdrop/ modules are kept for a later
+    // WKWebView-compatible pass.
+    expect(studioShell).toContain('DeepSpaceBackdrop')
+    expect(studioShell).not.toContain('AtmosphereBackdrop')
   })
 
   it('keeps the retained deep-space backdrop module as a continuous WebGL shader', () => {
