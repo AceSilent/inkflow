@@ -15,6 +15,7 @@ import { outlineRoutes } from './routes/outline.js'
 import { plotGraphRoutes } from './routes/plot-graph.js'
 import { memoryRoutes } from './routes/memory.js'
 import { sessionRoutes } from './routes/session.js'
+import { codexAuthRoutes } from './routes/codex-auth.js'
 import { initFeishu } from './feishu/index.js'
 
 const app = Fastify({ logger: true, ignoreTrailingSlash: true })
@@ -32,6 +33,7 @@ await app.register(outlineRoutes, { prefix: '/api/v1', dataDir })
 await app.register(plotGraphRoutes, { prefix: '/api/v1', dataDir })
 await app.register(memoryRoutes, { prefix: '/api/v1', dataDir })
 await app.register(sessionRoutes, { prefix: '/api/v1', dataDir })
+await app.register(codexAuthRoutes, { prefix: '/api/v1', dataDir })
 
 app.get('/health', async () => ({ status: 'ok', engine: 'autonovel-ts' }))
 

@@ -3,16 +3,39 @@
  * Supports OpenAI, DeepSeek, DashScope, Kimi, ZhipuAI — any OpenAI-compatible endpoint.
  */
 import { createOpenAI } from '@ai-sdk/openai'
+import crypto from 'node:crypto'
 import http from 'node:http'
 import https from 'node:https'
 import { Readable } from 'node:stream'
 import createHttpsProxyAgent from 'https-proxy-agent'
+import { CodexAuthError, refreshTokens } from './codex-auth.js'
+import { getFreshAccessToken, loadCodexAuth, saveCodexAuth } from './codex-store.js'
+
+/** Provider transport kind. `codex-oauth` drives the ChatGPT Responses API. */
+export type LLMConfigKind = 'openai-compatible' | 'codex-oauth'
 
 export interface LLMConfig {
   apiKey: string
   baseURL?: string
   model: string
   proxyUrl?: string
+  /** Transport kind. Defaults to `openai-compatible` when omitted. */
+  kind?: LLMConfigKind
+  /** Data directory holding the Codex credential store (codex-oauth only). */
+  dataDir?: string
+}
+
+/** Base URL for the ChatGPT-backed Codex Responses API. */
+export const CODEX_RESPONSES_BASE_URL = 'https://chatgpt.com/backend-api/codex'
+
+/** Codex model name aliases → canonical model id. */
+const CODEX_MODEL_ALIASES: Record<string, string> = {
+  'gpt-5-codex': 'gpt-5.1-codex',
+}
+
+/** Resolve a Codex model alias to its canonical name. */
+export function resolveCodexModel(model: string): string {
+  return CODEX_MODEL_ALIASES[model] ?? model
 }
 
 /**
@@ -427,6 +450,10 @@ export function createReasoningFetch(
 }
 
 export function createProvider(config: LLMConfig, onProgress?: ProviderProgressCallback) {
+  if (config.kind === 'codex-oauth') {
+    return createCodexProvider(config, onProgress)
+  }
+
   const customFetch = createReasoningFetch(config.model, onProgress, globalThis.fetch, {
     proxyUrl: config.proxyUrl,
   })
@@ -441,4 +468,144 @@ export function createProvider(config: LLMConfig, onProgress?: ProviderProgressC
   // The default provider('model') uses the Responses API (/responses)
   // which non-OpenAI providers don't support.
   return provider.chat(config.model)
+}
+
+// ---------------------------------------------------------------------------
+// Codex / ChatGPT OAuth provider (Responses API).
+// ---------------------------------------------------------------------------
+
+/** A required Codex CLI version string sent on every Responses request. */
+const CODEX_CLIENT_VERSION = '0.20.0'
+
+/**
+ * Force `store:false` and ensure the encrypted reasoning content is included.
+ * The ChatGPT backend is stateless and rejects requests that try to persist
+ * server-side state; it also returns reasoning only when the request opts in
+ * via `include`. Returns the same object (mutated in place).
+ */
+export function patchCodexResponsesBody(body: any): any {
+  if (!body || typeof body !== 'object') return body
+  // Backend is stateless — store must be false regardless of what the SDK set.
+  body.store = false
+  const include = Array.isArray(body.include) ? body.include : []
+  if (!include.includes('reasoning.encrypted_content')) {
+    include.push('reasoning.encrypted_content')
+  }
+  body.include = include
+  return body
+}
+
+export interface CodexFetchOptions {
+  dataDir: string
+  onProgress?: ProviderProgressCallback
+  fetchImpl?: typeof globalThis.fetch
+  /** Injectable token getter (tests). Defaults to getFreshAccessToken. */
+  getToken?: (dataDir: string) => Promise<{ accessToken: string; accountId: string }>
+  /** Override the CLI version header (tests). */
+  version?: string
+}
+
+/**
+ * Build a fetch wrapper for the ChatGPT-backed Codex Responses API. It:
+ *   1. fetches a fresh access token (refreshing near-expiry tokens) before each call
+ *   2. injects every required Codex header (Authorization / chatgpt-account-id /
+ *      OpenAI-Beta / originator / session_id / version / Accept)
+ *   3. rewrites the JSON body to force store:false and include the encrypted
+ *      reasoning content
+ *   4. reuses fetchWithRetry for transient-failure backoff
+ *   5. on a 401, refreshes the token once and retries the request a single time
+ */
+export function createCodexFetch(options: CodexFetchOptions): typeof globalThis.fetch {
+  const { dataDir, onProgress } = options
+  const baseFetch = options.fetchImpl ?? globalThis.fetch
+  const getToken = options.getToken ?? ((dir: string) => getFreshAccessToken(dir, { fetchImpl: baseFetch }))
+  const version = options.version ?? CODEX_CLIENT_VERSION
+
+  const buildInit = (init: RequestInit | undefined, accessToken: string, accountId: string): RequestInit => {
+    const headers = new Headers(init?.headers)
+    headers.set('Authorization', `Bearer ${accessToken}`)
+    headers.set('chatgpt-account-id', accountId)
+    headers.set('OpenAI-Beta', 'responses=experimental')
+    headers.set('originator', 'codex_cli_rs')
+    headers.set('session_id', crypto.randomUUID())
+    headers.set('version', version)
+    headers.set('Accept', 'text/event-stream')
+    if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
+
+    let body = init?.body
+    if (typeof body === 'string') {
+      try {
+        body = JSON.stringify(patchCodexResponsesBody(JSON.parse(body)))
+      } catch {
+        /* non-JSON body — leave untouched */
+      }
+    }
+    return { ...init, headers, body }
+  }
+
+  const codexFetch: typeof globalThis.fetch = async (url, init) => {
+    const { accessToken, accountId } = await getToken(dataDir)
+    const firstInit = buildInit(init, accessToken, accountId)
+    const response = await fetchWithRetry(url, firstInit, onProgress, baseFetch)
+
+    // 401 → the access token was rejected. Force a refresh and retry once.
+    if (response.status === 401) {
+      const refreshedToken = await forceCodexRefresh(dataDir, baseFetch)
+      if (refreshedToken) {
+        const retryInit = buildInit(init, refreshedToken.accessToken, refreshedToken.accountId)
+        return fetchWithRetry(url, retryInit, onProgress, baseFetch)
+      }
+    }
+    return response
+  }
+  return codexFetch
+}
+
+/**
+ * Force a token refresh by reading the stored refresh token, rotating it, and
+ * persisting the new credentials. Returns the new access token + account id, or
+ * undefined when no usable credentials exist. Errors are swallowed so the
+ * original 401 surfaces to the caller rather than a refresh failure masking it.
+ */
+async function forceCodexRefresh(
+  dataDir: string,
+  fetchImpl: typeof globalThis.fetch,
+): Promise<{ accessToken: string; accountId: string } | undefined> {
+  try {
+    const stored = await loadCodexAuth(dataDir)
+    if (!stored?.tokens.refresh_token) return undefined
+    const refreshed = await refreshTokens({ refresh_token: stored.tokens.refresh_token, fetchImpl })
+    await saveCodexAuth(dataDir, refreshed)
+    const accountId = refreshed.account_id ?? stored.tokens.account_id ?? ''
+    if (!accountId) return undefined
+    return { accessToken: refreshed.access_token, accountId }
+  } catch (err) {
+    if (err instanceof CodexAuthError) return undefined
+    return undefined
+  }
+}
+
+/**
+ * Create a Codex (ChatGPT OAuth) language model bound to the Responses API.
+ * Requires `config.dataDir` to point at the credential store. This path is only
+ * exercised with a real ChatGPT login; the header injection and body rewrite
+ * are unit-tested with a mock fetch, but live request/response compatibility
+ * with the chatgpt backend can only be confirmed online.
+ */
+export function createCodexProvider(config: LLMConfig, onProgress?: ProviderProgressCallback) {
+  if (!config.dataDir) {
+    throw new CodexAuthError('codex-oauth provider requires a dataDir to locate credentials.', {
+      code: 'not_authenticated',
+    })
+  }
+  const codexFetch = createCodexFetch({ dataDir: config.dataDir, onProgress })
+  const provider = createOpenAI({
+    // The token is injected per-request by codexFetch; this placeholder keeps
+    // the SDK from throwing on a missing apiKey.
+    apiKey: 'codex-oauth',
+    baseURL: config.baseURL || CODEX_RESPONSES_BASE_URL,
+    fetch: codexFetch,
+  })
+  // Responses API (POST /responses) — NOT .chat() (/chat/completions).
+  return provider.responses(resolveCodexModel(config.model))
 }

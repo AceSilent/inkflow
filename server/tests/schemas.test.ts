@@ -213,6 +213,21 @@ describe('providerSchema', () => {
   it('rejects oversized models array (>50)', () => {
     expect(() => providerSchema.parse({ ...valid, models: Array(51).fill('model') })).toThrow()
   })
+
+  it('accepts a codex-oauth provider with an empty baseUrl and apiKey', () => {
+    expect(providerSchema.parse({
+      id: 'codex',
+      name: 'ChatGPT (Codex)',
+      baseUrl: '',
+      apiKey: '',
+      models: ['gpt-5.1-codex'],
+      kind: 'codex-oauth',
+    })).toMatchObject({ kind: 'codex-oauth' })
+  })
+
+  it('still rejects an empty baseUrl for non-codex providers', () => {
+    expect(() => providerSchema.parse({ ...valid, baseUrl: '' })).toThrow()
+  })
 })
 
 // ── saveSettingsBody ──

@@ -43,10 +43,24 @@ export const sendChatBody = z.object({
 export const providerSchema = z.object({
   id: z.string().min(1).max(100),
   name: z.string().min(1).max(100),
-  baseUrl: z.string().url().max(500),
+  // codex-oauth providers don't carry a user-supplied endpoint; allow an empty
+  // baseUrl for them while still requiring a valid URL for every other kind.
+  baseUrl: z.string().max(500),
   apiKey: z.string().max(500),
   models: z.array(z.string().max(100)).min(0).max(50),
-  kind: z.enum(['openai-compatible', 'gemini-openai-compatible']).optional(),
+  kind: z.enum(['openai-compatible', 'gemini-openai-compatible', 'codex-oauth']).optional(),
+}).superRefine((provider, ctx) => {
+  if (provider.kind === 'codex-oauth') return
+  const url = provider.baseUrl.trim()
+  if (!/^https?:\/\//i.test(url)) {
+    ctx.addIssue({ code: 'custom', path: ['baseUrl'], message: 'baseUrl must be an http(s) URL' })
+    return
+  }
+  try {
+    new URL(url)
+  } catch {
+    ctx.addIssue({ code: 'custom', path: ['baseUrl'], message: 'invalid baseUrl' })
+  }
 })
 
 export const networkProxySchema = z.object({

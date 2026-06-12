@@ -18,7 +18,12 @@ export interface ProviderConfig {
   baseUrl: string
   apiKey: string
   models: string[]
-  kind?: 'openai-compatible' | 'gemini-openai-compatible'
+  kind?: 'openai-compatible' | 'gemini-openai-compatible' | 'codex-oauth'
+}
+
+/** codex-oauth providers authenticate via OAuth, not an API key. */
+function isCodexProvider(provider: Pick<ProviderConfig, 'kind'>): boolean {
+  return provider.kind === 'codex-oauth'
 }
 
 export type ContextManagerMode = 'auto' | 'decay_only' | 'disabled'
@@ -133,6 +138,8 @@ export function mergeMaskedApiKeys(incoming: AppSettings, existing: AppSettings)
   return {
     ...incoming,
     providers: incoming.providers.map(provider => {
+      // codex-oauth providers have no API key — never mask/restore one.
+      if (isCodexProvider(provider)) return { ...provider, apiKey: '' }
       if (!isMaskedApiKey(provider.apiKey)) return provider
       const previous = existingById.get(provider.id)?.apiKey
       return {
@@ -193,7 +200,9 @@ function maskSettings(settings: AppSettings): AppSettings {
     ...settings,
     providers: settings.providers.map((p) => ({
       ...p,
-      apiKey: maskApiKey(p.apiKey),
+      // codex-oauth providers have no key to mask — keep it empty so the UI
+      // doesn't render a fake "****" on a passwordless provider.
+      apiKey: isCodexProvider(p) ? '' : maskApiKey(p.apiKey),
     })),
   }
 }

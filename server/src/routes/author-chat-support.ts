@@ -19,6 +19,13 @@ export function loadAuthorChatConfig(dataDirOverride?: string): { llmConfig: LLM
     const model = modelParts.join('/')
     const provider = settings.providers.find(p => p.id === providerId)
     if (provider) {
+      if (provider.kind === 'codex-oauth') {
+        // Codex providers authenticate via stored OAuth credentials (no apiKey).
+        return {
+          llmConfig: { apiKey: '', model, kind: 'codex-oauth', dataDir },
+          dataDir,
+        }
+      }
       return {
         llmConfig: {
           apiKey: provider.apiKey,

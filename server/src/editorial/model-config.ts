@@ -10,6 +10,9 @@ function modelConfigFromSelector(dataDir: string, modelSelector: string): LLMCon
     const model = modelParts.join('/')
     const provider = settings.providers.find(p => p.id === providerId)
     if (provider) {
+      if (provider.kind === 'codex-oauth') {
+        return { apiKey: '', model, kind: 'codex-oauth', dataDir }
+      }
       return { apiKey: provider.apiKey, baseURL: provider.baseUrl, model, ...(proxyUrl ? { proxyUrl } : {}) }
     }
   }
