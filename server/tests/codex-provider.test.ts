@@ -47,14 +47,24 @@ function tokenSet(overrides: Partial<TokenSet> = {}): TokenSet {
 }
 
 let tmpDir: string
+let codexHome: string
+let savedCodexHome: string | undefined
 
 beforeEach(async () => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-provider-'))
+  // Isolate CODEX_HOME so the shared-credential fallback never reaches the
+  // developer's real ~/.codex/auth.json.
+  codexHome = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-home-'))
+  savedCodexHome = process.env.CODEX_HOME
+  process.env.CODEX_HOME = codexHome
   await saveCodexAuth(tmpDir, tokenSet())
 })
 
 afterEach(() => {
+  if (savedCodexHome === undefined) delete process.env.CODEX_HOME
+  else process.env.CODEX_HOME = savedCodexHome
   fs.rmSync(tmpDir, { recursive: true, force: true })
+  fs.rmSync(codexHome, { recursive: true, force: true })
 })
 
 describe('patchCodexResponsesBody', () => {

@@ -323,13 +323,23 @@ describe('accessTokenExpiresSoon', () => {
 
 describe('codex-store', () => {
   let dataDir: string
+  let codexHome: string
+  let savedCodexHome: string | undefined
 
   beforeEach(async () => {
     dataDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'codex-store-'))
+    // Point CODEX_HOME at an isolated EMPTY temp dir so the shared-credential
+    // fallback never reaches the developer's real ~/.codex/auth.json.
+    codexHome = await fsp.mkdtemp(path.join(os.tmpdir(), 'codex-home-'))
+    savedCodexHome = process.env.CODEX_HOME
+    process.env.CODEX_HOME = codexHome
   })
 
   afterEach(async () => {
+    if (savedCodexHome === undefined) delete process.env.CODEX_HOME
+    else process.env.CODEX_HOME = savedCodexHome
     await fsp.rm(dataDir, { recursive: true, force: true })
+    await fsp.rm(codexHome, { recursive: true, force: true })
   })
 
   function tokenSet(overrides: Partial<TokenSet> = {}): TokenSet {

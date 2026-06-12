@@ -7,7 +7,9 @@ import { themePalettes } from '../theme/palettes'
 const CODEX_PROVIDER_KIND = 'codex-oauth'
 // Models offered when adding a Codex provider. reasoning effort is set server-side
 // via request body, not the model name, so we keep the selectable list short.
-const CODEX_DEFAULT_MODELS = ['gpt-5.1-codex', 'gpt-5.1', 'gpt-5.1-codex-mini']
+// gpt-5.5 leads the list and is the default the convenience action restores to.
+const CODEX_PREFERRED_MODEL = 'gpt-5.5'
+const CODEX_DEFAULT_MODELS = ['gpt-5.5', 'gpt-5.5-codex', 'gpt-5.4']
 
 function openExternalUrl(url) {
   if (!url) return
@@ -102,14 +104,44 @@ export function SettingsPanel({ addToast, theme, toggleTheme, currentBook }) {
   const [loading, setLoading] = useState(true)
 
   // Codex (ChatGPT subscription) login state. `codex.state` mirrors the backend
-  // status machine: idle | pending | success | error.
-  const [codex, setCodex] = useState({ state: 'idle', message: '', accountId: '', planType: '' })
+  // status machine: idle | pending | success | error. `source` distinguishes a
+  // login InkFlow performed itself ('inkflow') from the official Codex CLI
+  // credential file we auto-detect and reuse with zero friction ('codex-cli').
+  const [codex, setCodex] = useState({ state: 'idle', message: '', accountId: '', planType: '', source: null })
   const codexPollRef = useRef(null)
 
   const stopCodexPoll = useCallback(() => {
     if (codexPollRef.current) {
       clearInterval(codexPollRef.current)
       codexPollRef.current = null
+    }
+  }, [])
+
+  // Re-read the offline /info endpoint and reflect the true on-disk state. Used
+  // on mount and whenever a login attempt ends (cancel / start failure) so an
+  // auto-detected ~/.codex credential is restored instead of being hidden by a
+  // transient 'idle'. Returns true when a usable credential exists.
+  const refreshCodexInfo = useCallback(async () => {
+    try {
+      const resp = await fetch('/api/v1/auth/codex/info')
+      const info = await resp.json()
+      if (!info?.authenticated) {
+        setCodex({ state: 'idle', message: '', accountId: '', planType: '', source: null })
+        return false
+      }
+      setCodex({
+        state: 'success',
+        message: '',
+        accountId: info.account_id || '',
+        planType: info.plan_type || '',
+        // 'codex-cli' = auto-detected ~/.codex/auth.json; 'inkflow' = our own
+        // OAuth. Older backends omit the field — fall back to 'inkflow'.
+        source: info.source || 'inkflow',
+      })
+      return true
+    } catch {
+      // Offline read failure is non-fatal; leave whatever state we already had.
+      return false
     }
   }, [])
 
@@ -142,6 +174,9 @@ export function SettingsPanel({ addToast, theme, toggleTheme, currentBook }) {
           message: '',
           accountId: info.account_id || '',
           planType: info.plan_type || '',
+          // 'codex-cli' = auto-detected ~/.codex/auth.json; 'inkflow' = our own
+          // OAuth. Older backends omit the field — fall back to 'inkflow'.
+          source: info.source || 'inkflow',
         })
       })
       .catch(() => { /* offline read failure is non-fatal; stay idle */ })
@@ -165,24 +200,25 @@ export function SettingsPanel({ addToast, theme, toggleTheme, currentBook }) {
             message: '',
             accountId: status.account_id || '',
             planType: status.plan_type || '',
+            source: 'inkflow',
           })
           addToast?.(t('settings.codexSuccess'), 'success')
         } else if (status.state === 'error' || status.state === 'idle') {
           stopCodexPoll()
-          setCodex({ state: 'error', message: status.message || '', accountId: '', planType: '' })
+          setCodex({ state: 'error', message: status.message || '', accountId: '', planType: '', source: null })
           addToast?.(status.message || t('settings.codexAuthFailed'), 'error')
         }
         // 'pending' → keep polling
       } catch {
         stopCodexPoll()
-        setCodex({ state: 'error', message: t('settings.codexAuthFailed'), accountId: '', planType: '' })
+        setCodex({ state: 'error', message: t('settings.codexAuthFailed'), accountId: '', planType: '', source: null })
         addToast?.(t('settings.codexAuthFailed'), 'error')
       }
     }, 1000)
   }, [stopCodexPoll, addToast, t])
 
   const handleCodexLogin = useCallback(async () => {
-    setCodex({ state: 'pending', message: '', accountId: '', planType: '' })
+    setCodex({ state: 'pending', message: '', accountId: '', planType: '', source: null })
     try {
       const resp = await fetch('/api/v1/auth/codex/start', { method: 'POST' })
       if (!resp.ok) throw new Error('start failed')
@@ -192,28 +228,36 @@ export function SettingsPanel({ addToast, theme, toggleTheme, currentBook }) {
       pollCodexStatus()
     } catch {
       stopCodexPoll()
-      setCodex({ state: 'error', message: '', accountId: '', planType: '' })
+      // Restore the detected/logged-in state if one exists, else fall to idle.
+      const restored = await refreshCodexInfo()
+      if (!restored) {
+        setCodex({ state: 'error', message: '', accountId: '', planType: '', source: null })
+      }
       addToast?.(t('settings.codexStartFailed'), 'error')
     }
-  }, [pollCodexStatus, stopCodexPoll, addToast, t])
+  }, [pollCodexStatus, stopCodexPoll, refreshCodexInfo, addToast, t])
 
   const handleCodexCancel = useCallback(() => {
     stopCodexPoll()
-    setCodex({ state: 'idle', message: '', accountId: '', planType: '' })
+    // A cancel from re-login should not discard an auto-detected credential.
+    void refreshCodexInfo()
     addToast?.(t('settings.codexCancelled'), 'info')
-  }, [stopCodexPoll, addToast, t])
+  }, [stopCodexPoll, refreshCodexInfo, addToast, t])
 
   const handleCodexLogout = useCallback(async () => {
     stopCodexPoll()
     try {
       const resp = await fetch('/api/v1/auth/codex/logout', { method: 'POST' })
       if (!resp.ok) throw new Error('logout failed')
-      setCodex({ state: 'idle', message: '', accountId: '', planType: '' })
-      addToast?.(t('settings.codexLoggedOut'), 'success')
+      // After disconnecting InkFlow's own store, re-read /info: if the official
+      // Codex CLI credential is still on disk the backend re-detects it, so the
+      // card returns to the zero-friction detected state rather than idle.
+      const stillDetected = await refreshCodexInfo()
+      addToast?.(stillDetected ? t('settings.codexDisconnected') : t('settings.codexLoggedOut'), 'success')
     } catch {
       addToast?.(t('settings.codexLogoutFailed'), 'error')
     }
-  }, [stopCodexPoll, addToast, t])
+  }, [stopCodexPoll, refreshCodexInfo, addToast, t])
 
   const handleSave = async () => {
     try {
@@ -272,6 +316,17 @@ export function SettingsPanel({ addToast, theme, toggleTheme, currentBook }) {
     setSettings({ ...settings, providers: [...settings.providers, newProvider] })
   }
 
+  // Rewrite every codex-oauth provider's model list to the gpt-5.5 default set.
+  // Surfaced as a convenience action when an existing codex provider isn't
+  // already on gpt-5.5 so users don't have to hand-edit the comma list.
+  const setCodexDefaultModel = () => {
+    const newProviders = settings.providers.map(p =>
+      p.kind === CODEX_PROVIDER_KIND ? { ...p, models: [...CODEX_DEFAULT_MODELS] } : p
+    )
+    setSettings({ ...settings, providers: newProviders })
+    addToast?.(t('settings.codexModelUpdated'), 'success')
+  }
+
   const removeProvider = (index) => {
     const newProviders = settings.providers.filter((_, i) => i !== index)
     setSettings({ ...settings, providers: newProviders })
@@ -298,6 +353,13 @@ export function SettingsPanel({ addToast, theme, toggleTheme, currentBook }) {
       </div>
     )
   }
+
+  const codexProviders = settings.providers.filter(p => p.kind === CODEX_PROVIDER_KIND)
+  const hasCodexProvider = codexProviders.length > 0
+  // True when a codex provider exists but isn't already on the preferred default
+  // model — gates the "set to gpt-5.5" shortcut.
+  const codexNeedsDefaultModel = codexProviders.some(p => p.models?.[0] !== CODEX_PREFERRED_MODEL)
+  const codexDetected = codex.state === 'success' && codex.source === 'codex-cli'
 
   return (
     <div className="settings-panel">
@@ -363,6 +425,21 @@ export function SettingsPanel({ addToast, theme, toggleTheme, currentBook }) {
                 <div className="field">
                   <label className="field-label" style={{ fontSize: 11 }}><Box size={10}/> {t('settings.providerModels')}</label>
                   <input className="input" value={provider.models.join(', ')} onChange={e => updateProvider(i, 'models', e.target.value)} />
+                  {isCodex && (
+                    <div className="settings-help" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span>{t('settings.codexDefaultModelHint')}</span>
+                      {provider.models?.[0] !== CODEX_PREFERRED_MODEL && (
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          style={{ padding: '2px 8px' }}
+                          onClick={() => updateProvider(i, 'models', CODEX_DEFAULT_MODELS.join(', '))}
+                        >
+                          {t('settings.codexSetDefaultModel')}
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -385,7 +462,7 @@ export function SettingsPanel({ addToast, theme, toggleTheme, currentBook }) {
                   display: 'inline-flex', alignItems: 'center', gap: 4,
                   fontSize: 11, fontWeight: 600, color: 'var(--success)',
                 }}>
-                  <Check size={12} /> {t('settings.codexLoggedIn')}
+                  <Check size={12} /> {codexDetected ? t('settings.codexDetected') : t('settings.codexLoggedIn')}
                 </span>
               )}
             </div>
@@ -393,14 +470,38 @@ export function SettingsPanel({ addToast, theme, toggleTheme, currentBook }) {
 
             {codex.state === 'success' ? (
               <>
+                {codexDetected && (
+                  <div className="settings-help">{t('settings.codexDetectedHint')}</div>
+                )}
                 <div className="settings-help" style={{ color: 'var(--ink-secondary)' }}>
                   {codex.accountId && <div>{t('settings.codexAccount')}: {codex.accountId}</div>}
                   {codex.planType && <div>{t('settings.codexPlan')}: {codex.planType}</div>}
                 </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button className="btn btn-secondary btn-sm" onClick={handleCodexLogout}>
-                    <LogOut size={12} /> {t('settings.codexLogout')}
-                  </button>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {codexDetected ? (
+                    <>
+                      <button className="btn btn-secondary btn-sm" onClick={handleCodexLogin}>
+                        <LogIn size={12} /> {t('settings.codexRelogin')}
+                      </button>
+                      <button className="btn btn-secondary btn-sm" onClick={handleCodexLogout}>
+                        <LogOut size={12} /> {t('settings.codexDisconnect')}
+                      </button>
+                    </>
+                  ) : (
+                    <button className="btn btn-secondary btn-sm" onClick={handleCodexLogout}>
+                      <LogOut size={12} /> {t('settings.codexLogout')}
+                    </button>
+                  )}
+                  {!hasCodexProvider && (
+                    <button className="btn btn-secondary btn-sm" onClick={addCodexProvider}>
+                      <Plus size={12} /> {t('settings.codexAddProvider')}
+                    </button>
+                  )}
+                  {hasCodexProvider && codexNeedsDefaultModel && (
+                    <button className="btn btn-secondary btn-sm" onClick={setCodexDefaultModel}>
+                      <Box size={12} /> {t('settings.codexSetDefaultModel')}
+                    </button>
+                  )}
                 </div>
               </>
             ) : codex.state === 'pending' ? (
@@ -420,13 +521,21 @@ export function SettingsPanel({ addToast, theme, toggleTheme, currentBook }) {
                 {codex.state === 'error' && codex.message && (
                   <div className="settings-help" style={{ color: 'var(--danger)' }}>{codex.message}</div>
                 )}
+                <div className="settings-help">{t('settings.codexReuseNote')}</div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   <button className="btn btn-secondary btn-sm" onClick={handleCodexLogin}>
                     <LogIn size={12} /> {t('settings.codexLogin')}
                   </button>
-                  <button className="btn btn-secondary btn-sm" onClick={addCodexProvider}>
-                    <Plus size={12} /> {t('settings.codexAddProvider')}
-                  </button>
+                  {!hasCodexProvider && (
+                    <button className="btn btn-secondary btn-sm" onClick={addCodexProvider}>
+                      <Plus size={12} /> {t('settings.codexAddProvider')}
+                    </button>
+                  )}
+                  {hasCodexProvider && codexNeedsDefaultModel && (
+                    <button className="btn btn-secondary btn-sm" onClick={setCodexDefaultModel}>
+                      <Box size={12} /> {t('settings.codexSetDefaultModel')}
+                    </button>
+                  )}
                 </div>
               </>
             )}

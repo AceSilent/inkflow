@@ -9,7 +9,7 @@ import https from 'node:https'
 import { Readable } from 'node:stream'
 import createHttpsProxyAgent from 'https-proxy-agent'
 import { CodexAuthError, refreshTokens } from './codex-auth.js'
-import { getFreshAccessToken, loadCodexAuth, saveCodexAuth } from './codex-store.js'
+import { getFreshAccessToken, resolveAuthSource, writeBackRefreshedAuth } from './codex-store.js'
 
 /** Provider transport kind. `codex-oauth` drives the ChatGPT Responses API. */
 export type LLMConfigKind = 'openai-compatible' | 'codex-oauth'
@@ -572,11 +572,13 @@ async function forceCodexRefresh(
   fetchImpl: typeof globalThis.fetch,
 ): Promise<{ accessToken: string; accountId: string } | undefined> {
   try {
-    const stored = await loadCodexAuth(dataDir)
-    if (!stored?.tokens.refresh_token) return undefined
-    const refreshed = await refreshTokens({ refresh_token: stored.tokens.refresh_token, fetchImpl })
-    await saveCodexAuth(dataDir, refreshed)
-    const accountId = refreshed.account_id ?? stored.tokens.account_id ?? ''
+    const source = await resolveAuthSource(dataDir)
+    if (!source?.raw.tokens.refresh_token) return undefined
+    const refreshed = await refreshTokens({ refresh_token: source.raw.tokens.refresh_token, fetchImpl })
+    // Write the rotated tokens back to the SAME source file (InkFlow store or
+    // the shared ~/.codex/auth.json), preserving any CLI-owned fields.
+    const written = await writeBackRefreshedAuth(dataDir, refreshed)
+    const accountId = written?.accountId ?? refreshed.account_id ?? source.raw.tokens.account_id ?? ''
     if (!accountId) return undefined
     return { accessToken: refreshed.access_token, accountId }
   } catch (err) {

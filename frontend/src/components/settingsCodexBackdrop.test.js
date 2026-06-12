@@ -33,6 +33,16 @@ const REQUIRED_KEYS = [
   'settings.codexProviderBadge',
   'settings.codexNoApiKey',
   'settings.codexCancelled',
+  // Zero-friction Codex CLI credential reuse + gpt-5.5 default
+  'settings.codexDetected',
+  'settings.codexDetectedHint',
+  'settings.codexReuseNote',
+  'settings.codexRelogin',
+  'settings.codexDisconnect',
+  'settings.codexDisconnected',
+  'settings.codexDefaultModelHint',
+  'settings.codexSetDefaultModel',
+  'settings.codexModelUpdated',
 ]
 
 describe('settings backdrop + codex i18n', () => {

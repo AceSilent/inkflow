@@ -235,6 +235,16 @@ const zh = {
   'settings.codexProviderBadge': 'ChatGPT 订阅',
   'settings.codexNoApiKey': '此 provider 使用 ChatGPT 订阅授权,无需 API 密钥。',
   'settings.codexCancelled': '已取消登录',
+  // Codex: zero-friction reuse of the official Codex CLI credential file
+  'settings.codexDetected': '已检测到 Codex 登录(来自 ~/.codex)',
+  'settings.codexDetectedHint': '已自动复用本机官方 Codex 登录,无需在此操作即可直接使用 Codex 模型。',
+  'settings.codexReuseNote': '若你已用官方 Codex 登录,会自动检测,无需在此登录。',
+  'settings.codexRelogin': '重新登录 / 切换账号',
+  'settings.codexDisconnect': '断开(仅 InkFlow)',
+  'settings.codexDisconnected': '已断开 InkFlow 的 Codex 连接',
+  'settings.codexDefaultModelHint': '默认模型为 gpt-5.5。',
+  'settings.codexSetDefaultModel': '设为 gpt-5.5',
+  'settings.codexModelUpdated': '已将 Codex 模型设为 gpt-5.5',
 
   // Inbox
   'inbox.title': '待办审批',
@@ -723,6 +733,16 @@ const en = {
   'settings.codexProviderBadge': 'ChatGPT subscription',
   'settings.codexNoApiKey': 'This provider authorizes via your ChatGPT subscription. No API key needed.',
   'settings.codexCancelled': 'Sign-in cancelled',
+  // Codex: zero-friction reuse of the official Codex CLI credential file
+  'settings.codexDetected': 'Codex sign-in detected (from ~/.codex)',
+  'settings.codexDetectedHint': 'Your machine’s official Codex login was reused automatically. Codex models work right away — no action needed here.',
+  'settings.codexReuseNote': 'If you already signed in with the official Codex, it is detected automatically — no need to sign in here.',
+  'settings.codexRelogin': 'Re-sign in / switch account',
+  'settings.codexDisconnect': 'Disconnect (InkFlow only)',
+  'settings.codexDisconnected': 'Disconnected Codex from InkFlow',
+  'settings.codexDefaultModelHint': 'Default model is gpt-5.5.',
+  'settings.codexSetDefaultModel': 'Set to gpt-5.5',
+  'settings.codexModelUpdated': 'Codex model set to gpt-5.5',
 
   // Inbox
   'inbox.title': 'Inbox',

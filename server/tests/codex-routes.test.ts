@@ -106,12 +106,23 @@ async function buildApp(opts: {
   return app
 }
 
+let codexHome: string
+let savedCodexHome: string | undefined
+
 beforeEach(() => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-routes-'))
+  // Isolate CODEX_HOME at an EMPTY temp dir so the shared-credential fallback
+  // never touches the developer's real ~/.codex/auth.json.
+  codexHome = fs.mkdtempSync(path.join(os.tmpdir(), 'codex-home-'))
+  savedCodexHome = process.env.CODEX_HOME
+  process.env.CODEX_HOME = codexHome
 })
 
 afterEach(() => {
+  if (savedCodexHome === undefined) delete process.env.CODEX_HOME
+  else process.env.CODEX_HOME = savedCodexHome
   fs.rmSync(tmpDir, { recursive: true, force: true })
+  fs.rmSync(codexHome, { recursive: true, force: true })
 })
 
 /** Poll status until it leaves 'pending' or the attempt budget is exhausted. */
@@ -263,7 +274,63 @@ describe('codex auth routes', () => {
     expect(info.account_id).toBe('acc-123')
     expect(info.plan_type).toBe('plus')
     expect(info.token_valid).toBe(true)
+    // An explicit InkFlow login reports source 'inkflow'.
+    expect(info.source).toBe('inkflow')
+    // expires_at derived from the access-token JWT exp.
+    expect(typeof info.expires_at).toBe('number')
 
+    await app.close()
+  })
+
+  it('info reports source codex-cli when only the shared ~/.codex/auth.json exists', async () => {
+    // Drop a fake official Codex CLI auth.json into the isolated CODEX_HOME.
+    const cliFile = path.join(codexHome, 'auth.json')
+    const idToken = makeIdToken({ accountId: 'acct_cli', planType: 'prolite', expMs: Date.now() + 60 * 60 * 1000 })
+    fs.writeFileSync(cliFile, JSON.stringify({
+      auth_mode: 'chatgpt',
+      OPENAI_API_KEY: false,
+      tokens: {
+        id_token: idToken,
+        access_token: makeIdToken({ accountId: 'acct_cli', expMs: Date.now() + 60 * 60 * 1000 }),
+        refresh_token: 'cli_refresh_1',
+        account_id: 'acct_cli',
+      },
+      last_refresh: new Date().toISOString(),
+    }, null, 2), { encoding: 'utf-8', mode: 0o600 })
+
+    const app = await buildApp()
+    const res = await app.inject({ method: 'GET', url: '/api/v1/auth/codex/info' })
+    const info = res.json()
+    expect(info.authenticated).toBe(true)
+    expect(info.source).toBe('codex-cli')
+    expect(info.account_id).toBe('acct_cli')
+    expect(info.plan_type).toBe('prolite')
+    await app.close()
+  })
+
+  it('logout from a codex-cli source does not delete ~/.codex/auth.json and reports source', async () => {
+    const cliFile = path.join(codexHome, 'auth.json')
+    fs.writeFileSync(cliFile, JSON.stringify({
+      auth_mode: 'chatgpt',
+      OPENAI_API_KEY: false,
+      tokens: {
+        id_token: makeIdToken({ accountId: 'acct_cli', expMs: Date.now() + 60 * 60 * 1000 }),
+        access_token: makeIdToken({ accountId: 'acct_cli', expMs: Date.now() + 60 * 60 * 1000 }),
+        refresh_token: 'cli_refresh_1',
+        account_id: 'acct_cli',
+      },
+      last_refresh: new Date().toISOString(),
+    }, null, 2), { encoding: 'utf-8', mode: 0o600 })
+
+    const app = await buildApp()
+    const logout = await app.inject({ method: 'POST', url: '/api/v1/auth/codex/logout' })
+    expect(logout.statusCode).toBe(200)
+    const body = logout.json()
+    expect(body.status).toBe('ok')
+    expect(body.source).toBe('codex-cli')
+    expect(body.message).toMatch(/\.codex/)
+    // The shared file must survive logout.
+    expect(fs.existsSync(cliFile)).toBe(true)
     await app.close()
   })
 })

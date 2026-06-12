@@ -19,6 +19,7 @@ import type { FastifyPluginAsync } from 'fastify'
 import {
   accessTokenExpiresSoon,
   buildAuthorizeUrl,
+  decodeJwtPayload,
   exchangeCode,
   extractAccountId,
   extractPlanType,
@@ -32,7 +33,7 @@ import {
 } from '../llm/loopback-server.js'
 import {
   clearCodexAuth,
-  loadCodexAuth,
+  resolveAuthSource,
   saveCodexAuth,
 } from '../llm/codex-store.js'
 
@@ -59,6 +60,17 @@ interface LoginFlow {
 
 /** How long a pending login attempt stays valid before it is reaped. */
 const LOGIN_TTL_MS = 5 * 60 * 1000
+
+/** Read the access-token JWT `exp` claim as epoch ms, or undefined when absent. */
+function readAccessTokenExpiryMs(accessToken: string): number | undefined {
+  try {
+    const payload = decodeJwtPayload(accessToken)
+    const exp = payload['exp']
+    return typeof exp === 'number' && Number.isFinite(exp) ? exp * 1000 : undefined
+  } catch {
+    return undefined
+  }
+}
 
 export const codexAuthRoutes: FastifyPluginAsync<Options> = async (app, opts) => {
   const { dataDir } = opts
@@ -163,26 +175,52 @@ export const codexAuthRoutes: FastifyPluginAsync<Options> = async (app, opts) =>
       flow.capture.close()
     }
     flow = null
+
+    // Determine the active source BEFORE clearing so we can tell the user
+    // whether anything was actually removed. clearCodexAuth only ever deletes
+    // the InkFlow-private store — it never touches ~/.codex/auth.json.
+    let source: 'inkflow' | 'codex-cli' | null = null
+    try {
+      const resolved = await resolveAuthSource(dataDir)
+      source = resolved?.kind ?? null
+    } catch {
+      // Corrupt InkFlow store — clearing below will remove it anyway.
+      source = 'inkflow'
+    }
+
     await clearCodexAuth(dataDir)
-    return { status: 'ok' }
+
+    if (source === 'codex-cli') {
+      // The login came from the shared Codex CLI file. We deliberately leave it
+      // intact (deleting it would break `codex` CLI); report that to the user.
+      return {
+        status: 'ok',
+        source: 'codex-cli' as const,
+        message: '凭据来自 ~/.codex，未删除（如需退出请运行 codex logout）。',
+      }
+    }
+    return { status: 'ok', source }
   })
 
   // GET /api/v1/auth/codex/info
   app.get('/auth/codex/info', async () => {
-    let stored
+    let source
     try {
-      stored = await loadCodexAuth(dataDir)
+      // Offline resolution: InkFlow store first, then the shared ~/.codex/auth.json.
+      source = await resolveAuthSource(dataDir)
     } catch (err) {
       // store_corrupt etc. — report as not authenticated rather than 500.
       return {
         authenticated: false,
         token_valid: false,
+        source: null,
         ...(err instanceof CodexAuthError ? { message: err.message } : {}),
       }
     }
-    if (!stored) {
-      return { authenticated: false, token_valid: false }
+    if (!source) {
+      return { authenticated: false, token_valid: false, source: null }
     }
+    const { raw: stored, kind } = source
     const accountId = stored.tokens.account_id
       ?? extractAccountId(stored.tokens.id_token || stored.tokens.access_token)
     const planType = extractPlanType(stored.tokens.id_token || stored.tokens.access_token)
@@ -195,11 +233,14 @@ export const codexAuthRoutes: FastifyPluginAsync<Options> = async (app, opts) =>
       account_id: accountId,
       expires_at: 0,
     })
+    const expiresAt = readAccessTokenExpiryMs(stored.tokens.access_token)
     return {
       authenticated: true,
       token_valid: tokenValid,
+      source: kind,
       ...(accountId ? { account_id: accountId } : {}),
       ...(planType ? { plan_type: planType } : {}),
+      ...(expiresAt !== undefined ? { expires_at: expiresAt } : {}),
       last_refresh: stored.last_refresh,
     }
   })
