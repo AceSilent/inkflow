@@ -14,6 +14,7 @@ const chapterWorkbench = readFileSync(new URL('../ChapterWorkbench.jsx', import.
 const plotGraphView = readFileSync(new URL('../PlotGraphView.jsx', import.meta.url), 'utf8')
 const deepSpaceBackdropUrl = new URL('./DeepSpaceBackdrop.jsx', import.meta.url)
 const deepSpaceBackdrop = existsSync(deepSpaceBackdropUrl) ? readFileSync(deepSpaceBackdropUrl, 'utf8') : ''
+const atmosphereBackdrop = readFileSync(new URL('./AtmosphereBackdrop.jsx', import.meta.url), 'utf8')
 const romanUtilUrl = new URL('../../utils/roman.ts', import.meta.url)
 const previewHtml = readFileSync(new URL('../../../../docs/design/creative-flow-preview.html', import.meta.url), 'utf8')
 const tauriConfig = readFileSync(new URL('../../../../src-tauri/tauri.conf.json', import.meta.url), 'utf8')
@@ -113,13 +114,17 @@ describe('visual polish direction', () => {
     expect(indexCss).toMatch(/\.game-script-workspace \{[\s\S]*background:\s*transparent;/)
   })
 
-  it('mounts the deep-space backdrop in the studio shell', () => {
-    // The themed AtmosphereBackdrop fails to compile its shader under the Tauri
-    // desktop's WKWebView, so the studio shell mounts the simpler, proven
-    // DeepSpaceBackdrop. AtmosphereBackdrop/ modules are kept for a later
-    // WKWebView-compatible pass.
-    expect(studioShell).toContain('DeepSpaceBackdrop')
-    expect(studioShell).not.toContain('AtmosphereBackdrop')
+  it('mounts the per-theme atmosphere backdrop in the studio shell', () => {
+    expect(studioShell).toContain('AtmosphereBackdrop')
+    expect(studioShell).not.toContain('DeepSpaceBackdrop')
+  })
+
+  it('atmosphere backdrop self-corrects the transparent-window first-paint via a re-init', () => {
+    // On the Tauri transparent WKWebView the first WebGL composite can come up
+    // transparent; the component bumps a nonce after mount to re-init once the
+    // window has settled (what a manual theme switch does by hand).
+    expect(atmosphereBackdrop).toContain('reinitNonce')
+    expect(atmosphereBackdrop).toMatch(/\[resolvedTheme, reinitNonce\]/)
   })
 
   it('keeps the retained deep-space backdrop module as a continuous WebGL shader', () => {

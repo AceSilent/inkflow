@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { getBackdropInit, DEFAULT_BACKDROP_THEME } from './backdrops'
 import { clearColorCache, REDUCED_MOTION_QUERY } from './backdrops/colorTokens'
 import { useBackdropIntensity } from '../../hooks/useBackdropIntensity'
@@ -34,6 +34,31 @@ export function AtmosphereBackdrop({ theme, intensity }) {
   // Resolve the theme to a stable string so the effect only re-runs on real changes.
   const resolvedTheme = resolveTheme(theme)
 
+  // On the Tauri desktop's TRANSPARENT WKWebView window, the very first WebGL
+  // composite after a cold load can come up transparent (the canvas isn't laid out
+  // yet / the window is still settling its compositor), bleeding the desktop through.
+  // A manual theme switch fixes it because it tears down and rebuilds the GL context
+  // once the window is settled. We reproduce that automatically: bump a nonce a beat
+  // after mount so the main effect re-initializes once on a stable window. Harmless
+  // in Chrome/Safari (one extra init).
+  const [reinitNonce, setReinitNonce] = useState(0)
+  useEffect(() => {
+    let raf1 = 0
+    let raf2 = 0
+    // Two rAFs + a short timeout: wait past first layout/paint AND give the
+    // transparent window's compositor time to settle before the corrective re-init.
+    const timer = setTimeout(() => {
+      raf1 = window.requestAnimationFrame(() => {
+        raf2 = window.requestAnimationFrame(() => setReinitNonce((n) => n + 1))
+      })
+    }, 180)
+    return () => {
+      clearTimeout(timer)
+      if (raf1) window.cancelAnimationFrame(raf1)
+      if (raf2) window.cancelAnimationFrame(raf2)
+    }
+  }, [])
+
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return undefined
@@ -48,33 +73,23 @@ export function AtmosphereBackdrop({ theme, intensity }) {
 
     const initFn = getBackdropInit(resolvedTheme)
     const getParams = () => intensityRef.current
-    let controller = null
-    try {
-      controller = initFn(canvas, getParams)
-    } catch (err) {
-      console.warn('AtmosphereBackdrop init failed:', err)
-      controller = null
-    }
-    // No GL/2D context (or compile failure): leave the CSS fallback gradient showing.
-    if (!controller) return undefined
 
+    let controller = null
     let animationFrame = 0
     let lastNow = 0
 
     const shouldReduceMotion = () => reducedMotion?.matches === true
 
-    const frame = (now) => {
-      animationFrame = 0
-      const dt = lastNow ? (now - lastNow) / 1000 : 0
-      lastNow = now
-      controller.frame(dt)
-      schedule()
-    }
-
-    function schedule() {
-      if (animationFrame || document.hidden || shouldReduceMotion()) return
-      animationFrame = window.requestAnimationFrame(frame)
-    }
+    // Show the live canvas only while a working controller exists; otherwise hide it
+    // so the backdrop div's opaque var(--bg) shows through. This is critical on the
+    // Tauri desktop: the native window is transparent, so a failed or context-lost
+    // alpha:false WebGL canvas would otherwise expose the desktop wallpaper instead
+    // of a dark background. The div bg is the guaranteed, GPU-independent floor.
+    // display:none (not visibility:hidden) fully removes the canvas's GPU surface,
+    // which otherwise keeps compositing — and bleeding through the transparent
+    // window — even while hidden. With it gone the div's opaque var(--bg) shows.
+    const showCanvas = () => { canvas.style.display = '' }
+    const hideCanvas = () => { canvas.style.display = 'none' }
 
     function stop() {
       if (animationFrame) {
@@ -84,9 +99,43 @@ export function AtmosphereBackdrop({ theme, intensity }) {
       lastNow = 0
     }
 
+    const frame = (now) => {
+      animationFrame = 0
+      if (!controller) return
+      const dt = lastNow ? (now - lastNow) / 1000 : 0
+      lastNow = now
+      controller.frame(dt)
+      schedule()
+    }
+
+    function schedule() {
+      if (animationFrame || document.hidden || shouldReduceMotion() || !controller) return
+      animationFrame = window.requestAnimationFrame(frame)
+    }
+
     function renderOnce() {
+      if (!controller) return
       if (shouldReduceMotion()) controller.renderStatic()
       else controller.frame(0)
+    }
+
+    // Build (or rebuild) the controller on the current/restored GL context.
+    function setup() {
+      try {
+        controller = initFn(canvas, getParams)
+      } catch (err) {
+        console.warn('AtmosphereBackdrop init failed:', err)
+        controller = null
+      }
+      if (!controller) {
+        hideCanvas()
+        return false
+      }
+      showCanvas()
+      controller.resize(shouldReduceMotion())
+      renderOnce()
+      if (!shouldReduceMotion()) schedule()
+      return true
     }
 
     const handleVisibility = () => {
@@ -100,49 +149,60 @@ export function AtmosphereBackdrop({ theme, intensity }) {
 
     const handleReducedMotionChange = () => {
       stop()
-      if (shouldReduceMotion()) {
-        controller.renderStatic()
-      } else {
-        schedule()
-      }
+      if (!controller) return
+      if (shouldReduceMotion()) controller.renderStatic()
+      else schedule()
     }
 
     const handleResize = () => {
+      if (!controller) return
       controller.resize(shouldReduceMotion())
       renderOnce()
+    }
+
+    // WebGL contexts can be reclaimed by the OS/WebView (window occlusion, GPU
+    // switch, memory pressure) — frequent in WKWebView. preventDefault keeps the
+    // context restorable; on restore we rebuild the program and resume. Until then
+    // the canvas is hidden so the opaque div bg holds the window (no desktop bleed).
+    const handleContextLost = (event) => {
+      event.preventDefault()
+      stop()
+      controller = null
+      hideCanvas()
+    }
+    const handleContextRestored = () => {
+      setup()
     }
 
     // ResizeObserver catches canvas box changes (grid/sidebar reflow); the window
     // resize listener additionally catches DPR-only changes (e.g. moving monitors).
     const resizeObserver = new ResizeObserver(handleResize)
 
-    // Initial paint.
-    controller.resize(shouldReduceMotion())
+    canvas.addEventListener('webglcontextlost', handleContextLost, false)
+    canvas.addEventListener('webglcontextrestored', handleContextRestored, false)
     resizeObserver.observe(canvas)
-    if (shouldReduceMotion()) {
-      controller.renderStatic()
-    } else {
-      controller.frame(0)
-      schedule()
-    }
-
     reducedMotion?.addEventListener?.('change', handleReducedMotionChange)
     document.addEventListener('visibilitychange', handleVisibility)
     window.addEventListener('resize', handleResize)
 
+    // Initial paint (hides the canvas + shows the opaque floor if init fails).
+    setup()
+
     return () => {
       stop()
       resizeObserver.disconnect()
+      canvas.removeEventListener('webglcontextlost', handleContextLost, false)
+      canvas.removeEventListener('webglcontextrestored', handleContextRestored, false)
       reducedMotion?.removeEventListener?.('change', handleReducedMotionChange)
       document.removeEventListener('visibilitychange', handleVisibility)
       window.removeEventListener('resize', handleResize)
       try {
-        controller.destroy()
+        controller && controller.destroy()
       } catch (err) {
         console.warn('AtmosphereBackdrop destroy failed:', err)
       }
     }
-  }, [resolvedTheme])
+  }, [resolvedTheme, reinitNonce])
 
   return (
     <div className="atmosphere-backdrop" data-theme={resolvedTheme} aria-hidden="true">

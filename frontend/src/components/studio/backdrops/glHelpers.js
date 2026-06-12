@@ -4,12 +4,20 @@
 
 export function createGlContext(canvas) {
   const attrs = {
-    alpha: false,
+    // alpha:true + every fragment writing alpha=1.0 keeps the canvas fully opaque,
+    // matching the proven DeepSpaceBackdrop.
+    alpha: true,
     antialias: false,
     depth: false,
-    desynchronized: true,
+    // NO desynchronized:true. It requests a low-latency hardware overlay plane;
+    // inside the Tauri desktop's TRANSPARENT WKWebView window that overlay composites
+    // straight to screen and bleeds through to the desktop wallpaper. (DeepSpace also
+    // sets it but its container's opacity<1 forced normal compositing, masking the
+    // bug.) Renders correctly in Safari/Chrome regardless — only the transparent
+    // native window exposed it. Plain compositing is fine for a slow backdrop.
     powerPreference: 'high-performance',
     premultipliedAlpha: false,
+    preserveDrawingBuffer: true,
     stencil: false,
   }
   return canvas.getContext('webgl', attrs) || canvas.getContext('experimental-webgl')
@@ -79,8 +87,8 @@ export function setupFullscreenQuad(gl, program) {
 // destroy() is called on every cleanup. Calling WEBGL_lose_context.loseContext()
 // here is fatal: once a context is force-lost, `canvas.getContext('webgl')` on the
 // SAME element returns that very same — now permanently lost — context, so the next
-// init's shader compile fails ("failed to compile: null") and the alpha:false canvas
-// renders as opaque white, washing out the whole shell. We only ever hold one GL
+// init's shader compile fails ("failed to compile: null") and the canvas renders
+// nothing — washing out the whole shell. We only ever hold one GL
 // context per canvas; deleting the program/buffer in destroy() is enough, and the
 // context is reused cleanly on re-init (or GC'd when the canvas is dropped).
 export function loseContext() {}
