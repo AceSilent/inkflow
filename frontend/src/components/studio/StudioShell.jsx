@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { PanelRightClose, PanelRightOpen } from 'lucide-react'
 import { CreativeFlowNotch } from '../CreativeFlowNotch'
-import { DeepSpaceBackdrop } from './DeepSpaceBackdrop'
+import { AtmosphereBackdrop } from './AtmosphereBackdrop'
 import { WorkspacePane } from './WorkspacePane'
 import { WorkspaceTabs } from './WorkspaceTabs'
 import { startNativeWindowDrag } from './nativeWindowDrag'
@@ -186,7 +186,7 @@ export function StudioShell({
       data-theme={theme}
       style={{ '--studio-titlebar-left-inset': `${studioChromeLayout.titlebarLeftInset}px` }}
     >
-      <DeepSpaceBackdrop />
+      <AtmosphereBackdrop theme={theme} />
 
       <header className="studio-titlebar" data-tauri-drag-region="deep" onMouseDownCapture={startNativeWindowDrag}>
         <div className="studio-titlebar-drag-region" data-tauri-drag-region />

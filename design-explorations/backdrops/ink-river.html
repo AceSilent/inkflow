@@ -1,0 +1,781 @@
+<!-- @dsCard group="Backdrops" -->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>深空·墨河</title>
+<style>
+  /* 色板严格取自 ink 主题 token(oklch 换算 sRGB):
+     --bg            oklch(18% .018 260)  -> #0d121a
+     --bg-elevated   oklch(24% .018 260)  -> #1a2028
+     --ink           oklch(93% .01 255)   -> #e3e8ef
+     --ink-secondary oklch(78% .012 255)  -> #b2b8bf
+     --ink-muted     oklch(63% .012 255)  -> #848a90
+     --border-subtle oklch(32% .014 260)  -> #2f333a
+     app 实际底层渐变(index.css ink 分支):
+       oklch(10.5% .022 226) #000509 -> oklch(7.4% .017 258) #000104 -> oklch(9.6% .018 205) #000405
+     Ink Teal 强调:#4F9A94 */
+  :root {
+    --bg: #0d121a;
+    --bg-elevated: #1a2028;
+    --ink: #e3e8ef;
+    --ink-secondary: #b2b8bf;
+    --ink-muted: #848a90;
+    --border-subtle: #2f333a;
+    --teal: #4f9a94;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body { height: 100%; }
+
+  body {
+    overflow: hidden;
+    /* 与 ink 主题 #root 渐变同源,canvas 加载前 / WebGL 失败时仍是真实底色 */
+    background: linear-gradient(135deg, #000509, #000104 50%, #000405);
+    color: var(--ink);
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+      "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #scene {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  /* —— 毛玻璃阅读面板:对齐 InkFlow glass 体系(低填充 + 细描边 + 顶部高光) —— */
+  .glass-panel {
+    position: fixed;
+    top: 50%;
+    right: 7%;
+    transform: translateY(-50%);
+    width: min(432px, 86vw);
+    border-radius: 14px;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.028), transparent 46%),
+      rgba(26, 32, 40, 0.30);
+    backdrop-filter: blur(28px) saturate(1.16);
+    -webkit-backdrop-filter: blur(28px) saturate(1.16);
+    border: 1px solid rgba(255, 255, 255, 0.085);
+    box-shadow:
+      0 30px 96px rgba(0, 0, 0, 0.40),
+      0 10px 30px rgba(0, 0, 0, 0.24),
+      inset 0 1px 0 rgba(255, 255, 255, 0.075),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+    padding: 22px 24px 18px;
+  }
+
+  .panel-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  .panel-kicker {
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    color: var(--ink-muted);
+  }
+
+  .panel-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--ink);
+    font-family: ui-serif, Georgia, "Songti SC", "STSong", serif;
+    letter-spacing: 0.04em;
+  }
+
+  .panel-body p {
+    font-size: 14px;
+    line-height: 1.6;
+    color: #d4d9e1;
+    margin-bottom: 8px;
+  }
+
+  .panel-body p:last-child { margin-bottom: 0; }
+
+  .fake-input {
+    margin-top: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(26, 32, 40, 0.52);
+    border: 1px solid rgba(47, 51, 58, 0.85);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  }
+
+  .fake-input .placeholder {
+    font-size: 13px;
+    color: var(--ink-muted);
+  }
+
+  .fake-input .send-key {
+    flex: none;
+    font-size: 11px;
+    color: #8fbcb7;
+    padding: 3px 9px;
+    border-radius: 6px;
+    border: 1px solid rgba(79, 154, 148, 0.35);
+    background: rgba(79, 154, 148, 0.10);
+    letter-spacing: 0.05em;
+  }
+
+  /* —— 左下角概念标签 —— */
+  .concept-tag {
+    position: fixed;
+    left: 22px;
+    bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: rgba(13, 18, 26, 0.42);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+  }
+
+  .concept-tag strong {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: var(--ink);
+  }
+
+  .concept-tag span {
+    font-size: 11px;
+    color: var(--ink-muted);
+    letter-spacing: 0.02em;
+  }
+
+  /* —— 右下角强度分段控件:贴合 glass 体系,与 send-key 同一套描边语言 —— */
+  .intensity-ctl {
+    position: fixed;
+    right: 22px;
+    bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 4px;
+    border-radius: 10px;
+    background: rgba(13, 18, 26, 0.42);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+  }
+
+  .intensity-ctl .ctl-label {
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    color: var(--ink-muted);
+    padding: 0 6px 0 8px;
+    user-select: none;
+  }
+
+  .intensity-ctl button {
+    appearance: none;
+    font: inherit;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    color: var(--ink-muted);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    padding: 4px 11px;
+    cursor: pointer;
+    transition: color 200ms ease, background-color 200ms ease, border-color 200ms ease;
+  }
+
+  .intensity-ctl button:hover {
+    color: var(--ink-secondary);
+  }
+
+  .intensity-ctl button[aria-pressed="true"] {
+    color: #8fbcb7;
+    background: rgba(79, 154, 148, 0.10);
+    border-color: rgba(79, 154, 148, 0.35);
+  }
+
+  .intensity-ctl button:focus-visible {
+    outline: 1px solid rgba(79, 154, 148, 0.55);
+    outline-offset: 1px;
+  }
+</style>
+</head>
+<body>
+<canvas id="scene" aria-hidden="true"></canvas>
+
+<section class="glass-panel" aria-label="阅读可读性样张">
+  <header class="panel-head">
+    <span class="panel-kicker">第 14 章</span>
+    <span class="panel-title">夜航</span>
+  </header>
+  <div class="panel-body">
+    <p>夜色像一卷摊开的墨,沿着舷窗缓缓洇开,把远山的轮廓一点点收进暗处。</p>
+    <p>她数着天际明灭的星,忽然觉得那条银带也在数她,数她攥紧又松开的手。</p>
+    <p>风从峡谷深处吹来,带着旧纸与松脂的气味,像谁在很远的地方翻动书页。</p>
+  </div>
+  <div class="fake-input">
+    <span class="placeholder">让作者智能体继续写这一段……</span>
+    <span class="send-key">发送 ↵</span>
+  </div>
+</section>
+
+<div class="concept-tag">
+  <strong>深空·墨河</strong>
+  <span>fbm 噪声驱动的墨色光河,边缘如墨入水般晕开,缓缓横贯星空</span>
+  <span>强度可调:含蓄 / 适中 / 浓郁(快捷键 1 · 2 · 3)</span>
+</div>
+
+<div class="intensity-ctl" role="group" aria-label="背景动画强度">
+  <span class="ctl-label">强度</span>
+  <button type="button" data-preset="subtle" aria-pressed="false">含蓄</button>
+  <button type="button" data-preset="medium" aria-pressed="false">适中</button>
+  <button type="button" data-preset="rich" aria-pressed="true">浓郁</button>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var DPR_CAP = 2;
+  var STATIC_TIME = 26.0; // prefers-reduced-motion 时渲染的单帧时刻(静帧固定用「适中」档:可见但不动)
+
+  /* —— 三档强度预设 ——
+     「含蓄」与初版参数逐位相等;「适中」约 2.5 倍;「浓郁」约 5 倍以上。
+     档位不只缩放不透明度:河宽、丝缕对比、边缘破碎、星场密度/星径、
+     星云底纹、动效速度与流星间隔一起缩放。
+     river: [河体增益, 环境辉光, 河宽倍率, 脉冲幅度]
+     mask:  [掩码阈值下, 上, 破碎基底, 破碎幅度]
+     fil:   [丝缕基底, 脊线增益, 脊线锐度]
+     star:  [密度阈值偏移, 亮度倍率, 星径倍率]   glint: [阈值偏移, 增益]
+     misc:  [星云增益, 微粒阈值, 微粒增益, 流星增益]
+     meteorFirst/meteorEvery: [最短, 随机区间](真实秒) */
+  var PRESETS = {
+    subtle: {
+      label: '含蓄',
+      speed: 1.0,
+      river: [0.115, 0.016, 1.0, 0.22],
+      mask: [0.18, 0.62, 0.55, 0.70],
+      fil: [0.30, 0.85, 2.2],
+      star: [0.0, 1.0, 1.0],
+      glint: [0.0, 1.0],
+      misc: [0.0, 0.93, 0.10, 0.55],
+      meteorFirst: [14, 6],
+      meteorEvery: [25, 15]
+    },
+    medium: {
+      label: '适中',
+      speed: 1.5,
+      river: [0.26, 0.038, 1.25, 0.20],
+      mask: [0.14, 0.55, 0.50, 0.85],
+      fil: [0.28, 1.05, 2.5],
+      star: [0.012, 1.6, 1.3],
+      glint: [0.010, 1.5],
+      misc: [0.5, 0.915, 0.22, 0.75],
+      meteorFirst: [7, 5],
+      meteorEvery: [15, 9]
+    },
+    rich: {
+      label: '浓郁',
+      speed: 2.2,
+      river: [0.46, 0.075, 1.55, 0.18],
+      mask: [0.10, 0.48, 0.45, 1.00],
+      fil: [0.24, 1.30, 2.9],
+      star: [0.025, 2.4, 1.7],
+      glint: [0.022, 2.1],
+      misc: [1.0, 0.895, 0.34, 1.0],
+      meteorFirst: [3, 3],
+      meteorEvery: [8, 7]
+    }
+  };
+  var DEFAULT_PRESET = 'rich';
+  var STATIC_PRESET = 'medium';
+
+  var VERTEX_SRC = [
+    'attribute vec2 a_pos;',
+    'varying vec2 v_uv;',
+    'void main() {',
+    '  v_uv = a_pos * 0.5 + 0.5;',
+    '  gl_Position = vec4(a_pos, 0.0, 1.0);',
+    '}'
+  ].join('\n');
+
+  var FRAGMENT_SRC = [
+    'precision highp float;',
+    '',
+    'uniform float u_time;',
+    'uniform vec2 u_res;',
+    'uniform vec4 u_meteor;    // x: 触发时刻  yz: 起点(p 空间)  w: 激活',
+    'uniform vec2 u_meteorDir; // 方向 * 长度(p 空间)',
+    '',
+    '// —— 强度档位参数(由 JS 预设驱动,「含蓄」档与原始参数逐位相等) ——',
+    'uniform vec4 u_river;  // x: 河体增益  y: 环境辉光增益  z: 河宽倍率  w: 行进脉冲幅度',
+    'uniform vec4 u_mask;   // xy: 掩码阈值下/上  zw: 边缘破碎基底/幅度',
+    'uniform vec3 u_fil;    // x: 丝缕基底  y: 丝缕脊线增益  z: 脊线锐度',
+    'uniform vec3 u_star;   // x: 星密度阈值偏移  y: 星亮度倍率  z: 星径倍率',
+    'uniform vec2 u_glint;  // x: 亮星阈值偏移  y: 亮星增益',
+    'uniform vec4 u_misc;   // x: 星云底纹增益  y: 微粒阈值  z: 微粒增益  w: 流星增益',
+    '',
+    'varying vec2 v_uv;',
+    '',
+    'float hash(vec2 p) {',
+    '  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);',
+    '}',
+    '',
+    'vec2 hash2(vec2 p) {',
+    '  return fract(sin(vec2(',
+    '    dot(p, vec2(269.5, 183.3)),',
+    '    dot(p, vec2(113.5, 271.9))',
+    '  )) * 43758.5453123);',
+    '}',
+    '',
+    'float noise(vec2 p) {',
+    '  vec2 i = floor(p);',
+    '  vec2 f = fract(p);',
+    '  f = f * f * (3.0 - 2.0 * f);',
+    '  float a = hash(i);',
+    '  float b = hash(i + vec2(1.0, 0.0));',
+    '  float c = hash(i + vec2(0.0, 1.0));',
+    '  float d = hash(i + vec2(1.0, 1.0));',
+    '  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);',
+    '}',
+    '',
+    'mat2 rot(float a) {',
+    '  float s = sin(a);',
+    '  float c = cos(a);',
+    '  return mat2(c, -s, s, c);',
+    '}',
+    '',
+    'float fbm(vec2 p) {',
+    '  float v = 0.0;',
+    '  float amp = 0.52;',
+    '  mat2 turn = rot(0.56);',
+    '  for (int i = 0; i < 5; i += 1) {',
+    '    v += amp * noise(p);',
+    '    p = turn * p * 2.04 + vec2(13.7, 8.3);',
+    '    amp *= 0.52;',
+    '  }',
+    '  return v;',
+    '}',
+    '',
+    '// 低频场用 3 阶即可,省一半采样',
+    'float fbm3(vec2 p) {',
+    '  float v = 0.0;',
+    '  float amp = 0.55;',
+    '  mat2 turn = rot(0.56);',
+    '  for (int i = 0; i < 3; i += 1) {',
+    '    v += amp * noise(p);',
+    '    p = turn * p * 2.04 + vec2(13.7, 8.3);',
+    '    amp *= 0.52;',
+    '  }',
+    '  return v;',
+    '}',
+    '',
+    'float starLayer(vec2 uv, float grid, float threshold, float radius, float t, float sparkle) {',
+    '  vec2 cell = floor(uv * grid);',
+    '  vec2 local = fract(uv * grid);',
+    '  vec2 rnd = hash2(cell);',
+    '  vec2 star = 0.10 + rnd * 0.80;',
+    '  float dist = length(local - star);',
+    '  float core = smoothstep(radius, 0.0, dist);',
+    '  float gate = step(threshold, rnd.x);',
+    '  float twinkle = 0.68 + 0.32 * sin(t * sparkle + rnd.x * 57.0 + rnd.y * 31.0);',
+    '  return core * gate * twinkle;',
+    '}',
+    '',
+    'float glintLayer(vec2 uv, float grid, float threshold, float radius, float t) {',
+    '  vec2 cell = floor(uv * grid);',
+    '  vec2 local = fract(uv * grid);',
+    '  vec2 rnd = hash2(cell + vec2(41.0, 19.0));',
+    '  vec2 star = 0.16 + rnd * 0.68;',
+    '  vec2 delta = abs(local - star);',
+    '  float gate = step(threshold, rnd.x);',
+    '  float pulse = 0.45 + 0.55 * pow(0.5 + 0.5 * sin(t * 0.9 + rnd.y * 41.0), 3.0);',
+    '  float core = smoothstep(radius, 0.0, length(delta));',
+    '  float horizontal = smoothstep(radius * 6.0, 0.0, delta.x) * smoothstep(radius * 0.6, 0.0, delta.y);',
+    '  float vertical = smoothstep(radius * 0.6, 0.0, delta.x) * smoothstep(radius * 3.8, 0.0, delta.y);',
+    '  return gate * pulse * (core + (horizontal + vertical) * 0.16);',
+    '}',
+    '',
+    '// 流星:细、快(0.55s 划过),1s 指数余晖,无卡通拖尾',
+    'float meteor(vec2 p, float t) {',
+    '  float age = t - u_meteor.x;',
+    '  if (u_meteor.w < 0.5 || age < 0.0 || age > 2.4) return 0.0;',
+    '  vec2 a = u_meteor.yz;',
+    '  float travel = clamp(age / 0.55, 0.0, 1.0);',
+    '  vec2 ab = u_meteorDir * travel;',
+    '  float len2 = max(dot(ab, ab), 1e-6);',
+    '  float h = clamp(dot(p - a, ab) / len2, 0.0, 1.0);',
+    '  vec2 closest = a + ab * h;',
+    '  float d = length(p - closest);',
+    '  float passAge = max(age - h * 0.55, 0.0);',
+    '  float fade = exp(-passAge * 3.0);',
+    '  float core = exp(-d * d * 130000.0);',
+    '  float halo = exp(-d * d * 14000.0) * 0.2;',
+    '  vec2 hd = p - (a + u_meteorDir * travel);',
+    '  float head = exp(-dot(hd, hd) * 36000.0) * (1.0 - step(0.55, age)) * 1.1;',
+    '  return (core + halo) * fade + head;',
+    '}',
+    '',
+    'void main() {',
+    '  vec2 uv = v_uv;',
+    '  float aspect = u_res.x / max(u_res.y, 1.0);',
+    '  vec2 p = vec2((uv.x - 0.5) * aspect, uv.y - 0.5);',
+    '  float t = u_time;',
+    '',
+    '  // ---- 底色:ink 主题 #root 实际 135deg 渐变(token 换算 sRGB) ----',
+    '  float g = clamp((uv.x + (1.0 - uv.y)) * 0.5, 0.0, 1.0);',
+    '  vec3 c1 = vec3(0.000, 0.0196, 0.0353);  // #000509',
+    '  vec3 c2 = vec3(0.0016, 0.0052, 0.0155); // #000104',
+    '  vec3 c3 = vec3(0.000, 0.0154, 0.0186);  // #000405',
+    '  vec3 base = mix(mix(c1, c2, smoothstep(0.0, 0.55, g)), c3, smoothstep(0.55, 1.0, g));',
+    '',
+    '  // 微弱星云洗色(取自 ink 主题 ambient token 一族)',
+    '  float cloud = fbm3(p * 1.7 + vec2(t * 0.013, -t * 0.009));',
+    '  float w1 = smoothstep(0.95, 0.10, length((p - vec2(-0.14, 0.16)) * vec2(0.85, 1.30)));',
+    '  float w2 = smoothstep(0.90, 0.08, length((p - vec2(0.30, -0.24)) * vec2(1.20, 0.80)));',
+    '  base += vec3(0.124, 0.246, 0.308) * w1 * smoothstep(0.32, 0.85, cloud) * 0.050; // #203f4e',
+    '  base += vec3(0.073, 0.205, 0.190) * w2 * smoothstep(0.40, 0.90, 1.0 - cloud) * 0.036; // #123430',
+    '',
+    '  // ---- 极远星云底纹:适中/浓郁档显现,为星空增加纵深(含蓄档增益为 0,整块跳过) ----',
+    '  if (u_misc.x > 0.001) {',
+    '    vec2 np = p * vec2(0.95, 1.35) + vec2(t * 0.0045, -t * 0.0032);',
+    '    float neb = fbm(np + vec2(7.7, 2.1));',
+    '    float nebFine = fbm3(np * 2.6 + vec2(3.1, 9.4));',
+    '    neb = smoothstep(0.38, 0.92, neb + (nebFine - 0.5) * 0.30);',
+    '    float nebW = smoothstep(1.15, 0.20, length((p - vec2(0.06, 0.10)) * vec2(0.72, 1.05)));',
+    '    vec3 nebCol = mix(vec3(0.082, 0.178, 0.196), vec3(0.075, 0.150, 0.215), smoothstep(0.2, 0.8, uv.y));',
+    '    base += nebCol * neb * nebW * 0.34 * u_misc.x;',
+    '  }',
+    '',
+    '  vec3 color = base;',
+    '',
+    '  // ---- 墨河:fbm 驱动的丝带光流,横贯上三分之一 ----',
+    '  float rx = p.x;',
+    '  float meander = (fbm3(vec2(rx * 0.80 + t * 0.011, 7.31)) - 0.5) * 0.24',
+    '                + sin(rx * 1.45 - t * 0.024) * 0.03;',
+    '  float yc = 0.685 + meander;',
+    '  float dy = uv.y - yc;',
+    '',
+    '  // 远离河带的像素整体跳过(空间连贯分支,省约七成像素的重活);分支带宽随河宽缩放',
+    '  float band = 0.26 + 0.08 * u_river.z;',
+    '  if (abs(dy) < band) {',
+    '    float edgeFade = smoothstep(band, band - 0.06, abs(dy));',
+    '',
+    '    float wMod = fbm3(vec2(rx * 1.5 - t * 0.017, 3.17));',
+    '    float halfW = (0.045 + 0.050 * wMod) * u_river.z;',
+    '    float env = exp(-(dy * dy) / (halfW * halfW) * 1.8);',
+    '    float envWide = exp(-(dy * dy) / (halfW * halfW) * 0.32);',
+    '',
+    '    // 丝状光流:沿河向平移的域扭曲 ridged fbm',
+    '    vec2 fp = vec2(rx * 2.3 - t * 0.050, dy * 13.0 + t * 0.006);',
+    '    fp += (vec2(',
+    '      fbm3(fp * 0.8 + vec2(0.0, t * 0.020)),',
+    '      fbm3(fp * 0.8 + vec2(5.2, -t * 0.016))',
+    '    ) - 0.5) * 1.1;',
+    '    float fil = fbm(fp);',
+    '    float ridge = pow(clamp(1.0 - abs(fil - 0.52) * u_fil.z, 0.0, 1.0), 2.6);',
+    '',
+    '    // 边缘破碎:包络须越过噪声阈值才发光,如墨入水晕开(高档位阈带更宽、破碎幅度更大)',
+    '    float breakup = fbm3(vec2(rx * 2.9 + t * 0.014, uv.y * 7.5 - t * 0.008));',
+    '    float mask = smoothstep(u_mask.x, u_mask.y, env * (u_mask.z + u_mask.w * breakup));',
+    '',
+    '    // 行进的明暗脉冲(约 35s 一个周期)+ 整体呼吸(约 52s)',
+    '    float pulse = (1.0 - u_river.w) + u_river.w * sin(rx * 1.1 - t * 0.18);',
+    '    float breath = 0.86 + 0.14 * sin(t * 0.12 + 1.7);',
+    '    float river = mask * (u_fil.x + u_fil.y * ridge) * pulse * breath;',
+    '',
+    '    // 色相:仅 Ink Teal #4F9A94 一族,向青/蓝两侧微偏',
+    '    float hueN = fbm3(vec2(rx * 0.55 + t * 0.008, 11.7));',
+    '    vec3 teal = vec3(0.310, 0.604, 0.580);',
+    '    vec3 cyanT = vec3(0.295, 0.585, 0.640);',
+    '    vec3 blueT = vec3(0.260, 0.490, 0.600);',
+    '    vec3 riverCol = mix(teal, cyanT, smoothstep(0.30, 0.62, hueN));',
+    '    riverCol = mix(riverCol, blueT, smoothstep(0.58, 0.92, hueN));',
+    '',
+    '    vec3 riverGlow = riverCol * river * u_river.x; // 峰值亮度由档位决定:含蓄约 8-12%,浓郁约 25-40%',
+    '    riverGlow += riverCol * envWide * u_river.y;   // 河带周围的环境辉光',
+    '',
+    '    // 河中漂流的墨色微粒(凑近可见,高档位更密更亮)',
+    '    float motes = starLayer(vec2(uv.x - t * 0.004, uv.y + meander * 0.2), 160.0, u_misc.y, 0.030, t, 1.3);',
+    '    riverGlow += riverCol * motes * env * u_misc.z;',
+    '',
+    '    color += riverGlow * edgeFade;',
+    '  }',
+    '',
+    '  // ---- 多层视差星场(密度、亮度、星径随档位上调,仍保留稀疏质感)----',
+    '  vec2 drift = vec2(t * 0.0016, t * 0.00055);',
+    '  float farS = starLayer(uv + vec2(0.27, 0.43) + drift * 0.25, 360.0, 0.965 - u_star.x, 0.034 * u_star.z, t, 2.0);',
+    '  float midS = starLayer(uv + vec2(0.13, 0.07) + drift * 0.55, 230.0, 0.945 - u_star.x, 0.030 * u_star.z, t, 1.5);',
+    '  float nearS = starLayer(uv + vec2(0.37, 0.23) + drift, 110.0, 0.948 - u_star.x, 0.034 * u_star.z, t, 0.9);',
+    '  float warmS = starLayer(uv + vec2(0.61, 0.17) + drift * 0.7, 150.0, 0.972 - u_star.x, 0.030 * u_star.z, t, 1.1);',
+    '  float glint = glintLayer(uv + vec2(0.19, 0.31) + drift * 0.4, 60.0, 0.978 - u_glint.x, 0.028 * u_star.z, t);',
+    '  color += vec3(0.78, 0.85, 0.95) * (farS * 0.20 + midS * 0.34 + nearS * 0.55) * u_star.y;',
+    '  color += vec3(0.86, 0.74, 0.58) * warmS * 0.20 * u_star.y;',
+    '  color += vec3(0.82, 0.92, 1.00) * glint * 0.62 * u_glint.y;',
+    '',
+    '  // ---- 流星 ----',
+    '  color += vec3(0.76, 0.88, 0.90) * meteor(p, t) * u_misc.w;',
+    '',
+    '  // 暗角 + 抗色带微抖动(低亮度下防止条纹)',
+    '  float vig = smoothstep(1.25, 0.30, length(p * vec2(0.82, 1.05)));',
+    '  color *= 0.62 + vig * 0.38;',
+    '  color += (hash(gl_FragCoord.xy + vec2(fract(t) * 13.0, 0.0)) - 0.5) * 0.006;',
+    '',
+    '  gl_FragColor = vec4(clamp(color, 0.0, 1.0), 1.0);',
+    '}'
+  ].join('\n');
+
+  function compileShader(gl, type, source) {
+    var shader = gl.createShader(type);
+    if (!shader) return null;
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+      console.warn('ink-river shader failed to compile:', gl.getShaderInfoLog(shader));
+      gl.deleteShader(shader);
+      return null;
+    }
+    return shader;
+  }
+
+  function createProgram(gl) {
+    var vertex = compileShader(gl, gl.VERTEX_SHADER, VERTEX_SRC);
+    var fragment = compileShader(gl, gl.FRAGMENT_SHADER, FRAGMENT_SRC);
+    if (!vertex || !fragment) return null;
+    var program = gl.createProgram();
+    if (!program) return null;
+    gl.attachShader(program, vertex);
+    gl.attachShader(program, fragment);
+    gl.linkProgram(program);
+    gl.deleteShader(vertex);
+    gl.deleteShader(fragment);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      console.warn('ink-river program failed to link:', gl.getProgramInfoLog(program));
+      gl.deleteProgram(program);
+      return null;
+    }
+    return program;
+  }
+
+  var canvas = document.getElementById('scene');
+  var gl = canvas.getContext('webgl', {
+    alpha: false,
+    antialias: false,
+    depth: false,
+    powerPreference: 'high-performance',
+    premultipliedAlpha: false,
+    stencil: false
+  });
+  if (!gl) return; // 无 WebGL 时退回 body 的 token 渐变底色
+
+  var program = createProgram(gl);
+  if (!program) return;
+
+  var posLoc = gl.getAttribLocation(program, 'a_pos');
+  var timeLoc = gl.getUniformLocation(program, 'u_time');
+  var resLoc = gl.getUniformLocation(program, 'u_res');
+  var meteorLoc = gl.getUniformLocation(program, 'u_meteor');
+  var meteorDirLoc = gl.getUniformLocation(program, 'u_meteorDir');
+  var riverLoc = gl.getUniformLocation(program, 'u_river');
+  var maskLoc = gl.getUniformLocation(program, 'u_mask');
+  var filLoc = gl.getUniformLocation(program, 'u_fil');
+  var starLoc = gl.getUniformLocation(program, 'u_star');
+  var glintLoc = gl.getUniformLocation(program, 'u_glint');
+  var miscLoc = gl.getUniformLocation(program, 'u_misc');
+  var buffer = gl.createBuffer();
+  if (!buffer || posLoc < 0) return;
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+  gl.useProgram(program);
+  gl.enableVertexAttribArray(posLoc);
+  gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+  gl.disable(gl.DEPTH_TEST);
+  gl.disable(gl.BLEND);
+
+  var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  var width = 1;
+  var height = 1;
+  var raf = 0;
+  var animTime = 0;
+  var lastNow = 0;
+  var currentKey = DEFAULT_PRESET;
+  var currentSpeed = PRESETS[currentKey].speed;
+
+  function applyUniforms(p) {
+    gl.uniform4f(riverLoc, p.river[0], p.river[1], p.river[2], p.river[3]);
+    gl.uniform4f(maskLoc, p.mask[0], p.mask[1], p.mask[2], p.mask[3]);
+    gl.uniform3f(filLoc, p.fil[0], p.fil[1], p.fil[2]);
+    gl.uniform3f(starLoc, p.star[0], p.star[1], p.star[2]);
+    gl.uniform2f(glintLoc, p.glint[0], p.glint[1]);
+    gl.uniform4f(miscLoc, p.misc[0], p.misc[1], p.misc[2], p.misc[3]);
+  }
+
+  // 流星调度:间隔为各档真实秒数(animTime 以 speed 倍率前进,故乘回 speed)
+  var meteorStart = -10;
+  var meteorAx = 0, meteorAy = 0, meteorDx = 0, meteorDy = 0;
+  var meteorActive = 0;
+  var nextMeteorAt = (PRESETS[currentKey].meteorFirst[0] +
+    Math.random() * PRESETS[currentKey].meteorFirst[1]) * currentSpeed;
+
+  function spawnMeteor(t) {
+    var aspect = width / Math.max(height, 1);
+    var ux = 0.12 + Math.random() * 0.6;
+    var uy = 0.60 + Math.random() * 0.28;
+    var sign = Math.random() < 0.5 ? -1 : 1;
+    var ang = (-(14 + Math.random() * 16)) * Math.PI / 180; // 微向下的浅角
+    var len = 0.45 + Math.random() * 0.40;
+    var every = PRESETS[currentKey].meteorEvery;
+    meteorAx = (ux - 0.5) * aspect;
+    meteorAy = uy - 0.5;
+    meteorDx = Math.cos(ang) * len * sign;
+    meteorDy = Math.sin(ang) * len;
+    meteorStart = t;
+    meteorActive = 1;
+    nextMeteorAt = t + (every[0] + Math.random() * every[1]) * currentSpeed;
+  }
+
+  function resize() {
+    var dpr = Math.min(window.devicePixelRatio || 1, DPR_CAP);
+    var w = Math.max(1, Math.round(canvas.clientWidth * dpr));
+    var h = Math.max(1, Math.round(canvas.clientHeight * dpr));
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+    }
+    width = w;
+    height = h;
+    gl.viewport(0, 0, w, h);
+  }
+
+  function draw(t) {
+    gl.uniform1f(timeLoc, t);
+    gl.uniform2f(resLoc, width, height);
+    gl.uniform4f(meteorLoc, meteorStart, meteorAx, meteorAy, meteorActive);
+    gl.uniform2f(meteorDirLoc, meteorDx, meteorDy);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  }
+
+  function frame(now) {
+    raf = 0;
+    var dt = (now - lastNow) * 0.001;
+    if (!(dt > 0)) dt = 0.016;
+    if (dt > 0.1) dt = 0.1; // 标签页恢复时不跳帧
+    lastNow = now;
+    animTime += dt * currentSpeed; // 档位越浓,场景时间越快
+    if (animTime >= nextMeteorAt) spawnMeteor(animTime);
+    draw(animTime);
+    schedule();
+  }
+
+  function schedule() {
+    if (raf || document.hidden || reducedMotion.matches) return;
+    raf = window.requestAnimationFrame(frame);
+  }
+
+  function stop() {
+    if (raf) {
+      window.cancelAnimationFrame(raf);
+      raf = 0;
+    }
+  }
+
+  function renderStatic() {
+    // 静帧固定用「适中」档:保证可见但不动
+    applyUniforms(PRESETS[STATIC_PRESET]);
+    meteorActive = 0;
+    draw(STATIC_TIME);
+  }
+
+  // —— 档位切换:按钮 + 键盘 1/2/3 ——
+  var ctlButtons = document.querySelectorAll('.intensity-ctl button[data-preset]');
+
+  function setPreset(key) {
+    var p = PRESETS[key];
+    if (!p) return;
+    currentKey = key;
+    currentSpeed = p.speed;
+    // 把下一颗流星收进新档位的节奏内(切到浓郁档不用苦等上一档的长间隔)
+    var cap = animTime + (p.meteorEvery[0] + Math.random() * p.meteorEvery[1]) * currentSpeed;
+    if (nextMeteorAt > cap) nextMeteorAt = cap;
+    for (var i = 0; i < ctlButtons.length; i += 1) {
+      ctlButtons[i].setAttribute('aria-pressed',
+        ctlButtons[i].getAttribute('data-preset') === key ? 'true' : 'false');
+    }
+    if (reducedMotion.matches) {
+      renderStatic();
+    } else {
+      applyUniforms(p);
+      if (document.hidden) draw(animTime); // 不可见时也保持下次呈现一致
+    }
+  }
+
+  for (var bi = 0; bi < ctlButtons.length; bi += 1) {
+    ctlButtons[bi].addEventListener('click', function () {
+      setPreset(this.getAttribute('data-preset'));
+    });
+  }
+
+  window.addEventListener('keydown', function (event) {
+    if (event.metaKey || event.ctrlKey || event.altKey) return;
+    if (event.key === '1') setPreset('subtle');
+    else if (event.key === '2') setPreset('medium');
+    else if (event.key === '3') setPreset('rich');
+  });
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) {
+      stop();
+    } else {
+      lastNow = performance.now();
+      schedule();
+    }
+  });
+
+  var onReducedChange = function () {
+    stop();
+    if (reducedMotion.matches) {
+      renderStatic();
+    } else {
+      applyUniforms(PRESETS[currentKey]); // 静帧曾覆写为「适中」,恢复当前档
+      lastNow = performance.now();
+      schedule();
+    }
+  };
+  if (typeof reducedMotion.addEventListener === 'function') {
+    reducedMotion.addEventListener('change', onReducedChange);
+  }
+
+  window.addEventListener('resize', function () {
+    resize();
+    if (reducedMotion.matches) {
+      renderStatic();
+    } else if (document.hidden) {
+      draw(animTime);
+    }
+  });
+
+  resize();
+  setPreset(DEFAULT_PRESET); // 默认即「浓郁」;reduced-motion 下由 setPreset 渲染「适中」静帧
+  if (!reducedMotion.matches) {
+    lastNow = performance.now();
+    draw(0);
+    schedule();
+  }
+})();
+</script>
+</body>
+</html>

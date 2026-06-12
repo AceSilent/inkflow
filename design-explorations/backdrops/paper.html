@@ -1,0 +1,961 @@
+<!-- @dsCard group="Backdrops" -->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>宣纸·墨晕</title>
+<style>
+  /* ------------------------------------------------------------------
+   * 宣纸·墨晕 — InkFlow paper 主题背景动画概念稿(品牌点题:墨落纸上)
+   *
+   * 基色取自 frontend/src/design-tokens.css 的 [data-theme="paper"] token:
+   *   --bg            oklch(97.8% 0.018 86) → #fdf7ea
+   *   --bg-subtle     oklch(95.8% 0.02  86) → #f7f1e2
+   *   --bg-elevated   oklch(99.1% 0.012 86) → #fffcf3
+   *   --surface-paper oklch(98.5% 0.024 86) → #fff9e8
+   *   --ink           oklch(24%  0.03  55)  → #2a1b11
+   *   --ink-secondary oklch(43%  0.027 55)  → #5c4c42
+   *   --ink-muted     oklch(58%  0.025 55)  → #87776d
+   *   --border-subtle oklch(87%  0.023 82)  → #dcd3c4
+   *   --accent        oklch(55%  0.12  42)  → #aa5734
+   *
+   * 静态层:一次性宣纸纤维质感(逐像素噪点 + 三向丝缕,非平铺)。
+   * 动态层:「墨晕」在偏离中心处洇开 —— 扩散半径先快后慢
+   * (d ∝ (t/(t+k))^pow),边界由三组角向 fbm 噪声扰动成分形羽化,
+   * 外缘有深浅不一的锯齿晕环(咖啡环效应),中期析出内沉淀环,
+   * 随后缓缓沉淀褪淡;枯笔扫痕偶带飞白掠过纸角。
+   *
+   * 强度三档(右下角分段控件 / 键盘 1·2·3,默认「浓郁」):
+   *   含蓄 — 原始克制参数:峰值 ≤6-8%,每 12-20s 一朵,同屏两朵,
+   *          枯笔约每分钟一道,几乎只在余光里。
+   *   适中 — 约 2.5 倍:峰值 13-17%,每 9-14s 一朵,纤维与噪点
+   *          对比上调,枯笔 7-9%。reduced-motion 静帧固定用此档。
+   *   浓郁 — 5 倍以上:峰值 30-40%,洇开全程 8-15s 可观赏,每
+   *          6-10s 一朵、同屏可至三朵,枯笔 12-18% 且更宽,纸纹
+   *          云絮明显——像一帧会动的水墨小品。色相纪律不变:仍
+   *          只有暖象牙纸底 + 墨黑/赭石,无任何饱和彩色。
+   *
+   * 审稿调试:加 ?freeze=<秒> 可渲染时间线上该时刻的确定性单帧
+   * (幅值取自当前档位;5≈首朵峰值,18≈第二朵盛放,27.5≈枯笔行笔中)。
+   * ------------------------------------------------------------------ */
+
+  :root {
+    --bg: #fdf7ea;
+    --bg-subtle: #f7f1e2;
+    --bg-elevated: #fffcf3;
+    --surface-paper: #fff9e8;
+    --ink: #2a1b11;
+    --ink-secondary: #5c4c42;
+    --ink-muted: #87776d;
+    --border-subtle: #dcd3c4;
+    --accent: #aa5734;
+    --accent-strong: #8e2e00;
+    --font-body: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+      "PingFang SC", "Hiragino Sans GB", "Segoe UI", "Microsoft YaHei", sans-serif;
+    --font-serif: ui-serif, "Songti SC", "STSong", "Noto Serif SC", Georgia, serif;
+    --radius-md: 8px;
+    --radius-xl: 14px;
+    --radius-full: 9999px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    font-family: var(--font-body);
+    color: var(--ink);
+    /* 无 WebGL 时的静态兜底:与着色器同一组 token 色 */
+    background:
+      radial-gradient(120% 95% at 50% 42%, var(--bg-elevated) 0%, var(--bg) 52%, var(--bg-subtle) 100%);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #scene {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  body.no-webgl #scene { display: none; }
+
+  /* ---- 毛玻璃面板:对齐 InkFlow 浅色 glass 体系(暖调宣纸版) ---- */
+  .glass-panel {
+    position: fixed;
+    top: 50%;
+    right: clamp(20px, 8vw, 132px);
+    transform: translateY(-50%);
+    width: min(448px, calc(100vw - 40px));
+    padding: 22px 24px 20px;
+    border-radius: var(--radius-xl);
+    background: rgba(255, 252, 243, 0.62);             /* --bg-elevated 族;略升以抵御浓郁档 */
+    -webkit-backdrop-filter: blur(22px) saturate(1.12);
+    backdrop-filter: blur(22px) saturate(1.12);
+    border: 1px solid rgba(255, 255, 255, 0.72);       /* --glass-border 族 */
+    box-shadow:
+      0 28px 90px rgba(42, 27, 17, 0.09),
+      0 10px 28px rgba(42, 27, 17, 0.055),
+      inset 0 1px 0 rgba(255, 255, 255, 0.82),
+      inset 0 0 0 1px rgba(220, 211, 196, 0.30);
+    cursor: default;
+    z-index: 2;
+  }
+
+  .panel-head {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+
+  .panel-head .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: var(--radius-full);
+    background: var(--accent);
+    align-self: center;
+    flex: none;
+  }
+
+  .panel-head .head-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
+    letter-spacing: 0.01em;
+  }
+
+  .panel-head .head-meta {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--ink-muted);
+  }
+
+  .sample p {
+    font-family: var(--font-serif);
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--ink);
+    margin-bottom: 8px;
+    text-align: justify;
+  }
+
+  .sample p:last-child { margin-bottom: 0; }
+
+  /* ---- 假输入条 ---- */
+  .composer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 18px;
+    padding: 9px 8px 9px 14px;
+    border-radius: var(--radius-md);
+    background: rgba(255, 253, 246, 0.66);
+    border: 1px solid rgba(220, 211, 196, 0.62);
+    box-shadow: inset 0 1px 2px rgba(42, 27, 17, 0.035);
+  }
+
+  .composer .caret {
+    width: 1.5px;
+    height: 15px;
+    background: var(--ink-secondary);
+    flex: none;
+    animation: caretBlink 1.15s steps(1) infinite;
+  }
+
+  .composer .placeholder {
+    font-size: 13px;
+    color: var(--ink-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+  }
+
+  .composer .send {
+    width: 26px;
+    height: 26px;
+    border-radius: var(--radius-full);
+    background: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    box-shadow: 0 2px 6px rgba(170, 87, 52, 0.30);
+  }
+
+  @keyframes caretBlink {
+    0%, 55% { opacity: 1; }
+    56%, 100% { opacity: 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .composer .caret { animation: none; }
+  }
+
+  /* ---- 左下角概念标签 ---- */
+  .concept-tag {
+    position: fixed;
+    left: 20px;
+    bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 10px 14px 11px;
+    border-radius: var(--radius-md);
+    background: rgba(255, 252, 243, 0.58);
+    -webkit-backdrop-filter: blur(16px) saturate(1.08);
+    backdrop-filter: blur(16px) saturate(1.08);
+    border: 1px solid rgba(255, 255, 255, 0.66);
+    box-shadow:
+      0 10px 32px rgba(42, 27, 17, 0.07),
+      inset 0 1px 0 rgba(255, 255, 255, 0.76);
+    z-index: 2;
+  }
+
+  .concept-tag strong {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
+    letter-spacing: 0.02em;
+  }
+
+  .concept-tag span {
+    font-size: 11px;
+    color: var(--ink-secondary);
+    max-width: 320px;
+  }
+
+  /* ---- 右下角强度分段控件 ---- */
+  .intensity-ctl {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 4px;
+    border-radius: var(--radius-md);
+    background: rgba(255, 252, 243, 0.58);
+    -webkit-backdrop-filter: blur(16px) saturate(1.08);
+    backdrop-filter: blur(16px) saturate(1.08);
+    border: 1px solid rgba(255, 255, 255, 0.66);
+    box-shadow:
+      0 10px 32px rgba(42, 27, 17, 0.07),
+      inset 0 1px 0 rgba(255, 255, 255, 0.76);
+    z-index: 2;
+  }
+
+  .intensity-ctl .ctl-label {
+    font-size: 11px;
+    color: var(--ink-muted);
+    letter-spacing: 0.08em;
+    padding: 0 8px 0 10px;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .intensity-ctl button {
+    appearance: none;
+    -webkit-appearance: none;
+    border: 0;
+    margin: 0;
+    font-family: var(--font-body);
+    font-size: 12px;
+    line-height: 1;
+    padding: 6px 11px;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--ink-secondary);
+    cursor: pointer;
+    transition:
+      background-color 200ms cubic-bezier(0.2, 0.8, 0.3, 1),
+      color 200ms cubic-bezier(0.2, 0.8, 0.3, 1),
+      box-shadow 200ms cubic-bezier(0.2, 0.8, 0.3, 1);
+  }
+
+  .intensity-ctl button:hover { color: var(--ink); }
+
+  .intensity-ctl button[aria-pressed="true"] {
+    background: rgba(255, 253, 246, 0.92);
+    color: var(--ink);
+    box-shadow:
+      0 1px 3px rgba(42, 27, 17, 0.10),
+      inset 0 0 0 1px rgba(220, 211, 196, 0.55);
+  }
+
+  .intensity-ctl button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .intensity-ctl button { transition: none; }
+  }
+</style>
+</head>
+<body>
+<canvas id="scene" aria-hidden="true"></canvas>
+
+<section class="glass-panel" aria-label="可读性样张">
+  <div class="panel-head">
+    <i class="dot"></i>
+    <span class="head-title">第十二章 · 空白之页</span>
+    <span class="head-meta">草稿 · 1,204 字</span>
+  </div>
+  <div class="sample">
+    <p>雨在四更天停了。沈砚推开窗,见院中那株老梅落了一地残白,墨色的枝影斜斜压在青石上,像谁夜里练过字,忘了收笔。</p>
+    <p>他研墨的手顿了顿。十年前师父说过,字如其人,墨如其心——心乱则晕,心定则凝。这话他记到今日,才算听懂一半。</p>
+    <p>砚台里的墨已经磨好,他却迟迟不肯落笔。纸上空白,正如此刻的天色,亮得叫人不敢惊动。</p>
+  </div>
+  <div class="composer">
+    <i class="caret"></i>
+    <span class="placeholder">对作者智能体说点什么——继续写、改写,或只是聊聊这一段……</span>
+    <span class="send" aria-hidden="true">
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+        <path d="M6 9.5V2.5M3.2 5.3 6 2.5l2.8 2.8" stroke="#fffcf3" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </span>
+  </div>
+</section>
+
+<div class="concept-tag">
+  <strong>宣纸·墨晕</strong>
+  <span>深墨在暖调生宣上洇开,先快后慢,边缘羽化成深浅不一的晕环;偶有枯笔掠过纸角。强度可调:右下角分段控件,或按 1 / 2 / 3 切换。</span>
+</div>
+
+<div class="intensity-ctl" role="group" aria-label="背景强度">
+  <span class="ctl-label">强度</span>
+  <button type="button" data-level="subtle" title="含蓄(快捷键 1)" aria-pressed="false">含蓄</button>
+  <button type="button" data-level="medium" title="适中(快捷键 2)" aria-pressed="false">适中</button>
+  <button type="button" data-level="rich" title="浓郁(快捷键 3)" aria-pressed="true">浓郁</button>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var DPR_CAP = 2;
+
+  /* ---- 强度三档预设:不只是透明度,密度/对比/速度/频率一起缩放 ---- */
+  var PRESETS = {
+    subtle: {                       /* 含蓄 = 初版原参数,原样保留 */
+      bloomLife: 16.0,              /* 一朵墨晕完整生命(秒) */
+      riseEnd: 1.4,                 /* 落墨到峰值用时 */
+      fadeStart: 5.5,               /* 开始沉淀褪淡的时刻 */
+      radiusK: 2.4, radiusPow: 0.55,/* 扩散曲线 d ∝ (t/(t+k))^pow */
+      maxRBase: 0.14, maxRVar: 0.09,
+      peakBase: 0.054, peakVar: 0.014,   /* 峰值 5.4%-6.8% */
+      firstBloom: 1.0, intervalBase: 12, intervalVar: 8,
+      maxBlooms: 2,
+      brushLife: 7.5, brushFade: 3.5, brushDraw: 2.1, brushWidth: 1.0,
+      brushPeakBase: 0.028, brushPeakVar: 0.010,
+      brushFirst: 24, brushIntBase: 50, brushIntVar: 28,
+      inkCap: 0.085,
+      fiber: 1.0, grain: 1.0, cloud: 1.0, fiberDen: 0.0,
+      driftSpeed: 1.0, driftAmp: 1.0,
+      structMul: 1.0, fingerMul: 1.0
+    },
+    medium: {                       /* 适中 ≈ 2.5 倍 */
+      bloomLife: 20.0,
+      riseEnd: 1.8,
+      fadeStart: 9.0,
+      radiusK: 4.2, radiusPow: 0.52,
+      maxRBase: 0.17, maxRVar: 0.10,
+      peakBase: 0.13, peakVar: 0.04,     /* 峰值 13%-17% */
+      firstBloom: 0.8, intervalBase: 9, intervalVar: 5,
+      maxBlooms: 2,
+      brushLife: 8.5, brushFade: 4.0, brushDraw: 2.4, brushWidth: 1.25,
+      brushPeakBase: 0.07, brushPeakVar: 0.02,
+      brushFirst: 14, brushIntBase: 30, brushIntVar: 18,
+      inkCap: 0.30,
+      fiber: 1.6, grain: 1.5, cloud: 2.0, fiberDen: 0.04,
+      driftSpeed: 2.0, driftAmp: 1.5,
+      structMul: 1.35, fingerMul: 1.15
+    },
+    rich: {                         /* 浓郁 ≥ 5 倍:会动的水墨小品 */
+      bloomLife: 26.0,
+      riseEnd: 2.2,
+      fadeStart: 13.0,
+      radiusK: 7.0, radiusPow: 0.50,     /* 洇开全程 8-15s 可观赏 */
+      maxRBase: 0.19, maxRVar: 0.10,
+      peakBase: 0.32, peakVar: 0.08,     /* 峰值 32%-40% */
+      firstBloom: 0.5, intervalBase: 6, intervalVar: 4,   /* 每 6-10s 一朵 */
+      maxBlooms: 3,                       /* 同屏可三朵错落 */
+      brushLife: 9.5, brushFade: 4.5, brushDraw: 2.8, brushWidth: 1.6,
+      brushPeakBase: 0.12, brushPeakVar: 0.06,            /* 枯笔 12%-18% */
+      brushFirst: 7, brushIntBase: 18, brushIntVar: 12,
+      inkCap: 0.55,
+      fiber: 2.1, grain: 2.2, cloud: 3.2, fiberDen: 0.05,
+      driftSpeed: 3.0, driftAmp: 2.0,
+      structMul: 1.7, fingerMul: 1.25
+    }
+  };
+
+  var activeLevel = 'rich';         /* 默认载入即浓郁档 */
+  var P = PRESETS[activeLevel];
+
+  var canvas = document.getElementById('scene');
+  var gl = canvas.getContext('webgl', {
+    alpha: false,
+    antialias: false,
+    depth: false,
+    desynchronized: true,
+    powerPreference: 'high-performance',
+    premultipliedAlpha: false,
+    stencil: false
+  }) || canvas.getContext('experimental-webgl');
+
+  if (!gl) {
+    document.body.classList.add('no-webgl');
+    return;
+  }
+
+  var VERT = [
+    'attribute vec2 a_pos;',
+    'varying vec2 v_uv;',
+    'void main() {',
+    '  v_uv = a_pos * 0.5 + 0.5;',
+    '  gl_Position = vec4(a_pos, 0.0, 1.0);',
+    '}'
+  ].join('\n');
+
+  /* 时间相关量(半径、透明度、扫痕进度)全部在 JS 侧推进,
+   * 着色器只负责按给定参数渲染——uniform 为 0 时整段提前返回。
+   * 强度档位以一组标量 uniform 下发:纸面对比、墨结构、上限。 */
+  var FRAG = [
+    'precision highp float;',
+    '',
+    'uniform vec2 u_res;',
+    'uniform float u_time;',
+    'uniform vec4 u_bloom0;     // cx, cy(纵横比校正空间), 当前半径, 当前透明度',
+    'uniform vec2 u_meta0;      // seed, ageN(0..1 生命进度)',
+    'uniform vec4 u_bloom1;',
+    'uniform vec2 u_meta1;',
+    'uniform vec4 u_bloom2;',
+    'uniform vec2 u_meta2;',
+    'uniform vec4 u_brush;      // ax, ay, 笔锋进度(0..1.18), 透明度',
+    'uniform vec3 u_brushMeta;  // 行笔角度, seed, 笔宽倍率',
+    'uniform vec4 u_paper;      // 纤维幅度, 噪点幅度, 云絮幅度, 纤维密度偏移',
+    'uniform vec2 u_drift;      // 光照游移速度倍率, 幅度倍率',
+    'uniform vec3 u_inkCtl;     // 墨量硬上限, 晕环结构倍率, 指渗扰动倍率',
+    '',
+    'varying vec2 v_uv;',
+    '',
+    'float hash(vec2 p) {',
+    '  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);',
+    '}',
+    '',
+    'float noise(vec2 p) {',
+    '  vec2 i = floor(p);',
+    '  vec2 f = fract(p);',
+    '  f = f * f * (3.0 - 2.0 * f);',
+    '  float a = hash(i);',
+    '  float b = hash(i + vec2(1.0, 0.0));',
+    '  float c = hash(i + vec2(0.0, 1.0));',
+    '  float d = hash(i + vec2(1.0, 1.0));',
+    '  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);',
+    '}',
+    '',
+    'mat2 rot(float a) {',
+    '  float s = sin(a);',
+    '  float c = cos(a);',
+    '  return mat2(c, -s, s, c);',
+    '}',
+    '',
+    'float fbm(vec2 p) {',
+    '  float v = 0.0;',
+    '  float amp = 0.52;',
+    '  mat2 m = rot(0.62);',
+    '  for (int i = 0; i < 4; i++) {',
+    '    v += amp * noise(p);',
+    '    p = m * p * 2.03 + vec2(11.3, 7.1);',
+    '    amp *= 0.5;',
+    '  }',
+    '  return v;',
+    '}',
+    '',
+    '/* 纤维丝缕:带通阈值把拉伸 fbm 切成纤细长丝,',
+    '   再用低频补丁蒙版让丝缕成簇出现,避免均匀织物感;',
+    '   u_paper.w 下调补丁阈值 → 高档位丝缕更密 */',
+    'float strand(vec2 p, float a, vec2 freq, float seed) {',
+    '  vec2 q = rot(a) * p;',
+    '  float n = fbm(q * freq + seed);',
+    '  float line = smoothstep(0.47, 0.52, n) * smoothstep(0.57, 0.52, n);',
+    '  float den = u_paper.w;',
+    '  float patch = smoothstep(0.42 - den, 0.66 - den * 1.5, fbm(p * 1.3 + seed * 2.7 + 31.0));',
+    '  return line * patch;',
+    '}',
+    '',
+    '/* 墨晕:分形羽化边界 + 咖啡环锯齿晕环 + 内沉淀环 + 纤维颗粒感 */',
+    'float inkBloom(vec2 p, vec4 b, vec2 meta, float mottle) {',
+    '  float amp = b.w;',
+    '  if (amp <= 0.001) return 0.0;',
+    '  vec2 q = p - b.xy;',
+    '  float d = length(q) + 1e-5;',
+    '  if (d > b.z * 1.7 + 0.02) return 0.0;',
+    '  float seed = meta.x;',
+    '  float ageN = meta.y;',
+    '  vec2 cdir = q / d;',
+    '',
+    '  /* 三组角向噪声扰动扩散边界:大瓣形 + 中等羽裂 + 细指状渗须;',
+    '     u_inkCtl.z 放大扰动 → 高档位分形指渗更张扬 */',
+    '  float fing = u_inkCtl.z;',
+    '  float f1 = fbm(cdir * 2.4 + seed);',
+    '  float f2 = fbm(cdir * 6.0 + seed * 1.7 + 11.3);',
+    '  float f3 = fbm(cdir * 13.0 - seed * 2.3 + 4.7);',
+    '  float boundary = b.z * (1.0 + ((f1 - 0.49) * 0.55 + (f2 - 0.49) * 0.30 + (f3 - 0.49) * 0.18) * fing);',
+    '  boundary *= 1.0 + 0.12 * fing * smoothstep(0.66, 0.90, f3);',
+    '  float x = d / max(boundary, 1e-4);',
+    '',
+    '  /* 主体:边缘羽化随沉淀变宽;墨心随干燥变薄(水分外移) */',
+    '  float edgeSoft = 0.10 + 0.22 * ageN;',
+    '  float body = 1.0 - smoothstep(1.0 - edgeSoft, 1.0, x);',
+    '  float tone = mix(1.0, 0.42 + 0.58 * smoothstep(0.0, 1.0, x), ageN * 0.85);',
+    '',
+    '  /* 外缘咖啡环:深浅不一的锯齿晕环,沉淀越久越清晰 */',
+    '  float rimN = 0.40 + 0.85 * fbm(cdir * 8.5 + seed * 3.1);',
+    '  float rt = (x - 0.97) / (0.05 + 0.05 * ageN);',
+    '  float rim = exp(-rt * rt) * rimN * (0.35 + 0.75 * ageN);',
+    '',
+    '  /* 内沉淀环:中期析出的第二道淡环(扩散停顿的痕迹) */',
+    '  float ring2N = 0.35 + 0.65 * fbm(cdir * 4.5 - seed * 2.0 + 7.7);',
+    '  float r2t = (x - 0.58 - 0.10 * fract(seed * 0.731)) / 0.085;',
+    '  float ring2 = exp(-r2t * r2t) * ring2N * smoothstep(0.25, 0.70, ageN) * 0.5;',
+    '',
+    '  /* 墨随纤维走:颗粒化,凑近看有纸的肌理透出来 */',
+    '  float gran = 0.72 + 0.56 * mottle;',
+    '  return (body * tone * 0.66 + (rim * 0.55 + ring2 * 0.35) * u_inkCtl.y) * gran * amp;',
+    '}',
+    '',
+    '/* 枯笔扫痕:断续笔丝 + 飞白 + 笔锋推进 + 墨量沿程衰减 */',
+    'float dryBrush(vec2 p, vec4 br, vec3 meta) {',
+    '  float amp = br.w;',
+    '  if (amp <= 0.001) return 0.0;',
+    '  vec2 q = p - br.xy;',
+    '  float c = cos(meta.x);',
+    '  float s = sin(meta.x);',
+    '  vec2 lp = vec2(c * q.x + s * q.y, -s * q.x + c * q.y);',
+    '  float along = lp.x / 0.58;',
+    '  if (along < 0.0 || along > 1.18) return 0.0;',
+    '  float seed = meta.y;',
+    '  float w = 0.040 * meta.z * (1.0 - 0.50 * along) * (0.75 + 0.5 * noise(vec2(along * 6.0 + seed, seed)));',
+    '  float crossEnv = 1.0 - smoothstep(w * 0.15, w, abs(lp.y));',
+    '  float bristle = smoothstep(0.48, 0.70, fbm(vec2(lp.y * 110.0, lp.x * 4.0) + seed));',
+    '  float skip = smoothstep(0.34, 0.58, fbm(vec2(lp.x * 16.0, lp.y * 36.0) + seed * 1.7));',
+    '  float head = smoothstep(br.z, br.z - 0.10, along);',
+    '  float load = 1.0 - 0.70 * along;',
+    '  return crossEnv * bristle * skip * head * load * amp;',
+    '}',
+    '',
+    'void main() {',
+    '  vec2 uv = v_uv;',
+    '  vec2 p = (uv - 0.5) * vec2(u_res.x / max(u_res.y, 1.0), 1.0);',
+    '',
+    '  /* ---- 静态宣纸层(不随时间变化,对比随档位缩放) ---- */',
+    '  float r = length(p * vec2(0.82, 1.0));',
+    '  vec3 col = mix(vec3(1.000, 0.988, 0.953), vec3(0.992, 0.969, 0.918), smoothstep(0.18, 1.05, r));',
+    '  col = mix(col, vec3(0.969, 0.945, 0.886), smoothstep(0.85, 1.45, r));',
+    '',
+    '  /* 大尺度云絮斑驳,避免平涂 */',
+    '  col *= 1.0 + (fbm(p * 3.1 + 5.5) - 0.49) * (0.020 * u_paper.z);',
+    '',
+    '  /* 三向纤维丝缕:一明两暗,成簇不满铺 */',
+    '  float fL = strand(p, 0.35, vec2(1.6, 64.0), 3.7);',
+    '  float fD1 = strand(p, -0.85, vec2(2.2, 78.0), 9.2);',
+    '  float fD2 = strand(p, 1.75, vec2(1.9, 70.0), 17.5);',
+    '  col += vec3(0.012, 0.011, 0.009) * fL * u_paper.x;',
+    '  col -= vec3(0.010, 0.009, 0.008) * fD1 * u_paper.x;',
+    '  col -= vec3(0.008, 0.007, 0.006) * fD2 * u_paper.x;',
+    '',
+    '  /* 逐像素细腻噪点(纸的"砂感") */',
+    '  float grain = hash(gl_FragCoord.xy) - 0.5;',
+    '  float tooth = hash(floor(gl_FragCoord.xy * 0.5) + 7.3) - 0.5;',
+    '  col *= 1.0 + (grain * 0.022 + tooth * 0.012) * u_paper.y;',
+    '',
+    '  /* 极缓的光照游移(速度与幅度随档位) */',
+    '  col *= 1.0 + sin(dot(uv, vec2(1.4, 0.9)) * 3.1 - u_time * 0.05 * u_drift.x) * (0.006 * u_drift.y);',
+    '',
+    '  /* ---- 动态墨层 ---- */',
+    '  float mottle = fbm(p * 21.0 + 2.2);',
+    '  float ink = inkBloom(p, u_bloom0, u_meta0, mottle)',
+    '            + inkBloom(p, u_bloom1, u_meta1, mottle)',
+    '            + inkBloom(p, u_bloom2, u_meta2, mottle)',
+    '            + dryBrush(p, u_brush, u_brushMeta);',
+    '  ink = min(ink, u_inkCtl.x);   /* 档位硬上限:含蓄档永不影响阅读 */',
+    '',
+    '  vec3 inkCol = vec3(0.13, 0.11, 0.095);   /* --ink 族的深暖墨色 */',
+    '  col = mix(col, inkCol, ink);',
+    '',
+    '  gl_FragColor = vec4(col, 1.0);',
+    '}'
+  ].join('\n');
+
+  function compileShader(type, source) {
+    var shader = gl.createShader(type);
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+      console.warn('宣纸·墨晕 shader 编译失败:', gl.getShaderInfoLog(shader));
+      gl.deleteShader(shader);
+      return null;
+    }
+    return shader;
+  }
+
+  var vs = compileShader(gl.VERTEX_SHADER, VERT);
+  var fs = compileShader(gl.FRAGMENT_SHADER, FRAG);
+  if (!vs || !fs) { document.body.classList.add('no-webgl'); return; }
+
+  var program = gl.createProgram();
+  gl.attachShader(program, vs);
+  gl.attachShader(program, fs);
+  gl.linkProgram(program);
+  gl.deleteShader(vs);
+  gl.deleteShader(fs);
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    console.warn('宣纸·墨晕 program 链接失败:', gl.getProgramInfoLog(program));
+    document.body.classList.add('no-webgl');
+    return;
+  }
+
+  var aPos = gl.getAttribLocation(program, 'a_pos');
+  var uRes = gl.getUniformLocation(program, 'u_res');
+  var uTime = gl.getUniformLocation(program, 'u_time');
+  var uBloom = [
+    gl.getUniformLocation(program, 'u_bloom0'),
+    gl.getUniformLocation(program, 'u_bloom1'),
+    gl.getUniformLocation(program, 'u_bloom2')
+  ];
+  var uMeta = [
+    gl.getUniformLocation(program, 'u_meta0'),
+    gl.getUniformLocation(program, 'u_meta1'),
+    gl.getUniformLocation(program, 'u_meta2')
+  ];
+  var uBrush = gl.getUniformLocation(program, 'u_brush');
+  var uBrushMeta = gl.getUniformLocation(program, 'u_brushMeta');
+  var uPaper = gl.getUniformLocation(program, 'u_paper');
+  var uDrift = gl.getUniformLocation(program, 'u_drift');
+  var uInkCtl = gl.getUniformLocation(program, 'u_inkCtl');
+
+  var buffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+  gl.useProgram(program);
+  gl.enableVertexAttribArray(aPos);
+  gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+  gl.disable(gl.DEPTH_TEST);
+  gl.disable(gl.BLEND);
+
+  /* ---- 状态(全部预分配,帧循环零分配) ---- */
+  var slots = [
+    { u: 0, v: 0, birth: -1e9, seed: 0, maxR: 0.18, peak: 0.062 },
+    { u: 0, v: 0, birth: -1e9, seed: 0, maxR: 0.18, peak: 0.062 },
+    { u: 0, v: 0, birth: -1e9, seed: 0, maxR: 0.18, peak: 0.062 }
+  ];
+  var brush = { u: 0, v: 0, birth: -1e9, seed: 0, angle: 0, peak: 0.034 };
+  /* 枯笔锚点预设:贴着四角的切向扫掠(uv 坐标系 y 向上,同 GL) */
+  var brushSpots = [
+    { u: 0.02, v: 0.30, a: -0.55 },
+    { u: 0.62, v: 0.97, a: -0.42 },
+    { u: 0.01, v: 0.80, a: 0.30 },
+    { u: 0.55, v: 0.02, a: 0.35 }
+  ];
+  var fallbackSpots = [
+    { u: 0.24, v: 0.68 }, { u: 0.30, v: 0.26 }, { u: 0.70, v: 0.86 }, { u: 0.18, v: 0.48 }
+  ];
+
+  var clock = 0;
+  var lastNow = 0;
+  var raf = 0;
+  var width = 1, height = 1, aspect = 1;
+  var nextBloomAt = P.firstBloom;
+  var nextBrushAt = P.brushFirst + Math.random() * 4;
+  var spawnCount = 0;
+  var frozen = false;
+  var reducedMotion = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+
+  function shouldReduceMotion() {
+    return !!(reducedMotion && reducedMotion.matches);
+  }
+
+  /* 渲染参数:reduced-motion 静帧固定用「适中」档(可见但不动),
+   * 其余场合用用户所选档位 */
+  function activeParams() {
+    if (!frozen && shouldReduceMotion()) return PRESETS.medium;
+    return P;
+  }
+
+  function smoothstepJs(a, b, x) {
+    var t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+    return t * t * (3 - 2 * t);
+  }
+
+  /* 扩散半径:先快后慢;浓郁档 k 更大 → 洇开全程被拉长到可观赏 */
+  function bloomRadius(age, maxR, Q) {
+    var t = Math.max(age, 0);
+    return maxR * Math.pow(t / (t + Q.radiusK), Q.radiusPow);
+  }
+
+  function bloomAmp(age, peak, Q) {
+    if (age < 0 || age > Q.bloomLife) return 0;
+    return peak * smoothstepJs(0, Q.riseEnd, age) * (1 - smoothstepJs(Q.fadeStart, Q.bloomLife - 0.5, age));
+  }
+
+  function spawnBloom() {
+    var slot = null;
+    for (var i = 0; i < P.maxBlooms; i++) {
+      if (clock - slots[i].birth > P.bloomLife) { slot = slots[i]; break; }
+    }
+    if (!slot) return false;   /* 同屏已满:推迟 */
+
+    var u = -1, v = -1, ok = false;
+    for (var tries = 0; tries < 12; tries++) {
+      u = 0.08 + Math.random() * 0.84;
+      v = 0.12 + Math.random() * 0.76;
+      var dx = u - 0.5, dy = v - 0.5;
+      if (dx * dx + dy * dy < 0.030) continue;                            /* 避开画面中心 */
+      if (u > 0.46 && v > 0.20 && v < 0.80) continue;                     /* 避开玻璃面板区 */
+      var clash = false;
+      for (var j = 0; j < slots.length; j++) {
+        if (slots[j] === slot) continue;
+        if (clock - slots[j].birth > P.bloomLife) continue;
+        var du = u - slots[j].u, dv = v - slots[j].v;
+        if (du * du + dv * dv < 0.075) { clash = true; break; }           /* 与他朵保持距离 */
+      }
+      if (clash) continue;
+      ok = true;
+      break;
+    }
+    if (!ok) {
+      var fb = fallbackSpots[spawnCount % fallbackSpots.length];
+      u = fb.u; v = fb.v;
+    }
+    spawnCount++;
+    slot.u = u;
+    slot.v = v;
+    slot.birth = clock;
+    slot.seed = Math.random() * 61 + 1.7;
+    slot.maxR = P.maxRBase + Math.random() * P.maxRVar;
+    slot.peak = P.peakBase + Math.random() * P.peakVar;
+    return true;
+  }
+
+  function spawnBrush() {
+    var spot = brushSpots[(Math.random() * brushSpots.length) | 0];
+    brush.u = spot.u + (Math.random() - 0.5) * 0.05;
+    brush.v = spot.v + (Math.random() - 0.5) * 0.05;
+    brush.angle = spot.a + (Math.random() - 0.5) * 0.24;
+    brush.birth = clock;
+    brush.seed = Math.random() * 47 + 3.3;
+    brush.peak = P.brushPeakBase + Math.random() * P.brushPeakVar;
+  }
+
+  function uploadState() {
+    var Q = activeParams();
+    gl.uniform2f(uRes, width, height);
+    gl.uniform1f(uTime, clock);
+    for (var i = 0; i < 3; i++) {
+      var s = slots[i];
+      var age = clock - s.birth;
+      var amp = bloomAmp(age, s.peak, Q);
+      var radius = amp > 0 ? bloomRadius(age, s.maxR, Q) : 0;
+      var ageN = Math.min(Math.max(age / Q.bloomLife, 0), 1);
+      gl.uniform4f(uBloom[i], (s.u - 0.5) * aspect, s.v - 0.5, radius, amp);
+      gl.uniform2f(uMeta[i], s.seed, ageN);
+    }
+    var bAge = clock - brush.birth;
+    var bAmp = 0;
+    var bProgress = 0;
+    if (bAge >= 0 && bAge <= Q.brushLife) {
+      bAmp = brush.peak * smoothstepJs(0, 0.45, bAge) * (1 - smoothstepJs(Q.brushFade, Q.brushLife, bAge));
+      bProgress = smoothstepJs(0.1, Q.brushDraw, bAge) * 1.18;
+    }
+    gl.uniform4f(uBrush, (brush.u - 0.5) * aspect, brush.v - 0.5, bProgress, bAmp);
+    gl.uniform3f(uBrushMeta, brush.angle, brush.seed, Q.brushWidth);
+    gl.uniform4f(uPaper, Q.fiber, Q.grain, Q.cloud, Q.fiberDen);
+    gl.uniform2f(uDrift, Q.driftSpeed, Q.driftAmp);
+    gl.uniform3f(uInkCtl, Q.inkCap, Q.structMul, Q.fingerMul);
+  }
+
+  function render() {
+    uploadState();
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  }
+
+  function resize() {
+    var dpr = Math.min(window.devicePixelRatio || 1, DPR_CAP);
+    var w = Math.max(1, Math.round(canvas.clientWidth * dpr));
+    var h = Math.max(1, Math.round(canvas.clientHeight * dpr));
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+    }
+    width = w;
+    height = h;
+    aspect = w / h;
+    gl.viewport(0, 0, w, h);
+  }
+
+  function frame(now) {
+    raf = 0;
+    var dt = Math.min((now - lastNow) / 1000, 0.1);
+    lastNow = now;
+    clock += dt;
+
+    if (clock >= nextBloomAt) {
+      if (spawnBloom()) {
+        nextBloomAt = clock + P.intervalBase + Math.random() * P.intervalVar;
+      } else {
+        nextBloomAt = clock + 1.5;
+      }
+    }
+    if (clock >= nextBrushAt) {
+      spawnBrush();
+      nextBrushAt = clock + P.brushIntBase + Math.random() * P.brushIntVar;
+    }
+
+    render();
+    schedule();
+  }
+
+  function schedule() {
+    if (raf || frozen || document.hidden || shouldReduceMotion()) return;
+    raf = window.requestAnimationFrame(frame);
+  }
+
+  /* ---- 强度切换 ---- */
+  var ctlButtons = document.querySelectorAll('.intensity-ctl button[data-level]');
+
+  function syncButtons() {
+    for (var i = 0; i < ctlButtons.length; i++) {
+      var pressed = ctlButtons[i].getAttribute('data-level') === activeLevel;
+      ctlButtons[i].setAttribute('aria-pressed', pressed ? 'true' : 'false');
+    }
+  }
+
+  function setIntensity(level) {
+    var next = PRESETS[level];
+    if (!next || level === activeLevel) { syncButtons(); return; }
+    var old = P;
+    /* 已在屏上的墨晕/枯笔按档位中值等比换算,切档即时见效且不跳变结构 */
+    var pkR = (next.peakBase + next.peakVar * 0.5) / (old.peakBase + old.peakVar * 0.5);
+    var rR = (next.maxRBase + next.maxRVar * 0.5) / (old.maxRBase + old.maxRVar * 0.5);
+    var bR = (next.brushPeakBase + next.brushPeakVar * 0.5) / (old.brushPeakBase + old.brushPeakVar * 0.5);
+    for (var i = 0; i < slots.length; i++) {
+      if (clock - slots[i].birth <= old.bloomLife) {
+        slots[i].peak *= pkR;
+        slots[i].maxR *= rR;
+      }
+    }
+    if (clock - brush.birth <= old.brushLife) brush.peak *= bR;
+    P = next;
+    activeLevel = level;
+    nextBloomAt = Math.min(nextBloomAt, clock + 0.8);
+    nextBrushAt = Math.min(nextBrushAt, clock + next.brushFirst);
+    syncButtons();
+    if (!raf) render();   /* 冻结帧 / reduced-motion / 隐藏时也立即反映纸面 */
+  }
+
+  for (var bi = 0; bi < ctlButtons.length; bi++) {
+    (function (btn) {
+      btn.addEventListener('click', function () {
+        setIntensity(btn.getAttribute('data-level'));
+        btn.blur();
+      });
+    })(ctlButtons[bi]);
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    var t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    if (e.key === '1') setIntensity('subtle');
+    else if (e.key === '2') setIntensity('medium');
+    else if (e.key === '3') setIntensity('rich');
+  });
+
+  /* 审稿调试:?freeze=<秒> 渲染时间线上该时刻的确定性单帧(幅值取当前档位) */
+  function renderFrozenScene(t) {
+    frozen = true;
+    clock = Math.max(t, 0);
+    var pk = P.peakBase + P.peakVar * 0.6;
+    var mr = P.maxRBase + P.maxRVar * 0.7;
+    slots[0].u = 0.26; slots[0].v = 0.62; slots[0].birth = 1.0;
+    slots[0].seed = 23.7; slots[0].maxR = mr; slots[0].peak = pk;
+    slots[1].u = 0.66; slots[1].v = 0.14; slots[1].birth = 14.0;
+    slots[1].seed = 8.9; slots[1].maxR = mr * 0.78; slots[1].peak = pk * 0.9;
+    slots[2].u = 0.14; slots[2].v = 0.22; slots[2].birth = 21.0;
+    slots[2].seed = 41.2; slots[2].maxR = mr * 0.6; slots[2].peak = pk * 0.85;
+    brush.u = 0.02; brush.v = 0.30; brush.angle = -0.55;
+    brush.birth = 26.0; brush.seed = 17.3;
+    brush.peak = P.brushPeakBase + P.brushPeakVar * 0.5;
+    render();
+  }
+
+  /* prefers-reduced-motion:渲染一帧"已落定"的静态画面,
+   * 幅值固定取「适中」档(activeParams 已兜底)——可见但不动 */
+  function renderStaticScene() {
+    clock = 24;
+    slots[0].u = 0.28; slots[0].v = 0.64; slots[0].birth = 16;
+    slots[0].seed = 23.7; slots[0].maxR = 0.24; slots[0].peak = 0.15;
+    slots[1].u = 0.68; slots[1].v = 0.12; slots[1].birth = 19;
+    slots[1].seed = 8.9; slots[1].maxR = 0.18; slots[1].peak = 0.125;
+    slots[2].birth = -1e9;
+    brush.birth = -1e9;
+    render();
+  }
+
+  function handleVisibility() {
+    if (document.hidden) {
+      if (raf) { window.cancelAnimationFrame(raf); raf = 0; }
+    } else {
+      lastNow = performance.now();
+      schedule();
+    }
+  }
+
+  function handleMotionChange() {
+    if (raf) { window.cancelAnimationFrame(raf); raf = 0; }
+    if (shouldReduceMotion()) {
+      renderStaticScene();
+    } else {
+      lastNow = performance.now();
+      schedule();
+    }
+  }
+
+  window.addEventListener('resize', function () {
+    resize();
+    render();
+  });
+  document.addEventListener('visibilitychange', handleVisibility);
+  if (reducedMotion && reducedMotion.addEventListener) {
+    reducedMotion.addEventListener('change', handleMotionChange);
+  }
+
+  var freezeAt = NaN;
+  try {
+    freezeAt = parseFloat(new URLSearchParams(location.search).get('freeze'));
+  } catch (e) { /* 老浏览器无 URLSearchParams:忽略 */ }
+
+  syncButtons();
+  resize();
+  if (isFinite(freezeAt)) {
+    renderFrozenScene(freezeAt);
+  } else if (shouldReduceMotion()) {
+    renderStaticScene();
+  } else {
+    lastNow = performance.now();
+    render();
+    schedule();
+  }
+})();
+</script>
+</body>
+</html>

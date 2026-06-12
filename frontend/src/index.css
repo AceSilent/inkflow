@@ -49,6 +49,9 @@
   --shell-side-shine-opacity: 0.26;
   --shell-side-fade-opacity: 0.1;
   --shell-topwash-opacity: 0.18;
+  --shell-base-a: var(--bg-elevated);
+  --shell-base-b: var(--bg-subtle);
+  --shell-base-c: var(--bg);
   --ambient-a: oklch(86% 0.07 230 / 0.62);
   --ambient-b: oklch(88% 0.058 155 / 0.42);
   --ambient-c: oklch(98% 0.014 255 / 0.34);
@@ -87,7 +90,7 @@
   --ambient-blend: normal;
 }
 
-[data-theme="dark"] {
+[data-theme="ink"], [data-theme="dark"], [data-theme="graphite"] {
   --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
   --shadow-md: 0 4px 12px rgba(0,0,0,0.4);
   --shadow-lg: 0 8px 30px rgba(0,0,0,0.5);
@@ -152,6 +155,9 @@
   --shell-side-shine-opacity: 0.03;
   --shell-side-fade-opacity: 0.014;
   --shell-topwash-opacity: 0.024;
+  --shell-base-a: oklch(10.5% 0.024 225);
+  --shell-base-b: oklch(7.2% 0.018 255);
+  --shell-base-c: oklch(9.2% 0.018 200);
 }
 
 [data-theme="paper"] {
@@ -221,6 +227,9 @@
   --shell-side-shine-opacity: 0.026;
   --shell-side-fade-opacity: 0.012;
   --shell-topwash-opacity: 0.02;
+  --shell-base-a: oklch(10.5% 0.024 225);
+  --shell-base-b: oklch(7.2% 0.018 255);
+  --shell-base-c: oklch(9.2% 0.018 200);
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1429,12 +1438,11 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
 /* ─── Outline Locked Overlay ───────────────────────────────────────── */
 .outline-locked-overlay {
   position: absolute; inset: 0;
-  background: rgba(244, 237, 224, 0.7);
+  background: color-mix(in oklch, var(--bg) 70%, transparent);
   display: flex; flex-direction: column;
   justify-content: center; align-items: center;
   z-index: 10;
 }
-[data-theme="dark"] .outline-locked-overlay { background: rgba(31, 23, 18, 0.7); }
 .outline-view { position: relative; }
 
 /* ─── Plot Graph View ──────────────────────────────────────────────── */
@@ -2139,6 +2147,34 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   transform: translateZ(0);
 }
 
+/* Theme atmosphere backdrop (replaces deep-space). The canvas renders an opaque,
+   theme-specific scene; the wrapper's background is only a fallback for when the
+   GL/2D context is unavailable (it shows the theme's real base color via tokens). */
+.atmosphere-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  contain: paint;
+  background: var(--bg);
+}
+
+.atmosphere-backdrop__canvas {
+  display: block;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: translateZ(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .atmosphere-backdrop__canvas {
+    animation: none;
+  }
+}
+
 .studio-shell {
   display: grid;
   grid-template-areas:
@@ -2157,7 +2193,7 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
     radial-gradient(ellipse 112% 82% at 24% 48%, oklch(29% 0.044 214 / var(--deep-space-cloud-opacity)), transparent 68%),
     radial-gradient(ellipse 106% 78% at 73% 58%, oklch(27% 0.046 184 / var(--deep-space-core-opacity)), transparent 66%),
     radial-gradient(ellipse 82% 72% at 62% 10%, oklch(21% 0.046 286 / var(--deep-space-side-glow-opacity)), transparent 64%),
-    linear-gradient(135deg, oklch(10.5% 0.024 225), oklch(7.2% 0.018 255) 50%, oklch(9.2% 0.018 200)),
+    linear-gradient(135deg, var(--shell-base-a), var(--shell-base-b) 50%, var(--shell-base-c)),
     var(--glass-shell);
   overflow: hidden;
   border: 1px solid var(--glass-border);
@@ -2621,6 +2657,14 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   overflow: hidden;
 }
 
+.author-chat-scroll-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .author-chat-scroll {
   flex: 1 1 auto;
   min-height: 0;
@@ -2629,6 +2673,34 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.chat-jump-to-bottom {
+  position: absolute;
+  right: 18px;
+  bottom: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  background: var(--glass-panel-strong);
+  color: var(--ink-secondary);
+  font-size: 11px;
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    0 6px 16px oklch(0% 0 0 / 0.12);
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  animation: messageLiftIn var(--motion-smooth) both;
+  transition: color var(--motion-fast), background var(--motion-fast), border-color var(--motion-fast), box-shadow var(--motion-fast);
+}
+
+.chat-jump-to-bottom:hover {
+  color: var(--ink);
+  background: var(--glass-hover);
 }
 
 .author-chat-empty {

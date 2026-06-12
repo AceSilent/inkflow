@@ -113,8 +113,14 @@ describe('visual polish direction', () => {
     expect(indexCss).toMatch(/\.game-script-workspace \{[\s\S]*background:\s*transparent;/)
   })
 
-  it('renders the deep-space backdrop with a continuous WebGL shader instead of sliced texture bands', () => {
-    expect(studioShell).toContain('DeepSpaceBackdrop')
+  it('mounts the per-theme atmosphere backdrop in the studio shell', () => {
+    // DeepSpaceBackdrop.jsx is retained as a fallback but no longer referenced;
+    // StudioShell now mounts the theme-aware AtmosphereBackdrop.
+    expect(studioShell).toContain('AtmosphereBackdrop')
+    expect(studioShell).not.toContain('DeepSpaceBackdrop')
+  })
+
+  it('keeps the retained deep-space backdrop module as a continuous WebGL shader', () => {
     expect(deepSpaceBackdrop).toContain('deep-space-backdrop')
     expect(deepSpaceBackdrop).toContain('deep-space-backdrop__canvas')
     expect(deepSpaceBackdrop).toContain('requestAnimationFrame')
