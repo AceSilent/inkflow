@@ -11,6 +11,7 @@ import { SettingsPanel } from './components/SettingsPanel'
 import { ToastContainer } from './components/Toast'
 import { useToast } from './hooks/useToast'
 import { useTheme } from './hooks/useTheme'
+import { BackdropIntensityProvider } from './hooks/useBackdropIntensity'
 import { StudioShell } from './components/studio/StudioShell'
 import { ChapterWorkspace } from './components/studio/ChapterWorkspace'
 import { OutlineWorkspace } from './components/studio/OutlineWorkspace'
@@ -142,6 +143,12 @@ export default function App() {
     />
   ) : (
     <AuthorChatPanel
+      // Remount per book/session so an in-flight SSE stream from book A can't
+      // write its messages into book B's panel after a switch. History and the
+      // composer draft are reloaded per book (server + localStorage), so the
+      // remount loses nothing; the orphaned stream finishes in the background
+      // and the server persists its turn as usual.
+      key={currentBookId || draftSessionId}
       currentBook={currentBook}
       addToast={addToast}
       onLoreUpdated={refreshData}
@@ -164,6 +171,7 @@ export default function App() {
   )
 
   return (
+    <BackdropIntensityProvider>
     <div data-theme={theme}>
       <StudioShell
         theme={theme}
@@ -216,6 +224,7 @@ export default function App() {
       )}
       <ToastContainer toasts={toasts} onRemove={removeToast} />
     </div>
+    </BackdropIntensityProvider>
   )
 }
 

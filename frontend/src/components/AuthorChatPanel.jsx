@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Trash2, Plus, X, FileText, PenTool, Loader, Square, Paperclip, Gamepad2, Check } from 'lucide-react'
+import { Send, Trash2, Plus, X, FileText, PenTool, Loader, Square, Paperclip, Gamepad2, Check, ArrowDown } from 'lucide-react'
 import { useI18n } from '../hooks/useI18n'
 import { MessageBubble, OptionsCard, ThinkingCard, ToolActivityGroup } from './author-chat/MessageCards'
 import { MarkdownContent } from './author-chat/MarkdownContent'
@@ -252,6 +252,7 @@ export function LiveStreamingMessage({
   optionsDisabled,
   onOptionSelect,
   t,
+  now = 0,
 }) {
   if (!streamingMsg) return null
 
@@ -275,7 +276,8 @@ export function LiveStreamingMessage({
               .replace('{status}', streamingMsg.retry.status)
               .replace('{attempt}', streamingMsg.retry.attempt)}{' '}
             {(() => {
-              const elapsed = Date.now() - (streamingMsg.retry.startedAt ?? Date.now())
+              const nowTs = now || streamingMsg.retry.startedAt || 0
+              const elapsed = nowTs - (streamingMsg.retry.startedAt ?? nowTs)
               const remaining = Math.max(0, streamingMsg.retry.delayMs - elapsed)
               return remaining > 0
                 ? t('authorChat.retryAfter').replace('{seconds}', (remaining / 1000).toFixed(1))
@@ -457,7 +459,12 @@ export function AuthorChatPanel({
   const [visibleStreamingText, setVisibleStreamingText] = useState('')
   const [checkpointEditor, setCheckpointEditor] = useState(null)
   const [checkpointResending, setCheckpointResending] = useState(false)
-  const chatEndRef = useRef(null)
+  const chatScrollRef = useRef(null)
+  // Sticky-follow scrolling: only auto-scroll while the user is near the
+  // bottom. The ref is the live source of truth for the follow loop; the
+  // state mirrors it for rendering the "back to bottom" button.
+  const stickToBottomRef = useRef(true)
+  const [isAtBottom, setIsAtBottom] = useState(true)
   const inputRef = useRef(null)
   const fileInputRef = useRef(null)
   const abortRef = useRef(null)
@@ -529,10 +536,31 @@ export function AuthorChatPanel({
     persistDraftInput(window.localStorage, draftStorageKey, value)
   }, [draftStorageKey])
 
-  // Auto-scroll
+  const handleChatScroll = useCallback(() => {
+    const el = chatScrollRef.current
+    if (!el) return
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+    const atBottom = distanceFromBottom < 80
+    stickToBottomRef.current = atBottom
+    setIsAtBottom(atBottom)
+  }, [])
+
+  const scrollToBottom = useCallback(() => {
+    const el = chatScrollRef.current
+    if (!el) return
+    el.scrollTop = el.scrollHeight
+    stickToBottomRef.current = true
+    setIsAtBottom(true)
+  }, [])
+
+  // Auto-scroll, but only while the user hasn't scrolled away from the
+  // bottom. Direct scrollTop assignment (no smooth behavior) because this
+  // fires per streamed token — smooth scrolling would queue up and judder.
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, streamingMsg])
+    if (!stickToBottomRef.current) return
+    const el = chatScrollRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [messages, streamingMsg, visibleStreamingText])
 
   const streamingContentTarget = latestStreamingContentTarget(streamingMsg?.segments ?? [])
   const visibleStreamingSegments = streamingMsg
@@ -555,11 +583,14 @@ export function AuthorChatPanel({
 
   // Tick once a second while a retry banner or heartbeat banner is showing, so
   // the displayed countdown / elapsed time stays live without a server push.
-  const [, setTick] = useState(0)
+  // Holds a timestamp so children can render countdowns without reading the
+  // clock during render.
+  const [clockNow, setClockNow] = useState(0)
   useEffect(() => {
     if (!streamingMsg) return
     if (!streamingMsg.retry && !(streamingMsg.idleMs >= 15000)) return
-    const id = setInterval(() => setTick((t) => t + 1), 500)
+    setClockNow(Date.now())
+    const id = setInterval(() => setClockNow(Date.now()), 500)
     return () => clearInterval(id)
   }, [streamingMsg])
 
@@ -635,6 +666,10 @@ export function AuthorChatPanel({
     draftBeforeNav.current = ''
     if (!fromOverride) updateInput('')
     if (!fromOverride && useAttachments) setAttachments([])
+    // Sending a message always re-engages bottom-follow, even if the user
+    // had scrolled up — the auto-scroll effect lands after the new render.
+    stickToBottomRef.current = true
+    setIsAtBottom(true)
     setMessages(prev => [...prev, {
       role: 'user', content: userMsg,
       attachments: attachmentPayload,
@@ -986,7 +1021,8 @@ export function AuthorChatPanel({
       </div>
 
       {/* Messages */}
-      <div className="author-chat-scroll">
+      <div className="author-chat-scroll-wrap">
+      <div className="author-chat-scroll" ref={chatScrollRef} onScroll={handleChatScroll}>
         {messages.length === 0 && !streamingMsg && (
           <div className="author-chat-empty">
             <div>{t('authorChat.directChat')}</div>
@@ -1033,10 +1069,19 @@ export function AuthorChatPanel({
             optionsDisabled={loading}
             onOptionSelect={(opt) => handleSend(opt)}
             t={t}
+            now={clockNow}
           />
         )}
 
-        <div ref={chatEndRef} />
+      </div>
+
+      {/* Detached from bottom during streaming — offer a one-click way back */}
+      {streamingMsg && !isAtBottom && (
+        <button className="chat-jump-to-bottom" onClick={scrollToBottom}>
+          <ArrowDown size={12} />
+          {t('authorChat.backToBottom')}
+        </button>
+      )}
       </div>
 
       {/* Input */}

@@ -1,6 +1,7 @@
 /* Design tokens · Literary Journal aesthetic
  * Spec: docs/superpowers/specs/2026-04-18-design-system.md
- * Light theme is the default. data-theme="dark" activates Library Espresso.
+ * Light theme (mist) is the default token set. data-theme="ink" / "graphite"
+ * activate the dark variants; the legacy "dark" id maps to ink.
  */
 
 :root {
@@ -146,10 +147,5 @@ body {
 
 /* Paper texture (Light) */
 body::before {
-  content: none;
-}
-
-/* Grain texture (Dark) */
-body[data-theme="dark"]::before {
   content: none;
 }
