@@ -74,11 +74,16 @@ export function setupFullscreenQuad(gl, program) {
   return buffer
 }
 
-// Best-effort GL context release on destroy.
-export function loseContext(gl) {
-  const ext = gl.getExtension('WEBGL_lose_context')
-  if (ext) ext.loseContext()
-}
+// Intentionally a no-op. A backdrop's <canvas> is persistent across theme swaps
+// and React effect re-runs (incl. StrictMode's mount/unmount/mount in dev), and
+// destroy() is called on every cleanup. Calling WEBGL_lose_context.loseContext()
+// here is fatal: once a context is force-lost, `canvas.getContext('webgl')` on the
+// SAME element returns that very same — now permanently lost — context, so the next
+// init's shader compile fails ("failed to compile: null") and the alpha:false canvas
+// renders as opaque white, washing out the whole shell. We only ever hold one GL
+// context per canvas; deleting the program/buffer in destroy() is enough, and the
+// context is reused cleanly on re-init (or GC'd when the canvas is dropped).
+export function loseContext() {}
 
 export const VERTEX_SRC = [
   'attribute vec2 a_pos;',
