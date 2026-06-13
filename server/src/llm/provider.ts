@@ -25,6 +25,11 @@ export interface LLMConfig {
   dataDir?: string
 }
 
+type ProviderOptionValue = string | number | boolean | null | ProviderOptionValue[] | ProviderOptionObject
+interface ProviderOptionObject {
+  [key: string]: ProviderOptionValue | undefined
+}
+
 /** Base URL for the ChatGPT-backed Codex Responses API. */
 export const CODEX_RESPONSES_BASE_URL = 'https://chatgpt.com/backend-api/codex'
 
@@ -468,6 +473,15 @@ export function createProvider(config: LLMConfig, onProgress?: ProviderProgressC
   // The default provider('model') uses the Responses API (/responses)
   // which non-OpenAI providers don't support.
   return provider.chat(config.model)
+}
+
+export function openAIProviderOptionsForConfig(config: Pick<LLMConfig, 'kind'>): { openai: ProviderOptionObject } {
+  const openai: ProviderOptionObject = { parallelToolCalls: true }
+  if (config.kind === 'codex-oauth') {
+    openai.store = false
+    openai.include = ['reasoning.encrypted_content']
+  }
+  return { openai }
 }
 
 // ---------------------------------------------------------------------------

@@ -14,7 +14,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { createCodexFetch, patchCodexResponsesBody, resolveCodexModel } from '../src/llm/provider.js'
+import { createCodexFetch, openAIProviderOptionsForConfig, patchCodexResponsesBody, resolveCodexModel } from '../src/llm/provider.js'
 import { saveCodexAuth } from '../src/llm/codex-store.js'
 import type { TokenSet } from '../src/llm/codex-auth.js'
 
@@ -119,6 +119,30 @@ describe('resolveCodexModel', () => {
   })
   it('passes through unknown model names unchanged', () => {
     expect(resolveCodexModel('gpt-5.1')).toBe('gpt-5.1')
+  })
+})
+
+describe('openAIProviderOptionsForConfig', () => {
+  it('declares store:false before the AI SDK converts Codex multi-step tool calls', () => {
+    const options = openAIProviderOptionsForConfig({ apiKey: '', model: 'gpt-5.5', kind: 'codex-oauth' })
+
+    expect(options).toEqual({
+      openai: {
+        parallelToolCalls: true,
+        store: false,
+        include: ['reasoning.encrypted_content'],
+      },
+    })
+  })
+
+  it('does not send Responses-only persistence options to OpenAI-compatible chat providers', () => {
+    const options = openAIProviderOptionsForConfig({ apiKey: 'test', model: 'deepseek-v4-pro' })
+
+    expect(options).toEqual({
+      openai: {
+        parallelToolCalls: true,
+      },
+    })
   })
 })
 

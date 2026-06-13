@@ -16,7 +16,7 @@ import { streamText, stepCountIs, type ModelMessage } from 'ai'
 import { composeHooks, type ToolRegistry, type ToolContext, type ToolHooks, type BlockedToolCall, type ToolProgressEvent } from '../tools/base-tool.js'
 import { buildAuthorPrompt, buildBrainstormPrompt, buildGameScriptPrompt, buildPlotGraphStatus, buildStyleProfileStatus } from './prompt-builder.js'
 import { buildCreativeStagePrompt } from './creative-stage.js'
-import { type LLMConfig, type ProviderProgressCallback, createProvider } from '../llm/provider.js'
+import { type LLMConfig, type ProviderProgressCallback, createProvider, openAIProviderOptionsForConfig } from '../llm/provider.js'
 import { blockWhileUserEditing } from '../stats/tips/block-while-user-editing.js'
 
 /**
@@ -136,6 +136,6 @@ export function runAgentStream(options: AgentRunOptions): AgentStreamResult {
     // (DeepSeek, DashScope, ZhipuAI GLM etc.) have varied defaults — passing
     // true keeps the behavior uniform. Vercel AI SDK v6 then executes the
     // emitted tool_use blocks concurrently within a single step.
-    providerOptions: { openai: { parallelToolCalls: true } },
+    providerOptions: openAIProviderOptionsForConfig(llmConfig),
   })
 }

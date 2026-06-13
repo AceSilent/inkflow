@@ -31,7 +31,7 @@ import { clearAuthorChatSession, loadAuthorChatConfig, persistUsageBestEffort, p
 import { ReasoningSegmentAccumulator } from './stream-segments.js'
 import { buildTransientWorkbenchStateMessages, persistAuthorChatTurn, prepareHistoryForAuthorChatSend, stripTransientWorkbenchStateMessages, type AuthorChatTurnStatus } from './author-chat-persistence.js'
 import { renderUserMessageForModel, summarizeAttachmentsForCheckpoint, type ChatAttachment } from './chat-attachments.js'
-import { createProvider, type ProviderProgressEvent } from '../llm/provider.js'
+import { createProvider, openAIProviderOptionsForConfig, type ProviderProgressEvent } from '../llm/provider.js'
 import { extractMemories, ingestExtracted } from '../memory/extractor.js'
 import { organizePendingMemories } from '../memory/organizer.js'
 
@@ -189,7 +189,7 @@ export async function authorChatRoutes(app: FastifyInstance) {
           temperature: 0.7,
           abortSignal: abortController.signal,
           maxRetries: 0,
-          providerOptions: { openai: { parallelToolCalls: true } },
+          providerOptions: openAIProviderOptionsForConfig(llmConfig),
         })
 
         const accumulator = new ReasoningSegmentAccumulator((event) => sse(event))
