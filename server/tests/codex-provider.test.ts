@@ -83,6 +83,34 @@ describe('patchCodexResponsesBody', () => {
     expect(patchCodexResponsesBody(null)).toBeNull()
     expect(patchCodexResponsesBody('x')).toBe('x')
   })
+
+  it('promotes SDK developer input to top-level instructions for the Codex backend', () => {
+    const out = patchCodexResponsesBody({
+      input: [
+        { role: 'developer', content: 'You are concise.' },
+        { role: 'user', content: [{ type: 'input_text', text: 'hi' }] },
+      ],
+    })
+
+    expect(out.instructions).toBe('You are concise.')
+    expect(out.input).toEqual([
+      { role: 'user', content: [{ type: 'input_text', text: 'hi' }] },
+    ])
+  })
+
+  it('combines system and developer inputs without overwriting explicit user input', () => {
+    const out = patchCodexResponsesBody({
+      input: [
+        { role: 'system', content: [{ type: 'input_text', text: 'System rules.' }] },
+        { role: 'developer', content: 'Developer rules.' },
+        { role: 'user', content: [{ type: 'input_text', text: 'hi' }] },
+      ],
+    })
+
+    expect(out.instructions).toBe('System rules.\n\nDeveloper rules.')
+    expect(out.input).toHaveLength(1)
+    expect(out.input[0].role).toBe('user')
+  })
 })
 
 describe('resolveCodexModel', () => {

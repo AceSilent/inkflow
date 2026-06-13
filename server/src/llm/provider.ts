@@ -493,12 +493,58 @@ export function patchCodexResponsesBody(body: any): any {
   if (!body || typeof body !== 'object') return body
   // Backend is stateless — store must be false regardless of what the SDK set.
   body.store = false
+  promoteCodexInstructions(body)
   const include = Array.isArray(body.include) ? body.include : []
   if (!include.includes('reasoning.encrypted_content')) {
     include.push('reasoning.encrypted_content')
   }
   body.include = include
   return body
+}
+
+function codexInstructionText(content: unknown): string {
+  if (typeof content === 'string') return content.trim()
+  if (!Array.isArray(content)) return ''
+  return content
+    .map((item) => {
+      if (typeof item === 'string') return item
+      if (!item || typeof item !== 'object') return ''
+      const record = item as Record<string, unknown>
+      if (
+        (record.type === 'input_text' || record.type === 'text')
+        && typeof record.text === 'string'
+      ) {
+        return record.text
+      }
+      return ''
+    })
+    .map((text) => text.trim())
+    .filter(Boolean)
+    .join('\n')
+}
+
+function promoteCodexInstructions(body: any): void {
+  if (typeof body.instructions === 'string' && body.instructions.trim()) return
+  if (!Array.isArray(body.input)) return
+
+  const instructions: string[] = []
+  const input: unknown[] = []
+  for (const item of body.input) {
+    if (item && typeof item === 'object') {
+      const record = item as Record<string, unknown>
+      if (record.role === 'developer' || record.role === 'system') {
+        const text = codexInstructionText(record.content)
+        if (text) instructions.push(text)
+        continue
+      }
+    }
+    input.push(item)
+  }
+
+  if (instructions.length > 0) {
+    body.instructions = instructions.join('\n\n')
+    body.input = input
+  }
 }
 
 export interface CodexFetchOptions {
