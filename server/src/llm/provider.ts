@@ -474,8 +474,14 @@ export function createProvider(config: LLMConfig, onProgress?: ProviderProgressC
 // Codex / ChatGPT OAuth provider (Responses API).
 // ---------------------------------------------------------------------------
 
-/** A required Codex CLI version string sent on every Responses request. */
-const CODEX_CLIENT_VERSION = '0.20.0'
+/**
+ * Required Codex client version string sent on every Responses request.
+ *
+ * The ChatGPT Codex backend gates newer models by this version header; gpt-5.5
+ * rejects the older 0.20.0 value with "requires a newer version of Codex".
+ * Keep this aligned with the currently installed official Codex CLI line.
+ */
+const CODEX_CLIENT_VERSION = '0.140.0-alpha.2'
 
 /**
  * Force `store:false` and ensure the encrypted reasoning content is included.

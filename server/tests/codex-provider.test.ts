@@ -139,6 +139,20 @@ describe('createCodexFetch', () => {
     expect(sessionIds[0]).toMatch(/^[0-9a-f-]{36}$/)
   })
 
+  it('uses a current Codex client version by default for gpt-5.5 access', async () => {
+    let capturedVersion = ''
+    const fetchImpl: typeof globalThis.fetch = async (_url, init) => {
+      capturedVersion = new Headers(init?.headers).get('version') ?? ''
+      return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } })
+    }
+
+    const codexFetch = createCodexFetch({ dataDir: tmpDir, fetchImpl })
+    await codexFetch('https://chatgpt.com/backend-api/codex/responses', { method: 'POST', body: '{}' })
+
+    expect(capturedVersion).toBe('0.140.0-alpha.2')
+    expect(capturedVersion).not.toBe('0.20.0')
+  })
+
   it('refreshes the token once and retries on 401', async () => {
     // Make the stored access token already expired so getFreshAccessToken
     // refreshes first; the token endpoint then returns a rotated set.
