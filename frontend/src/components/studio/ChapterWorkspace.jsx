@@ -139,6 +139,11 @@ export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast }) {
   const hasReview = Boolean(review)
   const reviewBusy = Boolean(reviewAction)
   const reviewControlsDisabled = !canEdit || saving || reviewBusy || dirty
+  const reviewStateClass = status.user_decision === 'approved'
+    ? 'approved'
+    : status.user_decision === 'rejected'
+      ? 'rejected'
+      : 'pending'
 
   const handleCancel = useCallback(() => {
     setDraft(original)
@@ -287,6 +292,35 @@ export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast }) {
         </div>
         <div className="chapter-workspace-actions">
           <span className="chapter-workspace-stat">{wordCount} 字/词</span>
+          {mode === 'preview' ? (
+            <button className="btn btn-secondary btn-sm" type="button" onClick={() => setMode('edit')} disabled={!canEdit}>
+              <Edit3 size={14} />
+              编辑
+            </button>
+          ) : (
+            <>
+              <button className="btn btn-ghost btn-sm" type="button" onClick={handleCancel} disabled={saving}>
+                <X size={14} />
+                取消
+              </button>
+              <button className="btn btn-primary btn-sm" type="button" onClick={handleSave} disabled={!dirty || saving || !canEdit}>
+                {saving ? <Loader size={14} className="anim-spin" /> : <Save size={14} />}
+                保存
+              </button>
+            </>
+          )}
+        </div>
+      </header>
+
+      <section className="chapter-workspace-reviewbar" aria-label="章节审稿流程">
+        <div className="chapter-workspace-review-status">
+          <span className="chapter-workspace-review-eyebrow">审稿流程</span>
+          <span className={`chapter-workspace-review-pill ${reviewStateClass}`}>
+            {chapterReviewStatusLabel(status.user_decision, hasReview)}
+          </span>
+          {dirty && <span className="chapter-workspace-review-hint">保存当前修改后可操作</span>}
+        </div>
+        <div className="chapter-workspace-review-actions">
           <button
             className="btn btn-secondary btn-sm"
             type="button"
@@ -317,25 +351,8 @@ export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast }) {
             {reviewAction === 'approve' ? <Loader size={14} className="anim-spin" /> : <Check size={14} />}
             {chapterReviewActionLabel(status.user_decision, hasReview)}
           </button>
-          {mode === 'preview' ? (
-            <button className="btn btn-secondary btn-sm" type="button" onClick={() => setMode('edit')} disabled={!canEdit}>
-              <Edit3 size={14} />
-              编辑
-            </button>
-          ) : (
-            <>
-              <button className="btn btn-ghost btn-sm" type="button" onClick={handleCancel} disabled={saving}>
-                <X size={14} />
-                取消
-              </button>
-              <button className="btn btn-primary btn-sm" type="button" onClick={handleSave} disabled={!dirty || saving || !canEdit}>
-                {saving ? <Loader size={14} className="anim-spin" /> : <Save size={14} />}
-                保存
-              </button>
-            </>
-          )}
         </div>
-      </header>
+      </section>
 
       {mode === 'edit' ? (
         <textarea

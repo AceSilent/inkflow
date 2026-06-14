@@ -11,6 +11,7 @@ const locales = readFileSync(new URL('../../i18n/locales.js', import.meta.url), 
 const outlineView = readFileSync(new URL('../OutlineView.jsx', import.meta.url), 'utf8')
 const sidebar = readFileSync(new URL('../Sidebar.jsx', import.meta.url), 'utf8')
 const chapterWorkbench = readFileSync(new URL('../ChapterWorkbench.jsx', import.meta.url), 'utf8')
+const chapterWorkspace = readFileSync(new URL('./ChapterWorkspace.jsx', import.meta.url), 'utf8')
 const plotGraphView = readFileSync(new URL('../PlotGraphView.jsx', import.meta.url), 'utf8')
 const deepSpaceBackdropUrl = new URL('./DeepSpaceBackdrop.jsx', import.meta.url)
 const deepSpaceBackdrop = existsSync(deepSpaceBackdropUrl) ? readFileSync(deepSpaceBackdropUrl, 'utf8') : ''
@@ -89,6 +90,16 @@ describe('visual polish direction', () => {
     expect(indexCss).toMatch(/\.studio-chat \{[\s\S]*backdrop-filter:\s*none;/)
     expect(indexCss).not.toContain('.studio-chat::before')
     expect(indexCss).not.toContain('.studio-chat::after')
+  })
+
+  it('keeps chapter review controls in a dedicated workflow bar, not the title actions', () => {
+    expect(chapterWorkspace).toContain('chapter-workspace-reviewbar')
+    expect(chapterWorkspace).toContain('chapter-workspace-review-actions')
+    expect(chapterWorkspace.indexOf('chapter-workspace-reviewbar')).toBeGreaterThan(chapterWorkspace.indexOf('chapter-workspace-head'))
+    expect(chapterWorkspace.indexOf('chapter-workspace-reviewbar')).toBeLessThan(chapterWorkspace.indexOf('chapter-workspace-editor'))
+    expect(cssBlock('.chapter-workspace')).toContain('grid-template-rows: auto auto minmax(0, 1fr) auto;')
+    expect(indexCss).toMatch(/\.chapter-workspace-reviewbar \{[\s\S]*backdrop-filter:/)
+    expect(indexCss).toMatch(/\.chapter-workspace-review-actions \{[\s\S]*justify-content:\s*flex-end;/)
   })
 
   it('covers the entire studio shell with a deep-space mesh, not just the chat center', () => {
