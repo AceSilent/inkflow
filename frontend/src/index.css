@@ -1273,21 +1273,33 @@ button:active:not(:disabled) {
 .anim-spin { animation: spin 1.2s linear infinite; }
 
 /* ── CommentFeed ───────────────────────────────────────────────────── */
-.comment-feed { display: flex; flex-direction: column; gap: 6px; }
-.comment-filter { display: flex; gap: 4px; margin-bottom: 8px; }
+.comment-feed { display: flex; flex-direction: column; gap: 8px; }
+.comment-filter { display: flex; gap: 5px; margin-bottom: 4px; flex-wrap: wrap; }
 .filter-chip {
-  padding: 2px 8px; border-radius: 10px; border: none;
-  background: var(--bg-subtle); color: var(--ink-secondary);
-  font-family: var(--font-label); font-size: 9px;
-  letter-spacing: 0.1em; cursor: pointer;
+  padding: 3px 8px; border-radius: 999px; border: 1px solid color-mix(in oklch, var(--border-subtle) 70%, transparent);
+  background: color-mix(in oklch, var(--glass-panel) 24%, transparent); color: var(--ink-secondary);
+  font-family: var(--font-label); font-size: 10px;
+  letter-spacing: 0; cursor: pointer;
+  transition: background var(--motion-fast), color var(--motion-fast), border-color var(--motion-fast);
 }
-.filter-chip.on { background: var(--accent); color: #fff; }
+.filter-chip.on {
+  background: color-mix(in oklch, var(--accent) 18%, transparent);
+  color: var(--accent);
+  border-color: color-mix(in oklch, var(--accent) 24%, transparent);
+}
 .comment-card {
-  background: var(--bg-elevated); padding: 8px 10px; margin-bottom: 6px;
-  font-size: 10.5px;
+  background:
+    linear-gradient(180deg, color-mix(in oklch, var(--glass-highlight) 8%, transparent), transparent 72%),
+    color-mix(in oklch, var(--chat-frost-surface) 54%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border-subtle) 58%, transparent);
+  border-radius: var(--radius-md);
+  padding: 9px 10px;
+  margin-bottom: 0;
+  font-size: 11px;
+  box-shadow: inset 0 1px 0 color-mix(in oklch, var(--glass-highlight) 9%, transparent);
 }
 .comment-author {
-  font-family: var(--font-display); font-style: italic; font-size: 10.5px;
+  font-family: var(--font-body); font-style: normal; font-weight: 650; font-size: 11px;
   margin-bottom: 3px;
 }
 .comment-sev {
@@ -1301,19 +1313,30 @@ button:active:not(:disabled) {
   font-size: 10px; border-left: 2px solid var(--border-subtle);
   padding-left: 6px; margin: 3px 0;
 }
-.comment-text { line-height: 1.5; color: var(--ink); }
+.comment-text { line-height: 1.6; color: var(--ink-secondary); }
 .comment-actions { margin-top: 4px; display: flex; gap: 4px; }
 .comment-actions button {
-  font-size: 9px; padding: 2px 6px; border: 1px solid var(--border-subtle);
-  background: var(--bg); color: var(--ink-secondary); cursor: pointer;
+  font-size: 10px; padding: 3px 7px; border: 1px solid color-mix(in oklch, var(--border-subtle) 72%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--glass-panel) 24%, transparent);
+  color: var(--ink-secondary); cursor: pointer;
+  transition: background var(--motion-fast), color var(--motion-fast), border-color var(--motion-fast);
+}
+.comment-actions button:hover {
+  color: var(--ink);
+  border-color: color-mix(in oklch, var(--accent) 20%, var(--border-subtle));
 }
 
 /* ── AnnotationPopover ──────────────────────────────────────────────── */
 .annotation-popover {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-strong);
-  padding: 10px; width: 240px;
-  box-shadow: 2px 2px 0 var(--accent-soft);
+  background:
+    linear-gradient(180deg, color-mix(in oklch, var(--glass-highlight) 12%, transparent), transparent 70%),
+    color-mix(in oklch, var(--chat-tool-menu-surface) 88%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border-subtle) 78%, transparent);
+  border-radius: var(--radius-md);
+  padding: 10px; width: min(260px, calc(100vw - 28px));
+  box-shadow: 0 14px 34px color-mix(in oklch, var(--shadow-color, oklch(0% 0 0)) 16%, transparent);
+  backdrop-filter: blur(28px) saturate(1.18);
   font-family: var(--font-body);
 }
 .popover-quote {
@@ -1323,18 +1346,27 @@ button:active:not(:disabled) {
 }
 .popover-textarea {
   width: 100%; height: 60px; resize: vertical;
-  background: var(--bg); color: var(--ink);
-  border: 1px solid var(--border-subtle);
+  background: color-mix(in oklch, var(--glass-panel) 34%, transparent); color: var(--ink);
+  border: 1px solid color-mix(in oklch, var(--border-subtle) 72%, transparent);
+  border-radius: 6px;
   font-family: var(--font-body); font-size: 11px;
-  padding: 4px 6px;
+  padding: 6px 8px;
+  outline: none;
 }
 .popover-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 6px; }
 .popover-actions button {
-  font-size: 10px; padding: 3px 8px;
-  background: var(--bg); color: var(--ink-secondary);
-  border: 1px solid var(--border-subtle); cursor: pointer;
+  font-size: 10px; padding: 4px 8px;
+  background: color-mix(in oklch, var(--glass-panel) 26%, transparent); color: var(--ink-secondary);
+  border: 1px solid color-mix(in oklch, var(--border-subtle) 72%, transparent);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background var(--motion-fast), color var(--motion-fast), border-color var(--motion-fast);
 }
-.popover-actions button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.popover-actions button.primary {
+  background: color-mix(in oklch, var(--accent) 18%, transparent);
+  color: var(--accent);
+  border-color: color-mix(in oklch, var(--accent) 28%, transparent);
+}
 .popover-actions button.primary:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ─── Approval Confirm Modal ─── */
@@ -3684,6 +3716,33 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   flex: 0 0 auto;
 }
 
+.chapter-workspace-send-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 22px;
+  padding: 0 8px;
+  border: 1px solid color-mix(in oklch, var(--accent) 20%, transparent);
+  border-radius: 999px;
+  color: var(--accent);
+  background: color-mix(in oklch, var(--accent) 9%, transparent);
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--motion-fast), border-color var(--motion-fast), opacity var(--motion-fast);
+}
+
+.chapter-workspace-send-note:hover {
+  background: color-mix(in oklch, var(--accent) 14%, transparent);
+  border-color: color-mix(in oklch, var(--accent) 28%, transparent);
+}
+
+.chapter-workspace-send-note:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
 .chapter-workspace-save-state {
   display: flex;
   align-items: center;
@@ -3696,12 +3755,51 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   line-height: 1.4;
 }
 
+.chapter-workspace-body {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) minmax(154px, 32%);
+  gap: 12px;
+  padding: 14px 18px 0;
+  overflow: hidden;
+}
+
+.chapter-workspace-reader {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid color-mix(in oklch, var(--border-subtle) 58%, transparent);
+  border-radius: var(--radius-md);
+  background:
+    linear-gradient(180deg, color-mix(in oklch, var(--glass-highlight) 7%, transparent), transparent 62%),
+    color-mix(in oklch, var(--chat-frost-surface) 32%, transparent);
+  backdrop-filter: blur(18px) saturate(1.08);
+  box-shadow: inset 0 1px 0 color-mix(in oklch, var(--glass-highlight) 8%, transparent);
+}
+
+.chapter-workspace-inspector {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px;
+  border: 1px solid color-mix(in oklch, var(--border-subtle) 60%, transparent);
+  border-radius: var(--radius-md);
+  background:
+    linear-gradient(180deg, color-mix(in oklch, var(--glass-highlight) 8%, transparent), transparent 72%),
+    color-mix(in oklch, var(--chat-frost-surface) 48%, transparent);
+  backdrop-filter: blur(22px) saturate(1.12);
+  box-shadow: inset 0 1px 0 color-mix(in oklch, var(--glass-highlight) 10%, transparent);
+}
+
 .chapter-workspace-preview {
   flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
+  height: 100%;
   overflow-y: auto;
-  padding: 16px 18px 28px;
+  padding: 14px 16px 24px;
 }
 
 .chapter-workspace-preview p {
@@ -3720,16 +3818,17 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
 .chapter-workspace-editor {
   flex: 1 1 auto;
   min-width: 0;
-  min-height: 260px;
-  margin: 16px 18px 18px;
-  width: calc(100% - 36px);
+  min-height: 0;
+  height: 100%;
+  margin: 0;
+  width: 100%;
   padding: 14px;
   color: var(--ink);
   background:
     linear-gradient(180deg, color-mix(in oklch, var(--glass-highlight) 8%, transparent), transparent 46%),
     var(--chat-frost-surface);
   border: 1px solid var(--chat-frost-border);
-  border-radius: var(--radius-md);
+  border-radius: 0;
   font-family: var(--font-body);
   font-size: 14px;
   line-height: 1.75;
@@ -3737,6 +3836,161 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
   outline: none;
   backdrop-filter: blur(24px) saturate(1.14);
   transition: border-color 0.12s, background 0.12s, box-shadow 0.12s;
+}
+
+@media (min-width: 1320px) {
+  .chapter-workspace-body {
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 34%);
+    grid-template-rows: minmax(0, 1fr);
+  }
+}
+
+.lore-workspace {
+  min-width: 0;
+  min-height: 100%;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  color: var(--ink);
+  background: transparent;
+}
+
+.lore-workspace-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 18px 18px 0;
+}
+
+.lore-workspace-kicker {
+  margin-bottom: 4px;
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+.lore-workspace-head h2 {
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.lore-workspace-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  padding: 3px;
+  border: 1px solid color-mix(in oklch, var(--border-subtle) 58%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--chat-frost-surface) 34%, transparent);
+  backdrop-filter: blur(18px) saturate(1.08);
+}
+
+.lore-workspace-chip {
+  min-height: 24px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  color: var(--ink-secondary);
+  background: transparent;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background var(--motion-fast), color var(--motion-fast);
+}
+
+.lore-workspace-chip.active {
+  color: var(--ink);
+  background: color-mix(in oklch, var(--glass-panel) 44%, transparent);
+}
+
+.lore-workspace-panel {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 14px 18px 18px;
+  padding: 14px;
+  border: 1px solid color-mix(in oklch, var(--border-subtle) 60%, transparent);
+  border-radius: var(--radius-md);
+  background:
+    linear-gradient(180deg, color-mix(in oklch, var(--glass-highlight) 8%, transparent), transparent 64%),
+    color-mix(in oklch, var(--chat-frost-surface) 42%, transparent);
+  backdrop-filter: blur(22px) saturate(1.1);
+}
+
+.lore-workspace-branch {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.lore-workspace-row {
+  display: grid;
+  grid-template-columns: minmax(76px, 30%) minmax(0, 1fr);
+  gap: 10px;
+  min-width: 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid color-mix(in oklch, var(--border-subtle) 38%, transparent);
+}
+
+.lore-workspace-row.complex {
+  grid-template-columns: 1fr;
+}
+
+.lore-workspace-key {
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 650;
+  word-break: break-word;
+}
+
+.lore-workspace-cell {
+  min-width: 0;
+  color: var(--ink-secondary);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.lore-workspace-value {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.lore-workspace-muted,
+.lore-workspace-empty {
+  color: var(--ink-muted);
+}
+
+.lore-workspace-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  padding: 32px;
+  font-size: 13px;
+  text-align: center;
+}
+
+.lore-workspace-array-item {
+  min-width: 0;
+  padding-left: 10px;
+  border-left: 1px solid color-mix(in oklch, var(--border-subtle) 60%, transparent);
+}
+
+.lore-workspace-fold > button {
+  margin-bottom: 6px;
+  padding: 2px 7px;
+  border: 1px solid color-mix(in oklch, var(--border-subtle) 60%, transparent);
+  border-radius: 999px;
+  color: var(--ink-muted);
+  background: color-mix(in oklch, var(--glass-panel) 22%, transparent);
+  font-size: 10px;
+  cursor: pointer;
 }
 
 .chapter-workspace-editor:focus {

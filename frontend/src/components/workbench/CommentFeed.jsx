@@ -93,10 +93,11 @@ export function CommentFeed({ review, annotations, onJump, onAdopt, onIgnore, on
   }, [items, filter])
 
   const openAnnotationCount = (annotations ?? []).filter(a => a.status === 'open').length
+  const hasItems = filtered.length > 0
 
   return (
     <div className="comment-feed">
-      <div className="label-sc" style={{ color: 'var(--accent)', marginBottom: 8 }}>── Marginalia ──</div>
+      <div className="label-sc" style={{ color: 'var(--accent)', marginBottom: 4 }}>审阅与批注</div>
 
       {review && (
         <div className="comment-card" style={{
@@ -152,6 +153,12 @@ export function CommentFeed({ review, annotations, onJump, onAdopt, onIgnore, on
         <button className="btn btn-sm" style={{ width: '100%', marginBottom: 8 }} onClick={onSendBatch}>
           发送 {openAnnotationCount} 条批注给 Author
         </button>
+      )}
+
+      {!hasItems && (
+        <div className="comment-card">
+          <div className="comment-text">暂无审核结果或人工批注。</div>
+        </div>
       )}
 
       {filtered.map(it => (

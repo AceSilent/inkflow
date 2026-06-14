@@ -12,6 +12,8 @@ const outlineView = readFileSync(new URL('../OutlineView.jsx', import.meta.url),
 const sidebar = readFileSync(new URL('../Sidebar.jsx', import.meta.url), 'utf8')
 const chapterWorkbench = readFileSync(new URL('../ChapterWorkbench.jsx', import.meta.url), 'utf8')
 const chapterWorkspace = readFileSync(new URL('./ChapterWorkspace.jsx', import.meta.url), 'utf8')
+const workspaceTabs = readFileSync(new URL('./WorkspaceTabs.jsx', import.meta.url), 'utf8')
+const useEditorSelection = readFileSync(new URL('../workbench/useEditorSelection.js', import.meta.url), 'utf8')
 const plotGraphView = readFileSync(new URL('../PlotGraphView.jsx', import.meta.url), 'utf8')
 const deepSpaceBackdropUrl = new URL('./DeepSpaceBackdrop.jsx', import.meta.url)
 const deepSpaceBackdrop = existsSync(deepSpaceBackdropUrl) ? readFileSync(deepSpaceBackdropUrl, 'utf8') : ''
@@ -100,6 +102,29 @@ describe('visual polish direction', () => {
     expect(cssBlock('.chapter-workspace')).toContain('grid-template-rows: auto auto minmax(0, 1fr) auto;')
     expect(indexCss).toMatch(/\.chapter-workspace-reviewbar \{[\s\S]*backdrop-filter:/)
     expect(indexCss).toMatch(/\.chapter-workspace-review-actions \{[\s\S]*justify-content:\s*flex-end;/)
+  })
+
+  it('keeps lore and characters visible in the right workspace tabs', () => {
+    expect(workspaceTabs).toContain("id: 'lore'")
+    expect(workspaceTabs).toContain('workspace.lore')
+    expect(locales).toContain("'workspace.lore': '设定'")
+    expect(locales).toContain("'workspace.lore': 'Lore'")
+  })
+
+  it('restores inline chapter annotations and review feed in the studio chapter workspace', () => {
+    expect(chapterWorkspace).toContain('useEditorSelection')
+    expect(chapterWorkspace).toContain('AnnotationPopover')
+    expect(chapterWorkspace).toContain('CommentFeed')
+    expect(chapterWorkspace).toContain('/annotations')
+    expect(chapterWorkspace).toContain('/send-annotations')
+    expect(chapterWorkspace).toContain('/author-chat/${bookId}/send')
+    expect(chapterWorkspace).toContain('chapter-workspace-reader')
+    expect(chapterWorkspace).toContain('chapter-workspace-inspector')
+    expect(chapterWorkspace).toContain("rootSelector: '.chapter-workspace-preview'")
+    expect(indexCss).toMatch(/\.chapter-workspace-reader \{[\s\S]*position:\s*relative;/)
+    expect(indexCss).toMatch(/\.chapter-workspace-inspector \{[\s\S]*backdrop-filter:/)
+    expect(indexCss).toMatch(/\.annotation-popover \{[\s\S]*backdrop-filter:/)
+    expect(useEditorSelection).toContain("event.target.closest?.('.annotation-popover')")
   })
 
   it('covers the entire studio shell with a deep-space mesh, not just the chat center', () => {

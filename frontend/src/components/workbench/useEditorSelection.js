@@ -41,6 +41,7 @@ export function useEditorSelection(editorSelector = '.workbench-editor') {
 
     function onPointerDown(event) {
       const editorEl = document.querySelector(editorSelector)
+      if (event.target.closest?.('.annotation-popover')) return
       if (!editorEl || !editorEl.contains(event.target)) return
       pointerSelecting = true
       setSelection(null)
