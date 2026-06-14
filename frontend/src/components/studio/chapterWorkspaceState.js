@@ -44,3 +44,14 @@ export function shouldReplaceDraftAfterSave(savedContent, currentDraft) {
 export function canEditLoadedChapter(hasLoaded, loadError) {
   return Boolean(hasLoaded) && !loadError
 }
+
+export function chapterReviewActionLabel(userDecision, hasReview) {
+  if (userDecision === 'approved') return '已通过'
+  return hasReview ? '终审通过' : '人审通过'
+}
+
+export function chapterReviewStatusLabel(userDecision, hasReview) {
+  if (userDecision === 'approved') return '人类已通过'
+  if (userDecision === 'rejected') return '人类已退回'
+  return hasReview ? '慢审后待人审' : '待人审'
+}

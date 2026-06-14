@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   canEditLoadedChapter,
+  chapterReviewActionLabel,
+  chapterReviewStatusLabel,
   chapterWorkspaceKey,
   countCjkAwareWords,
   isDraftDirty,
@@ -59,5 +61,15 @@ describe('chapter workspace state', () => {
     expect(canEditLoadedChapter(false, false)).toBe(false)
     expect(canEditLoadedChapter(true, true)).toBe(false)
     expect(canEditLoadedChapter(true, false)).toBe(true)
+  })
+
+  it('labels human review actions for pre-review, post-review, and approved states', () => {
+    expect(chapterReviewActionLabel(null, false)).toBe('人审通过')
+    expect(chapterReviewActionLabel(null, true)).toBe('终审通过')
+    expect(chapterReviewActionLabel('approved', true)).toBe('已通过')
+    expect(chapterReviewStatusLabel(null, false)).toBe('待人审')
+    expect(chapterReviewStatusLabel(null, true)).toBe('慢审后待人审')
+    expect(chapterReviewStatusLabel('approved', true)).toBe('人类已通过')
+    expect(chapterReviewStatusLabel('rejected', false)).toBe('人类已退回')
   })
 })
