@@ -244,13 +244,27 @@ function TreeNode({ node, index = 0, bookId, level = 0, selectedId, onSelect, on
   const isBook = node.type === 'book'
   const isConfirming = pendingDelete === node.id
   const effectiveBookId = node.type === 'book' ? node.id : bookId
+  const activateNode = () => {
+    if (hasChildren) setOpen(!open)
+    onSelect?.(node, effectiveBookId)
+  }
+  const handleKeyDown = (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return
+    event.preventDefault()
+    activateNode()
+  }
   
   return (
     <div>
       <div 
         className={`tree-item ${selectedId === node.id ? 'active' : ''}`} 
         style={{ paddingLeft: 12 + level * 16 }}
-        onClick={() => { if (hasChildren) setOpen(!open); onSelect?.(node, effectiveBookId); }}
+        role="treeitem"
+        tabIndex={0}
+        aria-selected={selectedId === node.id}
+        aria-expanded={hasChildren ? open : undefined}
+        onClick={activateNode}
+        onKeyDown={handleKeyDown}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
       >

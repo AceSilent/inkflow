@@ -324,6 +324,15 @@ describe('visual polish direction', () => {
     expect(indexCss).toMatch(/\.chat-composer textarea \{[\s\S]*font-size:\s*14px;/)
   })
 
+  it('makes sidebar tree rows accessible keyboard targets for chapter opening', () => {
+    expect(sidebar).toContain('role="treeitem"')
+    expect(sidebar).toContain('tabIndex={0}')
+    expect(sidebar).toContain('aria-selected={selectedId === node.id}')
+    expect(sidebar).toContain('aria-expanded={hasChildren ? open : undefined}')
+    expect(sidebar).toContain("event.key !== 'Enter'")
+    expect(sidebar).toContain("event.key !== ' '")
+  })
+
   it('animates chat messages and live streaming text without changing layout', () => {
     expect(indexCss).toContain('messageLiftIn')
     expect(indexCss).toContain('.chat-message-row')
