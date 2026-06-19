@@ -110,6 +110,18 @@ describe('buildAuthorPrompt', () => {
     expect(prompt).not.toContain('# 保存前自检')
   })
 
+  it('includes scene-first opening craft in the default prompt', () => {
+    const prompt = buildAuthorPrompt({})
+    expect(prompt).toContain('行文心法')
+    expect(prompt).toContain('边进事边渗设定')
+    expect(prompt).toContain('先介绍后进事')
+    expect(prompt).toContain('第一句')
+    expect(prompt).toContain('具体的人、动作、场景')
+    expect(prompt).toContain('悬念前置，解释后置')
+    expect(prompt).toContain('章节名')
+    expect(prompt).toContain('钩子')
+  })
+
   it('includes save self-check only when explicitly requested by the caller', () => {
     const prompt = buildAuthorPrompt({ includeSaveSelfCheck: true })
     expect(prompt).toContain('# 保存前自检')
