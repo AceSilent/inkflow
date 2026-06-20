@@ -132,6 +132,17 @@ export function discoverChapterExamples(chapterDir = CHAPTER_EXAMPLES_DIR): Exam
   })
 }
 
+function personalStudyExamplesDir(dataDir: string): string {
+  return path.join(path.dirname(dataDir), 'personal_study', 'exemplars')
+}
+
+function discoverAllChapterExamples(dataDir: string): ExampleMeta[] {
+  return [
+    ...discoverChapterExamples(CHAPTER_EXAMPLES_DIR),
+    ...discoverChapterExamples(personalStudyExamplesDir(dataDir)),
+  ]
+}
+
 export function discoverCuratedExemplars(manifestPath = CURATED_MANIFEST_PATH): CuratedWork[] {
   if (!fs.existsSync(manifestPath)) return []
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as CuratedManifest
@@ -196,7 +207,7 @@ export const browseExamplesTool: ToolDefinition = {
   }),
   permissionLevel: 'read',
   category: '范文库',
-  execute: async ({ scope, category, tags, limit }) => {
+  execute: async ({ scope, category, tags, limit }, ctx) => {
     const normalizedTags = new Set((tags ?? []).map((t: string) => t.toLowerCase()))
     const normalizedCategory = typeof category === 'string' ? category.toLowerCase() : ''
     if (scope === 'curated') {
@@ -220,7 +231,7 @@ export const browseExamplesTool: ToolDefinition = {
     }
 
     if (scope === 'chapter') {
-      const examples = discoverChapterExamples()
+      const examples = discoverAllChapterExamples(ctx.dataDir)
         .filter(e => !category || e.category === category)
         .filter(e => normalizedTags.size === 0 || e.tags.some(t => normalizedTags.has(t.toLowerCase())))
         .slice(0, limit ?? 5)
@@ -266,8 +277,8 @@ export const readExemplarChapterTool: ToolDefinition = {
   }),
   permissionLevel: 'read',
   category: '范文库',
-  execute: async ({ id }) => {
-    const example = discoverChapterExamples().find(item => item.id === id)
+  execute: async ({ id }, ctx) => {
+    const example = discoverAllChapterExamples(ctx.dataDir).find(item => item.id === id)
     if (!example) {
       return `Error: unknown exemplar chapter id ${id}. Use browse_examples(scope='chapter') first.`
     }

@@ -98,6 +98,48 @@ describe('BrowseExamples Tool', () => {
     expect(result.length).toBeGreaterThan(3000)
   })
 
+  it('should read personal-study exemplar chapters beside the books directory', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'personal-study-'))
+    const booksDir = path.join(tmpDir, 'books')
+    const chapterDir = path.join(tmpDir, 'personal_study', 'exemplars', 'seventy-two-transformations')
+    fs.mkdirSync(chapterDir, { recursive: true })
+    fs.writeFileSync(path.join(chapterDir, '001.md'), [
+      '---',
+      'id: seventy-two-transformations-001',
+      'work_id: seventy-two-transformations',
+      'work_title: 地煞七十二变',
+      'author: 祭酒',
+      'title: 第一章七十二变',
+      'category: xianxia',
+      'tags: immortal_mood, zhiguai, scene_first_opening',
+      'license: personal_study',
+      '---',
+      '第一章七十二变',
+      '',
+      '李老头死了。',
+    ].join('\n'), 'utf8')
+
+    try {
+      const registry = createAllTools()
+      const catalog = await registry.execute('browse_examples', {
+        scope: 'chapter',
+        category: 'xianxia',
+        tags: ['zhiguai'],
+        limit: 5,
+      }, { bookId: 'test-book', dataDir: booksDir })
+      expect(catalog).toContain('seventy-two-transformations-001')
+      expect(catalog).toContain('personal_study')
+
+      const chapter = await registry.execute('read_exemplar_chapter', {
+        id: 'seventy-two-transformations-001',
+      }, { bookId: 'test-book', dataDir: booksDir })
+      expect(chapter).toContain('地煞七十二变')
+      expect(chapter).toContain('李老头死了。')
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true })
+    }
+  })
+
   it('should return curated high-quality candidate works without chapter text', async () => {
     const registry = createAllTools()
     const result = await registry.execute('browse_examples', {
