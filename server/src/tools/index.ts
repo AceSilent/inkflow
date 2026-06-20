@@ -27,7 +27,7 @@ import {
 } from './plot-graph.js'
 import { submitForReviewTool, presentOptionsTool, requestGuidanceTool } from './terminal.js'
 import { loadSkillTool, listSkillsTool } from './skills.js'
-import { analyzeStyleProfileTool, browseExamplesTool } from './examples.js'
+import { analyzeStyleProfileTool, browseExamplesTool, readExemplarChapterTool } from './examples.js'
 import { submitToEditorialTool } from '../editorial/editorial.js'
 import { createBookTool } from './create-book.js'
 
@@ -73,6 +73,7 @@ export function createAllTools(options: CreateAllToolsOptions = {}): ToolRegistr
   registry.register(loadSkillTool)
   registry.register(listSkillsTool)
   registry.register(browseExamplesTool)
+  registry.register(readExemplarChapterTool)
   registry.register(analyzeStyleProfileTool)
 
   // Editorial tools

@@ -69,6 +69,34 @@ describe('BrowseExamples Tool', () => {
     expect(result).toContain('开篇镜头编排过密')
     expect(result).toContain('只学习结构、节奏、信息分配和修订方向')
   })
+
+  it('should return chapter-level exemplar catalog entries', async () => {
+    const registry = createAllTools()
+    const result = await registry.execute('browse_examples', {
+      scope: 'chapter',
+      category: 'fantasy',
+      tags: ['mythic'],
+      limit: 2,
+    }, { bookId: 'test-book', dataDir: '/tmp' })
+
+    expect(result).toContain('章节级范文库')
+    expect(result).toContain('read_exemplar_chapter')
+    expect(result).toContain('public_domain')
+    expect(result).toMatch(/journey-to-the-west-001|fengshen-yanyi-001/)
+  })
+
+  it('should read a full chapter-level exemplar by id', async () => {
+    const registry = createAllTools()
+    expect(registry.get('read_exemplar_chapter')).toBeDefined()
+
+    const result = await registry.execute('read_exemplar_chapter', {
+      id: 'journey-to-the-west-001',
+    }, { bookId: 'test-book', dataDir: '/tmp' })
+
+    expect(result).toContain('章节级范文使用原则')
+    expect(result).toContain('第一回')
+    expect(result.length).toBeGreaterThan(3000)
+  })
 })
 
 describe('AnalyzeStyleProfile Tool', () => {

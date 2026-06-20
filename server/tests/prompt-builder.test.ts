@@ -122,6 +122,14 @@ describe('buildAuthorPrompt', () => {
     expect(prompt).toContain('钩子')
   })
 
+  it('reminds the author to study exemplar chapters only when needed', () => {
+    const prompt = buildAuthorPrompt({})
+    expect(prompt).toContain('read_exemplar_chapter')
+    expect(prompt).toContain('章节级范文')
+    expect(prompt).toContain('已经在上下文')
+    expect(prompt).toContain('不要重复读取')
+  })
+
   it('keeps scene-first craft away from metaphor-heavy AI style', () => {
     const prompt = buildAuthorPrompt({})
     expect(prompt).toContain('可见事实')

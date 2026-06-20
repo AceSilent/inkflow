@@ -40,6 +40,14 @@ describe('Skill Discovery', () => {
     expect(content.length).toBeGreaterThan(100)
   })
 
+  it('should teach exemplar study through chapter-level reading without repeated reads', () => {
+    const content = loadSkillContent('exemplar_study', PROMPTS_DIR)
+    expect(content).toContain('章节级范文')
+    expect(content).toContain('read_exemplar_chapter')
+    expect(content).toContain('上下文')
+    expect(content).toContain('不要重复读取')
+  })
+
   it('should return error for unknown skill', () => {
     const content = loadSkillContent('nonexistent_xyz', PROMPTS_DIR)
     expect(content).toContain('Error')

@@ -1,8 +1,11 @@
 /**
- * Exemplar tools — read-only micro-example retrieval for writing craft.
+ * Exemplar tools — read-only example retrieval for writing craft.
  *
- * Examples are intentionally short and annotated. The goal is to transfer
- * technique, not to copy prose into generated chapters.
+ * The library has two layers:
+ *  - short annotated examples for precise craft diagnosis;
+ *  - chapter-level exemplars for deeper reading before drafting.
+ *
+ * The goal is to transfer technique, not to copy prose into generated chapters.
  */
 import fs from 'fs'
 import path from 'path'
@@ -15,6 +18,7 @@ const EXAMPLES_DIR = path.resolve(
   path.dirname(new URL(import.meta.url).pathname).replace(/^\/([A-Z]:)/, '$1'),
   '../../../prompts/examples',
 )
+const CHAPTER_EXAMPLES_DIR = path.join(EXAMPLES_DIR, 'chapters')
 
 interface ExampleMeta {
   id: string
@@ -22,6 +26,13 @@ interface ExampleMeta {
   tags: string[]
   title: string
   filePath: string
+  workId?: string
+  workTitle?: string
+  author?: string
+  license?: string
+  sourceName?: string
+  sourceUrl?: string
+  relativePath?: string
 }
 
 function parseFrontmatter(content: string): { meta: Record<string, string>; body: string } {
@@ -55,6 +66,38 @@ export function discoverExamples(examplesDir = EXAMPLES_DIR): ExampleMeta[] {
       tags: parseTags(meta.tags),
       title: meta.title || file.replace(/\.md$/, ''),
       filePath,
+      license: meta.license,
+    }
+  })
+}
+
+function walkMarkdownFiles(dir: string): string[] {
+  if (!fs.existsSync(dir)) return []
+  const entries = fs.readdirSync(dir, { withFileTypes: true })
+  return entries.flatMap(entry => {
+    const fullPath = path.join(dir, entry.name)
+    if (entry.isDirectory()) return walkMarkdownFiles(fullPath)
+    if (entry.isFile() && entry.name.endsWith('.md') && entry.name !== 'README.md') return [fullPath]
+    return []
+  }).sort()
+}
+
+export function discoverChapterExamples(chapterDir = CHAPTER_EXAMPLES_DIR): ExampleMeta[] {
+  return walkMarkdownFiles(chapterDir).map(filePath => {
+    const { meta } = parseFrontmatter(fs.readFileSync(filePath, 'utf-8'))
+    return {
+      id: meta.id || path.basename(filePath, '.md'),
+      category: meta.category || 'general',
+      tags: parseTags(meta.tags),
+      title: meta.title || path.basename(filePath, '.md'),
+      filePath,
+      workId: meta.work_id,
+      workTitle: meta.work_title,
+      author: meta.author,
+      license: meta.license,
+      sourceName: meta.source_name,
+      sourceUrl: meta.source_url,
+      relativePath: meta.relative_path,
     }
   })
 }
@@ -71,18 +114,53 @@ function renderExample(example: ExampleMeta): string {
   ].join('\n')
 }
 
+function renderChapterCatalogEntry(example: ExampleMeta): string {
+  return [
+    `- id: ${example.id}`,
+    `  title: ${[example.workTitle, example.title].filter(Boolean).join(' / ')}`,
+    `  category: ${example.category}`,
+    `  tags: ${example.tags.join(', ') || 'none'}`,
+    `  license: ${example.license || 'unknown'}`,
+    example.sourceName ? `  source: ${example.sourceName}${example.sourceUrl ? ` (${example.sourceUrl})` : ''}` : '',
+    `  read: read_exemplar_chapter(id='${example.id}')`,
+  ].filter(Boolean).join('\n')
+}
+
 export const browseExamplesTool: ToolDefinition = {
   name: 'browse_examples',
-  description: '按 category/tags 检索短范文正反例。用于学习写作手法，不用于照搬原文。返回 1-3 条高度相关的微型示例。',
+  description: [
+    '按 category/tags 检索范文。',
+    '默认返回短范文正反例；scope=chapter 时返回章节级范文目录项，再用 read_exemplar_chapter 按 id 阅读整章。',
+    '用于学习写作手法，不用于照搬原文。',
+  ].join('\n'),
   parameters: z.object({
+    scope: z.enum(['micro', 'chapter']).optional().describe("检索范围：'micro' 返回短例子；'chapter' 返回章节级范文目录。默认 micro。"),
     category: z.string().optional().describe("示例分类，如 'ai_tone'、'opening'、'dialogue'、'battle'。留空则搜索全部。"),
     tags: z.array(z.string()).optional().describe("标签过滤，如 ['camera_blocking', 'webnovel_clean']。任一标签命中即可。"),
-    limit: z.number().int().min(1).max(5).optional().describe('最多返回几条，默认 3。'),
+    limit: z.number().int().min(1).max(12).optional().describe('最多返回几条，短例默认 3，章节目录默认 5。'),
   }),
   permissionLevel: 'read',
   category: '范文库',
-  execute: async ({ category, tags, limit }) => {
+  execute: async ({ scope, category, tags, limit }) => {
     const normalizedTags = new Set((tags ?? []).map((t: string) => t.toLowerCase()))
+    if (scope === 'chapter') {
+      const examples = discoverChapterExamples()
+        .filter(e => !category || e.category === category)
+        .filter(e => normalizedTags.size === 0 || e.tags.some(t => normalizedTags.has(t.toLowerCase())))
+        .slice(0, limit ?? 5)
+
+      if (examples.length === 0) {
+        return 'No matching chapter exemplars. Try category: fantasy, historical, action, relationship, satire, wuxia, social.'
+      }
+
+      return [
+        '章节级范文库使用原则：先浏览目录，必要时再用 read_exemplar_chapter 读取整章；如果相同 id 的范文已经在当前上下文或工作集里，不要重复读取。',
+        '只学习结构、节奏、信息分配和场景推进；不要复用具体句子、设定或桥段。',
+        '',
+        ...examples.map(renderChapterCatalogEntry),
+      ].join('\n')
+    }
+
     const examples = discoverExamples()
       .filter(e => !category || e.category === category)
       .filter(e => normalizedTags.size === 0 || e.tags.some(t => normalizedTags.has(t.toLowerCase())))
@@ -97,6 +175,39 @@ export const browseExamplesTool: ToolDefinition = {
       '',
       ...examples.map(renderExample),
     ].join('\n\n---\n\n')
+  },
+}
+
+export const readExemplarChapterTool: ToolDefinition = {
+  name: 'read_exemplar_chapter',
+  description: [
+    '按 id 读取章节级范文全文。',
+    '只在当前任务确实需要章节级参照、且该 id 尚未出现在上下文时调用。',
+    '用于学习结构、节奏、信息分配和场景推进；不得照搬具体句子、设定或桥段。',
+  ].join('\n'),
+  parameters: z.object({
+    id: z.string().min(1).describe("章节范文 id，例如 'journey-to-the-west-001'。先用 browse_examples(scope='chapter') 获取。"),
+  }),
+  permissionLevel: 'read',
+  category: '范文库',
+  execute: async ({ id }) => {
+    const example = discoverChapterExamples().find(item => item.id === id)
+    if (!example) {
+      return `Error: unknown exemplar chapter id ${id}. Use browse_examples(scope='chapter') first.`
+    }
+    const { body } = parseFrontmatter(fs.readFileSync(example.filePath, 'utf-8'))
+    return [
+      '章节级范文使用原则：阅读后只提炼结构、节奏、信息分配、场景推进和章节钩子；不要复用具体句子、设定或桥段。',
+      `id: ${example.id}`,
+      `work: ${example.workTitle || example.workId || 'unknown'}`,
+      `title: ${example.title}`,
+      `category: ${example.category}`,
+      `tags: ${example.tags.join(', ') || 'none'}`,
+      `license: ${example.license || 'unknown'}`,
+      example.sourceName ? `source: ${example.sourceName}${example.sourceUrl ? ` (${example.sourceUrl})` : ''}` : '',
+      '',
+      body,
+    ].filter(Boolean).join('\n')
   },
 }
 

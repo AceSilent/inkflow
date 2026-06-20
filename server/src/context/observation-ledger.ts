@@ -83,6 +83,7 @@ const OBSERVATION_TOOLS = new Set([
   'search_lore',
   'query_unresolved_setups',
   'browse_examples',
+  'read_exemplar_chapter',
   'list_files',
   'load_skill',
 ])
@@ -175,6 +176,7 @@ function labelFor(toolName: string, args: Record<string, unknown>): string {
     const tags = Array.isArray(args.tags) ? args.tags.filter(tag => typeof tag === 'string').join(',') : ''
     return [category, tags].filter(Boolean).join(' / ') || 'examples'
   }
+  if (toolName === 'read_exemplar_chapter' && typeof args.id === 'string') return `exemplar:${args.id}`
   if (toolName === 'read_graph') return 'plot_graph'
   if (toolName === 'query_unresolved_setups') return typeof args.current_chapter === 'string' ? `unresolved:${args.current_chapter}` : 'unresolved_setups'
   if (toolName === 'read_outline') return typeof args.volume === 'number' ? `outline:volume-${args.volume}` : 'outline'
@@ -209,7 +211,10 @@ function workingSetIdentity(input: {
   if (input.toolName === 'browse_examples') {
     const category = typeof args.category === 'string' ? args.category : ''
     const tags = Array.isArray(args.tags) ? args.tags.filter(tag => typeof tag === 'string').sort().join(',') : ''
-    return `${input.toolName}:${category}:${tags}`
+    return `${input.toolName}:${args.scope ?? 'micro'}:${category}:${tags}`
+  }
+  if (input.toolName === 'read_exemplar_chapter' && typeof args.id === 'string') {
+    return `${input.toolName}:${args.id}`
   }
   if (input.toolName === 'read_outline') return `${input.toolName}:${args.volume ?? 'all'}`
   if (input.toolName === 'read_game_outline') return input.toolName

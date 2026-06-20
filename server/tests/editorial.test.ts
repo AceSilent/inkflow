@@ -17,10 +17,10 @@ describe('Editorial Tool Registration', () => {
     expect(tool!.permissionLevel).toBe('read')
   })
 
-  it('should have 27 total tools registered', () => {
+  it('should have 28 total tools registered', () => {
     const registry = createAllTools()
     const names = registry.listNames()
-    expect(names.length).toBe(27)
+    expect(names.length).toBe(28)
     expect(names).toContain('create_book')
     expect(names).toContain('read_game_outline')
     expect(names).toContain('save_game_outline')
@@ -31,6 +31,7 @@ describe('Editorial Tool Registration', () => {
     expect(names).toContain('list_skills')
     expect(names).toContain('analyze_style_profile')
     expect(names).toContain('browse_examples')
+    expect(names).toContain('read_exemplar_chapter')
   })
 
   it('tool summary should expose exemplar and style profile tools', () => {
@@ -39,6 +40,7 @@ describe('Editorial Tool Registration', () => {
     expect(summary).toContain('范文库:')
     expect(summary).toContain('analyze_style_profile')
     expect(summary).toContain('browse_examples')
+    expect(summary).toContain('read_exemplar_chapter')
   })
 })
 
