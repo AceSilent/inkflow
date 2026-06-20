@@ -1,0 +1,249 @@
+{
+  "schema_version": 1,
+  "purpose": "高质量男频范文候选清单。这里只记录书目、学习目标、风险提示和推荐章节类型，不收录正文。",
+  "copyright_policy": "catalog_only; imported chapter text belongs in a user-local personal_study library unless it is public domain or openly licensed.",
+  "excluded": [
+    {
+      "title": "体育类",
+      "reason": "用户明确排除，第一批不收体育主库。"
+    },
+    {
+      "title": "捞尸人",
+      "reason": "用户明确排除。"
+    },
+    {
+      "title": "从红月开始",
+      "reason": "用户明确排除。"
+    }
+  ],
+  "categories": [
+    {
+      "id": "xuanhuan_jianghu",
+      "title": "玄幻 / 江湖气质",
+      "description": "文字气质、江湖人物、商业节奏、宏大奇观与副本结构的综合样本。",
+      "works": [
+        {
+          "id": "snow-sword-strider",
+          "title": "雪中悍刀行",
+          "author": "烽火戏诸侯",
+          "study_status": "personal_study",
+          "tags": ["style_quality", "jianghu_mood", "character_entrance", "dialogue", "ensemble"],
+          "learn": ["人物登场的气势和余味", "江湖关系网", "对白里的身份与分寸", "群像推进"],
+          "avoid": ["过度模仿作者腔", "金句化堆叠", "为气势牺牲具体动作"],
+          "recommended_chapter_types": ["开篇", "人物初登场", "强对白", "章尾余味"]
+        },
+        {
+          "id": "jianlai",
+          "title": "剑来",
+          "author": "烽火戏诸侯",
+          "study_status": "personal_study",
+          "tags": ["style_quality", "dao_mood", "long_foreshadowing", "dialogue", "moral_pressure"],
+          "learn": ["文气与人物关系", "长线伏笔", "对话分寸", "价值选择压力"],
+          "avoid": ["训诫腔", "金句感过重", "慢热段落拖住当前场景"],
+          "recommended_chapter_types": ["开篇", "师徒/朋友对话", "伏笔回收", "人物选择"]
+        },
+        {
+          "id": "battle-through-the-heavens",
+          "title": "斗破苍穹",
+          "author": "天蚕土豆",
+          "study_status": "personal_study",
+          "tags": ["rhythm_design", "classic_commercial", "upgrade_loop", "chapter_hook"],
+          "learn": ["退婚开局", "阶段目标", "升级爽点兑现", "商业节奏"],
+          "avoid": ["早期套路句式", "模板化打脸", "文风审美降级"],
+          "recommended_chapter_types": ["退婚开局", "第一次破局", "升级节点", "阶段高潮"]
+        },
+        {
+          "id": "shrouding-the-heavens",
+          "title": "遮天",
+          "author": "辰东",
+          "study_status": "personal_study",
+          "tags": ["world_scale", "spectacle", "mystery_ruins", "mythic_pressure"],
+          "learn": ["宏大奇观", "遗迹神秘感", "世界尺度逐步拉开", "场面推进"],
+          "avoid": ["大词堆气势", "抽象宏大替代具体行动", "战斗空喊"],
+          "recommended_chapter_types": ["九龙拉棺", "遗迹探索", "世界尺度升级", "大战前压迫"]
+        },
+        {
+          "id": "sage-who-transcended-samsara",
+          "title": "一世之尊",
+          "author": "爱潜水的乌贼",
+          "study_status": "personal_study",
+          "tags": ["structure", "instance_arc", "wuxia_mood", "world_reversal", "chapter_hook"],
+          "learn": ["副本结构", "武侠质感", "世界观层层翻面", "人物选择"],
+          "avoid": ["设定解释过密", "副本信息压过场景行动"],
+          "recommended_chapter_types": ["第一次副本", "身份揭示", "世界观翻面", "关键选择"]
+        }
+      ]
+    },
+    {
+      "id": "xianxia",
+      "title": "仙侠",
+      "description": "传统修仙、宗门秩序、黑社会修仙、侠味、仙味与志怪场景化。",
+      "works": [
+        {
+          "id": "renegade-immortal",
+          "title": "仙逆",
+          "author": "耳根",
+          "study_status": "personal_study",
+          "tags": ["xianxia_core", "obsession", "fate_pressure", "emotion_burst"],
+          "learn": ["执念驱动", "命运压迫", "情绪爆发", "早期修仙爽点"],
+          "avoid": ["年代感句式", "情绪过喊", "粗暴虐主循环"],
+          "recommended_chapter_types": ["主角受压", "第一次狠劲爆发", "重要执念段", "阶段高潮"]
+        },
+        {
+          "id": "record-of-a-mortals-journey",
+          "title": "凡人修仙传",
+          "author": "忘语",
+          "study_status": "personal_study",
+          "tags": ["xianxia_core", "cultivation_ecology", "resource_pressure", "cautious_protagonist"],
+          "learn": ["资源压迫", "谨慎主角", "修真生态", "地图推进"],
+          "avoid": ["过度流水账", "行动保守导致场景不进事"],
+          "recommended_chapter_types": ["资源争夺", "门派规则", "危机规避", "地图转换"]
+        },
+        {
+          "id": "lan-ke-qi-yuan",
+          "title": "烂柯棋缘",
+          "author": "真费事",
+          "study_status": "personal_study",
+          "tags": ["immortal_mood", "wuxia_mood", "daily_wonder", "restrained_style"],
+          "learn": ["仙味", "入世感", "日常里的玄妙", "克制文风"],
+          "avoid": ["节奏过慢", "淡叙事稀释冲突"],
+          "recommended_chapter_types": ["仙人入世", "日常见奇", "人物点化", "小场景余味"]
+        },
+        {
+          "id": "da-dao-zheng-feng",
+          "title": "大道争锋",
+          "author": "误道者",
+          "study_status": "personal_study",
+          "tags": ["sect_order", "dao_conflict", "cultivation_ecology", "institutional_pressure"],
+          "learn": ["宗门制度", "道统气", "黑社会修仙", "门派秩序与道争"],
+          "avoid": ["制度说明过重", "人物变成规则接口"],
+          "recommended_chapter_types": ["入门/拜山", "宗门斗争", "道统冲突", "资源分配"]
+        },
+        {
+          "id": "seventy-two-transformations",
+          "title": "地煞七十二变",
+          "author": "祭酒",
+          "study_status": "personal_study",
+          "tags": ["immortal_mood", "wuxia_mood", "zhiguai", "scene_first_opening", "anti_author_exposition"],
+          "learn": ["侠味", "志怪感", "场景化开篇", "设定顺事渗出"],
+          "avoid": ["复刻章回腔", "把志怪写成解释说明"],
+          "recommended_chapter_types": ["开篇", "妖怪事件", "入镇/入村", "章尾钩子"]
+        }
+      ]
+    },
+    {
+      "id": "mystery_occult",
+      "title": "悬疑灵异 / 民俗 / 克系",
+      "description": "神秘体系、民俗恐怖、异常规则、不可靠感知与调查推进。",
+      "works": [
+        {
+          "id": "lord-of-mysteries",
+          "title": "诡秘之主",
+          "author": "爱潜水的乌贼",
+          "study_status": "personal_study",
+          "tags": ["occult_system", "long_foreshadowing", "investigation", "organization"],
+          "learn": ["神秘体系", "长线伏笔", "调查推进", "组织结构"],
+          "avoid": ["设定说明过密", "仪式感压过人物行动"],
+          "recommended_chapter_types": ["开篇", "第一次仪式", "调查段", "组织会议"]
+        },
+        {
+          "id": "dao-gui-yi-xian",
+          "title": "道诡异仙",
+          "author": "狐尾的笔",
+          "study_status": "personal_study",
+          "tags": ["unreliable_perception", "folk_horror", "mental_pressure", "body_horror"],
+          "learn": ["感知崩坏", "民俗恐怖", "精神压迫", "身体感"],
+          "avoid": ["失控文风", "猎奇替代因果", "长时间高压无呼吸"],
+          "recommended_chapter_types": ["感知错位", "民俗仪式", "精神压迫", "真相翻转"]
+        },
+        {
+          "id": "deep-sea-embers",
+          "title": "深海余烬",
+          "author": "远瞳",
+          "study_status": "personal_study",
+          "tags": ["cosmic_horror", "world_rule", "slow_reveal", "atmosphere"],
+          "learn": ["克系氛围", "异常规则", "世界展开", "深海/航海意象"],
+          "avoid": ["雾气感空泛", "只铺氛围不进事"],
+          "recommended_chapter_types": ["开篇", "异常规则初现", "船/海场景", "世界真相推进"]
+        },
+        {
+          "id": "strange-travel-agency",
+          "title": "异度旅社",
+          "author": "远瞳",
+          "study_status": "personal_study",
+          "tags": ["urban_anomaly", "modern_voice", "light_occult", "daily_uncanny"],
+          "learn": ["都市异常", "轻诡异日常", "现代语感", "异常进入生活"],
+          "avoid": ["轻松感冲淡危险", "异常设定解释先行"],
+          "recommended_chapter_types": ["开篇", "第一次异常", "日常破裂", "规则揭示"]
+        },
+        {
+          "id": "mysterious-revival",
+          "title": "神秘复苏",
+          "author": "佛前献花",
+          "study_status": "personal_study",
+          "tags": ["rule_horror", "death_mechanism", "pressure_escalation", "folk_horror"],
+          "learn": ["规则压迫", "死亡机制", "恐怖升级", "民俗恐怖硬规则"],
+          "avoid": ["文字过硬", "重复说明", "角色沦为机制推演"],
+          "recommended_chapter_types": ["第一次厉鬼事件", "规则确认", "危机升级", "代价选择"]
+        }
+      ]
+    },
+    {
+      "id": "western_fantasy_lordship",
+      "title": "奇幻 / 领主 / 西幻建设",
+      "description": "领地建设、制度压迫、魔法科学、宗教秩序、基层动员和战争爽点。",
+      "works": [
+        {
+          "id": "release-that-witch",
+          "title": "放开那个女巫",
+          "author": "二目",
+          "study_status": "personal_study",
+          "tags": ["lordship", "technology_tree", "industrialization", "organization"],
+          "learn": ["技术树", "领地建设", "工业化爽点", "组织推进"],
+          "avoid": ["技术清单化", "建设压过人物冲突"],
+          "recommended_chapter_types": ["开局掌权", "技术突破", "组织扩张", "战争验证"]
+        },
+        {
+          "id": "sword-of-dawn",
+          "title": "黎明之剑",
+          "author": "远瞳",
+          "study_status": "personal_study",
+          "tags": ["civilization_rebuild", "magic_industry", "institution_design", "world_scale"],
+          "learn": ["文明重建", "制度设计", "宏观世界观", "魔导工业"],
+          "avoid": ["宏观说明过满", "制度概念压过场景"],
+          "recommended_chapter_types": ["领地重启", "制度设计", "魔导工业", "文明尺度拉开"]
+        },
+        {
+          "id": "throne-of-magical-arcana",
+          "title": "奥术神座",
+          "author": "爱潜水的乌贼",
+          "study_status": "personal_study",
+          "tags": ["magic_science", "knowledge_upgrade", "church_order", "academy"],
+          "learn": ["魔法与科学体系融合", "知识升级", "学院结构", "教会秩序"],
+          "avoid": ["知识讲义化", "论文感压过戏剧冲突"],
+          "recommended_chapter_types": ["知识突破", "教会冲突", "学院段", "体系翻转"]
+        },
+        {
+          "id": "amber-sword",
+          "title": "琥珀之剑",
+          "author": "绯炎",
+          "study_status": "personal_study",
+          "tags": ["western_fantasy", "game_world", "faction", "epic_adventure"],
+          "learn": ["西幻冒险", "游戏化世界", "阵营推进", "史诗感"],
+          "avoid": ["游戏概念过密", "设定混搭导致理解负担"],
+          "recommended_chapter_types": ["开篇穿越", "阵营选择", "冒险队伍", "大战前夜"]
+        },
+        {
+          "id": "no-tax-when-saint-arrives",
+          "title": "圣女来时不纳粮",
+          "author": "稚嫩小菠萝",
+          "study_status": "personal_study",
+          "tags": ["western_fantasy", "lordship", "religion_order", "grassroots_mobilization", "tax_grain", "social_pressure"],
+          "learn": ["宗教秩序", "粮税因果", "基层动员", "制度压迫与反抗"],
+          "avoid": ["支线分散", "小人物描写脱离主线压力", "超凡设定机械降神"],
+          "recommended_chapter_types": ["开局受压", "宗教/税粮冲突", "基层动员", "火器/制度破局"]
+        }
+      ]
+    }
+  ]
+}

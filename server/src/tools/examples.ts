@@ -19,6 +19,7 @@ const EXAMPLES_DIR = path.resolve(
   '../../../prompts/examples',
 )
 const CHAPTER_EXAMPLES_DIR = path.join(EXAMPLES_DIR, 'chapters')
+const CURATED_MANIFEST_PATH = path.join(EXAMPLES_DIR, 'curated_manifest.json')
 
 interface ExampleMeta {
   id: string
@@ -33,6 +34,34 @@ interface ExampleMeta {
   sourceName?: string
   sourceUrl?: string
   relativePath?: string
+}
+
+interface CuratedManifest {
+  schema_version: number
+  purpose: string
+  copyright_policy: string
+  excluded: Array<{ title: string; reason: string }>
+  categories: CuratedCategory[]
+}
+
+interface CuratedCategory {
+  id: string
+  title: string
+  description: string
+  works: CuratedWork[]
+}
+
+interface CuratedWork {
+  id: string
+  title: string
+  author: string
+  study_status: string
+  tags: string[]
+  learn: string[]
+  avoid: string[]
+  recommended_chapter_types: string[]
+  categoryId?: string
+  categoryTitle?: string
 }
 
 function parseFrontmatter(content: string): { meta: Record<string, string>; body: string } {
@@ -102,6 +131,18 @@ export function discoverChapterExamples(chapterDir = CHAPTER_EXAMPLES_DIR): Exam
   })
 }
 
+export function discoverCuratedExemplars(manifestPath = CURATED_MANIFEST_PATH): CuratedWork[] {
+  if (!fs.existsSync(manifestPath)) return []
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as CuratedManifest
+  return manifest.categories.flatMap(category =>
+    category.works.map(work => ({
+      ...work,
+      categoryId: category.id,
+      categoryTitle: category.title,
+    })),
+  )
+}
+
 function renderExample(example: ExampleMeta): string {
   const { body } = parseFrontmatter(fs.readFileSync(example.filePath, 'utf-8'))
   return [
@@ -111,6 +152,18 @@ function renderExample(example: ExampleMeta): string {
     `tags: ${example.tags.join(', ') || 'none'}`,
     '',
     body,
+  ].join('\n')
+}
+
+function renderCuratedEntry(work: CuratedWork): string {
+  return [
+    `- ${work.title} / ${work.author}`,
+    `  category: ${work.categoryTitle || work.categoryId || 'unknown'}`,
+    `  status: ${work.study_status}`,
+    `  tags: ${work.tags.join(', ') || 'none'}`,
+    `  学什么: ${work.learn.join('；')}`,
+    `  不学什么: ${work.avoid.join('；')}`,
+    `  推荐章节类型: ${work.recommended_chapter_types.join('；')}`,
   ].join('\n')
 }
 
@@ -130,11 +183,11 @@ export const browseExamplesTool: ToolDefinition = {
   name: 'browse_examples',
   description: [
     '按 category/tags 检索范文。',
-    '默认返回短范文正反例；scope=chapter 时返回章节级范文目录项，再用 read_exemplar_chapter 按 id 阅读整章。',
+    '默认返回短范文正反例；scope=curated 时返回高质量候选书目；scope=chapter 时返回章节级范文目录项，再用 read_exemplar_chapter 按 id 阅读整章。',
     '用于学习写作手法，不用于照搬原文。',
   ].join('\n'),
   parameters: z.object({
-    scope: z.enum(['micro', 'chapter']).optional().describe("检索范围：'micro' 返回短例子；'chapter' 返回章节级范文目录。默认 micro。"),
+    scope: z.enum(['micro', 'curated', 'chapter']).optional().describe("检索范围：'micro' 返回短例子；'curated' 返回高质量候选书目；'chapter' 返回章节级范文目录。默认 micro。"),
     category: z.string().optional().describe("示例分类，如 'ai_tone'、'opening'、'dialogue'、'battle'。留空则搜索全部。"),
     tags: z.array(z.string()).optional().describe("标签过滤，如 ['camera_blocking', 'webnovel_clean']。任一标签命中即可。"),
     limit: z.number().int().min(1).max(12).optional().describe('最多返回几条，短例默认 3，章节目录默认 5。'),
@@ -143,6 +196,27 @@ export const browseExamplesTool: ToolDefinition = {
   category: '范文库',
   execute: async ({ scope, category, tags, limit }) => {
     const normalizedTags = new Set((tags ?? []).map((t: string) => t.toLowerCase()))
+    const normalizedCategory = typeof category === 'string' ? category.toLowerCase() : ''
+    if (scope === 'curated') {
+      const works = discoverCuratedExemplars()
+        .filter(work => !normalizedCategory ||
+          work.categoryId?.toLowerCase() === normalizedCategory ||
+          work.categoryTitle?.toLowerCase().includes(normalizedCategory) ||
+          work.tags.some(tag => tag.toLowerCase() === normalizedCategory))
+        .filter(work => normalizedTags.size === 0 || work.tags.some(tag => normalizedTags.has(tag.toLowerCase())))
+        .slice(0, limit ?? 8)
+
+      if (works.length === 0) {
+        return 'No matching curated exemplars. Try category: xuanhuan_jianghu, xianxia, mystery_occult, western_fantasy_lordship.'
+      }
+
+      return [
+        '高质量候选范文清单使用原则：这里只是书目和学习目标，不含正文。需要章节时由用户本机 personal_study 库或合法来源导入；阅读后只学结构、节奏、信息分配和文风取舍。',
+        '',
+        ...works.map(renderCuratedEntry),
+      ].join('\n')
+    }
+
     if (scope === 'chapter') {
       const examples = discoverChapterExamples()
         .filter(e => !category || e.category === category)

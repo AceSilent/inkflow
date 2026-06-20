@@ -125,6 +125,7 @@ describe('buildAuthorPrompt', () => {
   it('reminds the author to study exemplar chapters only when needed', () => {
     const prompt = buildAuthorPrompt({})
     expect(prompt).toContain('read_exemplar_chapter')
+    expect(prompt).toContain("browse_examples(scope='curated'")
     expect(prompt).toContain('章节级范文')
     expect(prompt).toContain('已经在上下文')
     expect(prompt).toContain('不要重复读取')

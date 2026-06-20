@@ -97,6 +97,25 @@ describe('BrowseExamples Tool', () => {
     expect(result).toContain('第一回')
     expect(result.length).toBeGreaterThan(3000)
   })
+
+  it('should return curated high-quality candidate works without chapter text', async () => {
+    const registry = createAllTools()
+    const result = await registry.execute('browse_examples', {
+      scope: 'curated',
+      category: 'xianxia',
+      tags: ['immortal_mood'],
+      limit: 10,
+    }, { bookId: 'test-book', dataDir: '/tmp' })
+
+    expect(result).toContain('高质量候选范文清单')
+    expect(result).toContain('烂柯棋缘')
+    expect(result).toContain('地煞七十二变')
+    expect(result).toContain('学什么')
+    expect(result).toContain('不学什么')
+    expect(result).toContain('personal_study')
+    expect(result).not.toContain('捞尸人')
+    expect(result).not.toContain('从红月开始')
+  })
 })
 
 describe('AnalyzeStyleProfile Tool', () => {
