@@ -122,6 +122,15 @@ describe('buildAuthorPrompt', () => {
     expect(prompt).toContain('钩子')
   })
 
+  it('keeps scene-first craft away from metaphor-heavy AI style', () => {
+    const prompt = buildAuthorPrompt({})
+    expect(prompt).toContain('可见事实')
+    expect(prompt).toContain('不要把抽象判断翻译成比喻句')
+    expect(prompt).toContain('少用“像”')
+    expect(prompt).not.toContain('具体物象')
+    expect(prompt).not.toContain('更有力')
+  })
+
   it('includes save self-check only when explicitly requested by the caller', () => {
     const prompt = buildAuthorPrompt({ includeSaveSelfCheck: true })
     expect(prompt).toContain('# 保存前自检')
