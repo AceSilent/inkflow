@@ -110,6 +110,8 @@ describe('BrowseExamples Tool', () => {
     expect(result).toContain('高质量候选范文清单')
     expect(result).toContain('烂柯棋缘')
     expect(result).toContain('地煞七十二变')
+    expect(result).toContain('非起点')
+    expect(result).toContain('地煞七十二通鉴')
     expect(result).toContain('学什么')
     expect(result).toContain('不学什么')
     expect(result).toContain('personal_study')

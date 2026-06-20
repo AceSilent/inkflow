@@ -60,6 +60,7 @@ interface CuratedWork {
   learn: string[]
   avoid: string[]
   recommended_chapter_types: string[]
+  source_note?: string
   categoryId?: string
   categoryTitle?: string
 }
@@ -161,6 +162,7 @@ function renderCuratedEntry(work: CuratedWork): string {
     `  category: ${work.categoryTitle || work.categoryId || 'unknown'}`,
     `  status: ${work.study_status}`,
     `  tags: ${work.tags.join(', ') || 'none'}`,
+    work.source_note ? `  来源备注: ${work.source_note}` : '',
     `  学什么: ${work.learn.join('；')}`,
     `  不学什么: ${work.avoid.join('；')}`,
     `  推荐章节类型: ${work.recommended_chapter_types.join('；')}`,
