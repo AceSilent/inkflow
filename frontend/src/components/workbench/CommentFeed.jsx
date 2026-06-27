@@ -26,7 +26,7 @@ const REVIEWER_LABELS = {
 }
 
 const STATUS_LABELS = {
-  open: '人类批注待处理',
+  open: '待处理问题',
   sent: '已发送给作者',
   resolved: '已处理',
   ignored: '不采纳',
@@ -70,8 +70,8 @@ export function CommentFeed({ review, annotations, onJump, onAdopt, onIgnore, on
     const userItems = (annotations ?? []).map(a => ({
       kind: 'annotation',
       id: a.id,
-      reviewer: a.source === 'adopted_review' ? `采纳·${a.source_reviewer ?? ''}` : '我',
-      reviewerLabel: a.source === 'adopted_review' ? `采纳·${reviewerLabel(a.source_reviewer)}` : '我',
+      reviewer: a.source === 'adopted_review' ? `采纳·${a.source_reviewer ?? ''}` : '我问作者',
+      reviewerLabel: a.source === 'adopted_review' ? `采纳·${reviewerLabel(a.source_reviewer)}` : '我问作者',
       severity: null,
       quote: a.quote,
       text: a.comment,
@@ -97,7 +97,7 @@ export function CommentFeed({ review, annotations, onJump, onAdopt, onIgnore, on
 
   return (
     <div className="comment-feed">
-      <div className="label-sc" style={{ color: 'var(--accent)', marginBottom: 4 }}>审阅与批注</div>
+      <div className="label-sc" style={{ color: 'var(--accent)', marginBottom: 4 }}>审阅与问作者</div>
 
       {review && (
         <div className="comment-card" style={{
@@ -133,7 +133,7 @@ export function CommentFeed({ review, annotations, onJump, onAdopt, onIgnore, on
           )}
           {passWithNotes && (
             <div className="comment-text" style={{ marginTop: 6, color: 'var(--warning)' }}>
-              已通过；下方为非阻塞优化建议。可以忽略、采纳为批注，或由人类退回后要求修改。
+              已通过；下方为非阻塞优化建议。可以忽略、采纳为待处理问题，或由人类退回后要求修改。
             </div>
           )}
         </div>
@@ -151,13 +151,13 @@ export function CommentFeed({ review, annotations, onJump, onAdopt, onIgnore, on
 
       {openAnnotationCount > 0 && (
         <button className="btn btn-sm" style={{ width: '100%', marginBottom: 8 }} onClick={onSendBatch}>
-          发送 {openAnnotationCount} 条批注给 Author
+          发送 {openAnnotationCount} 条待处理给作者
         </button>
       )}
 
       {!hasItems && (
         <div className="comment-card">
-          <div className="comment-text">暂无审核结果或人工批注。</div>
+          <div className="comment-text">暂无审核结果或待处理问题。</div>
         </div>
       )}
 

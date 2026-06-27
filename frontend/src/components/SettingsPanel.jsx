@@ -97,7 +97,7 @@ export function ThemePaletteOption({ palette, active, onSelect }) {
   )
 }
 
-export function SettingsPanel({ addToast, theme, toggleTheme, currentBook }) {
+export function SettingsPanel({ addToast, theme, toggleTheme, currentBook, activeSection = 'providers' }) {
   const { t, lang, switchLang } = useI18n()
   const { intensity, setIntensity, INTENSITY_OPTIONS } = useBackdropIntensity()
   const [settings, setSettings] = useState(null)
@@ -370,7 +370,7 @@ export function SettingsPanel({ addToast, theme, toggleTheme, currentBook }) {
       </h2>
 
       {/* Providers Configuration */}
-      <Section title={t('settings.apiConfig') || 'API & Providers'}>
+      <Section id="providers" activeSection={activeSection} title={t('settings.apiConfig') || 'API & Providers'}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {settings.providers.map((provider, i) => {
             const isCodex = provider.kind === CODEX_PROVIDER_KIND
@@ -543,7 +543,7 @@ export function SettingsPanel({ addToast, theme, toggleTheme, currentBook }) {
         </div>
       </Section>
 
-      <Section title={t('settings.network')}>
+      <Section id="network" activeSection={activeSection} title={t('settings.network')}>
         <div className="settings-proxy-card">
           <div className="settings-proxy-row">
             <div className="settings-proxy-heading">
@@ -575,7 +575,7 @@ export function SettingsPanel({ addToast, theme, toggleTheme, currentBook }) {
       </Section>
 
       {/* Models Selection */}
-      <Section title={t('settings.modelConfig') || 'Model Assignment'}>
+      <Section id="models" activeSection={activeSection} title={t('settings.modelConfig') || 'Model Assignment'}>
         <ModelSelector 
           label={t('settings.authorModel') || 'Author Model'} 
           value={settings.authorModel} 
@@ -609,7 +609,7 @@ export function SettingsPanel({ addToast, theme, toggleTheme, currentBook }) {
       {/* Context Manager: mode dropdown + breaker reset.
           contextManager is persisted globally via settings.json; breaker reset
           is per-book since the breaker file lives in the book directory. */}
-      <Section title={t('settings.context')}>
+      <Section id="context" activeSection={activeSection} title={t('settings.context')}>
         <div className="field">
           <label className="field-label">{t('settings.contextMode')}</label>
           <select
@@ -642,14 +642,14 @@ export function SettingsPanel({ addToast, theme, toggleTheme, currentBook }) {
         </div>
       </Section>
 
-      <Section title={t('settings.appearance') || 'Appearance'}>
+      <Section id="appearance" activeSection={activeSection} title={t('settings.appearance') || 'Appearance'}>
         <div className="theme-palette-grid">
           {themePalettes.map(palette => (
             <ThemePaletteOption
               key={palette.id}
               palette={palette}
               active={theme === palette.id}
-              onSelect={() => toggleTheme(palette.id)}
+              onSelect={(event) => toggleTheme(palette.id, event)}
             />
           ))}
         </div>
@@ -709,13 +709,18 @@ const REVIEWER_MODEL_LABELS = [
   { id: 'editorial_causality', labelKey: 'review.reader.causality' },
 ]
 
-function Section({ title, children }) {
-  return (
-    <div style={{ marginBottom: 28 }}>
-      <h3 className="label-sc" style={{ fontSize: 13, fontWeight: 600, paddingBottom: 8, marginBottom: 16, borderBottom: '1px solid var(--border-subtle)' }}>{title}</h3>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>{children}</div>
-    </div>
-  )
+function Section({ id, activeSection, title, children }) {
+  const section = { id }
+  if (section.id === activeSection) {
+    return (
+      <div style={{ marginBottom: 28 }}>
+        <h3 className="label-sc" style={{ fontSize: 13, fontWeight: 600, paddingBottom: 8, marginBottom: 16, borderBottom: '1px solid var(--border-subtle)' }}>{title}</h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>{children}</div>
+      </div>
+    )
+  }
+
+  return null
 }
 
 function ModelSelector({ label, value, onChange, providers, includeDefault = false }) {

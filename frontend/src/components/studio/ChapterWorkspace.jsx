@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Check, Edit3, Loader, RefreshCw, Save, Send, X } from 'lucide-react'
 import { AnnotationPopover } from '../workbench/AnnotationPopover'
 import { CommentFeed } from '../workbench/CommentFeed'
+import { buildChapterAskMessage, normalizeChapterAskComment } from '../workbench/chapterAsk'
 import { jumpToQuote as jumpToQuoteInEditor } from '../workbench/jumpToQuote'
 import { normalizeReviewPayload } from '../workbench/reviewPayload'
 import { useEditorSelection } from '../workbench/useEditorSelection'
@@ -19,7 +20,7 @@ import {
   shouldReplaceDraftAfterSave,
 } from './chapterWorkspaceState'
 
-export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast }) {
+export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast, onAskAuthor, floatingResetKey }) {
   const chapterId = chapter?.id ?? chapter?.chapter_id ?? chapter?.chapterId
   const chapterTitle = chapter?.label ?? chapter?.title ?? chapter?.name ?? '未命名章节'
   const currentKey = useMemo(
@@ -53,6 +54,10 @@ export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast }) {
   useEffect(() => {
     if (mode !== 'preview') setSelection(null)
   }, [mode, setSelection])
+
+  useEffect(() => {
+    setSelection(null)
+  }, [floatingResetKey, setSelection])
 
   useEffect(() => () => {
     jumpCleanupRef.current?.()
@@ -251,7 +256,7 @@ export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast }) {
           gate,
           pre_review_decision: gate === 'pre_review' ? 'needs_revision' : undefined,
           post_review_decision: gate === 'post_review' ? 'needs_revision' : undefined,
-          note: '人类退回，等待批注修改。',
+          note: '人类退回，等待待处理问题修改。',
         }),
       })
       if (!response.ok) throw new Error('status update failed')
@@ -303,7 +308,7 @@ export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast }) {
     }
   }, [addToast, bookId, chapterId, reviewControlsDisabled])
 
-  const handleCreateAnnotation = useCallback(async (comment) => {
+  const createChapterAskAnnotation = useCallback(async (comment) => {
     if (!bookId || !chapterId || !selection || mode !== 'preview') return
 
     const response = await fetch(`/api/v1/books/${bookId}/chapters/${chapterId}/annotations`, {
@@ -313,21 +318,51 @@ export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast }) {
         quote: selection.text,
         anchor_start: selection.start,
         anchor_end: selection.end,
-        comment,
+        comment: normalizeChapterAskComment(comment),
         source: 'user',
       }),
     })
 
     if (!response.ok) {
-      addToast?.('批注保存失败', 'error')
-      return
+      throw new Error('chapter ask save failed')
     }
 
     const created = await response.json()
     setAnnotations(prev => [...prev, created])
+    return created
+  }, [bookId, chapterId, mode, selection])
+
+  const handleQueueChapterAsk = useCallback(async (comment) => {
+    try {
+      await createChapterAskAnnotation(comment)
+      setSelection(null)
+      addToast?.('已加入待处理', 'success')
+    } catch {
+      addToast?.('待处理问题保存失败', 'error')
+    }
+  }, [addToast, createChapterAskAnnotation, setSelection])
+
+  const handleAskAuthorNow = useCallback((question) => {
+    if (!selection || mode !== 'preview') return
+    if (!onAskAuthor) {
+      addToast?.('作者对话暂不可用', 'error')
+      return
+    }
+    const message = buildChapterAskMessage({
+      chapterId,
+      chapterTitle,
+      selectedText: selection.text,
+      question,
+    })
+    onAskAuthor({
+      message,
+      chapterId,
+      chapterTitle,
+      selectedText: selection.text,
+    })
     setSelection(null)
-    addToast?.('批注已保存', 'success')
-  }, [addToast, bookId, chapterId, mode, selection, setSelection])
+    addToast?.('已发送到作者对话', 'success')
+  }, [addToast, chapterId, chapterTitle, mode, onAskAuthor, selection, setSelection])
 
   const refreshAfterAgentAnnotations = useCallback(async () => {
     const [draftResponse, annotationsResponse, statusResponse, reviewResponse] = await Promise.all([
@@ -392,9 +427,9 @@ export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast }) {
 
       setSelfCheckReview(null)
       await refreshAfterAgentAnnotations()
-      addToast?.('Author Agent 已收到批注', 'success')
+      addToast?.('作者 Agent 已收到待处理问题', 'success')
     } catch (error) {
-      addToast?.(`批注发送失败：${error.message}`, 'error')
+      addToast?.(`待处理问题发送失败：${error.message}`, 'error')
     } finally {
       setSendingAnnotations(false)
     }
@@ -435,7 +470,7 @@ export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast }) {
     if (response.ok) {
       const created = await response.json()
       setAnnotations(prev => [...prev, created])
-      addToast?.('已采纳为批注', 'success')
+      addToast?.('已采纳为待处理问题', 'success')
     }
   }, [addToast, bookId, chapterId])
 
@@ -539,10 +574,10 @@ export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast }) {
               type="button"
               onClick={handleSendAnnotations}
               disabled={dirty || sendingAnnotations || !canEdit}
-              title={dirty ? '保存当前修改后可发送批注' : '把未处理批注发送给作者 Agent'}
+              title={dirty ? '保存当前修改后可发送待处理问题' : '把待处理问题发送给作者 Agent'}
             >
               {sendingAnnotations ? <Loader size={12} className="anim-spin" /> : <Send size={12} />}
-              {openAnnotationCount} 条批注
+              {openAnnotationCount} 条待处理
             </button>
           )}
           {dirty && <span className="chapter-workspace-review-hint">保存当前修改后可操作</span>}
@@ -607,12 +642,13 @@ export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast }) {
               anchor={selection.anchor}
               selectedText={selection.text}
               onCancel={() => setSelection(null)}
-              onSubmit={handleCreateAnnotation}
+              onQueue={handleQueueChapterAsk}
+              onSendNow={handleAskAuthorNow}
             />
           )}
         </div>
 
-        <aside className="chapter-workspace-inspector" aria-label="章节审核与批注">
+        <aside className="chapter-workspace-inspector" aria-label="章节审核与问作者">
           <CommentFeed
             review={reviewToShow}
             annotations={annotations}

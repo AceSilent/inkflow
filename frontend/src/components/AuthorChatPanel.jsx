@@ -449,6 +449,7 @@ export function AuthorChatPanel({
   onLoreUpdated,
   draftSessionId,
   onBookCreated,
+  incomingChapterAsk,
 }) {
   const { t } = useI18n()
   const [messages, setMessages] = useState([])
@@ -470,6 +471,8 @@ export function AuthorChatPanel({
   const abortRef = useRef(null)
   const composingRef = useRef(false)
   const compositionJustEndedRef = useRef(false)
+  const handledChapterAskRef = useRef(null)
+  const handleSendRef = useRef(null)
   const [chatMode, setChatModeState] = useState(readInitialChatMode)
   // Up/Down arrow history navigation. histIdx is the offset back from the
   // newest sent message; null means "currently editing fresh input".
@@ -859,6 +862,24 @@ export function AuthorChatPanel({
       inputRef.current?.focus()
     }
   }
+
+  handleSendRef.current = handleSend
+
+  useEffect(() => {
+    if (!incomingChapterAsk?.id || handledChapterAskRef.current === incomingChapterAsk.id) return
+    const message = String(incomingChapterAsk.message || '').trim()
+    if (!message) return
+
+    handledChapterAskRef.current = incomingChapterAsk.id
+    if (loading) {
+      updateInput(message)
+      window.setTimeout(() => inputRef.current?.focus(), 0)
+      addToast?.('作者正在回复，已放入输入框', 'info')
+      return
+    }
+
+    handleSendRef.current?.(message)
+  }, [addToast, incomingChapterAsk, loading, updateInput])
 
   const openCheckpointEditor = (msg) => {
     if (loading || checkpointResending || !msg?.id || !msg?.checkpoint_id) return
