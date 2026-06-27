@@ -5,6 +5,12 @@ import { useBackdropIntensity } from '../../hooks/useBackdropIntensity'
 
 const VALID_THEMES = ['ink', 'mist', 'paper', 'graphite']
 
+// Roughly when the app/module first loaded. Used to gate the transparent-window
+// first-paint re-init to cold start only (see BackdropLayer) — layers created later by
+// a user theme switch must NOT re-init, or they'd pay the build cost twice.
+const APP_LOAD_TS = typeof performance !== 'undefined' ? performance.now() : 0
+const COLD_START_MS = 2000
+
 function resolveTheme(explicit) {
   if (VALID_THEMES.includes(explicit)) return explicit
   if (typeof document !== 'undefined') {
@@ -14,39 +20,31 @@ function resolveTheme(explicit) {
   return DEFAULT_BACKDROP_THEME
 }
 
-// Single mounted backdrop. Picks the per-theme animation implementation, owns the
-// rAF lifecycle (DPR≤2, document.hidden pause, prefers-reduced-motion static frame,
-// ResizeObserver), and rebuilds cleanly on theme change. Intensity comes from the
-// useBackdropIntensity hook; `intensity` prop overrides it when provided.
-export function AtmosphereBackdrop({ theme, intensity }) {
+// One cached animation layer per theme. It mounts its own <canvas> ONCE (compiling the
+// WebGL program / baking the Canvas2D sprites — the ~700ms-blocking work), then keeps
+// it alive. When inactive it pauses its rAF and hides (display:none), costing nothing
+// but retaining its compiled state, so switching BACK to it is instant — no teardown,
+// no rebuild, no shader recompile. `theme` never changes for a given layer (the parent
+// keys layers by theme), so the heavy effect runs once per layer; `active` only toggles
+// the loop on/off via a separate effect.
+function BackdropLayer({ theme, active, intensityRef }) {
   const canvasRef = useRef(null)
-  const ctx = useBackdropIntensity()
-  const activeIntensity = intensity || ctx.intensity || 'medium'
+  const apiRef = useRef(null)
+  // Latest `active` for the heavy effect's closure (which is created once and must not
+  // re-run when active flips). Synced in the [active] effect below — never during render.
+  const activeRef = useRef(active)
 
-  // Latest intensity in a ref so the per-frame getParams() reads it without
-  // re-initializing the controller on every change. Synced in an effect (never
-  // mutated during render).
-  const intensityRef = useRef(activeIntensity)
-  useEffect(() => {
-    intensityRef.current = activeIntensity
-  }, [activeIntensity])
-
-  // Resolve the theme to a stable string so the effect only re-runs on real changes.
-  const resolvedTheme = resolveTheme(theme)
-
-  // On the Tauri desktop's TRANSPARENT WKWebView window, the very first WebGL
-  // composite after a cold load can come up transparent (the canvas isn't laid out
-  // yet / the window is still settling its compositor), bleeding the desktop through.
-  // A manual theme switch fixes it because it tears down and rebuilds the GL context
-  // once the window is settled. We reproduce that automatically: bump a nonce a beat
-  // after mount so the main effect re-initializes once on a stable window. Harmless
-  // in Chrome/Safari (one extra init).
+  // Re-init once shortly after mount to clear a transparent-window first-paint bleed
+  // (the GL context can come up transparent before the window compositor settles on a
+  // cold load). Gated to cold start: a layer created later by a theme switch skips this
+  // so it doesn't rebuild (and re-freeze) a second time.
   const [reinitNonce, setReinitNonce] = useState(0)
   useEffect(() => {
+    if (typeof performance !== 'undefined' && performance.now() - APP_LOAD_TS > COLD_START_MS) {
+      return undefined
+    }
     let raf1 = 0
     let raf2 = 0
-    // Two rAFs + a short timeout: wait past first layout/paint AND give the
-    // transparent window's compositor time to settle before the corrective re-init.
     const timer = setTimeout(() => {
       raf1 = window.requestAnimationFrame(() => {
         raf2 = window.requestAnimationFrame(() => setReinitNonce((n) => n + 1))
@@ -67,11 +65,11 @@ export function AtmosphereBackdrop({ theme, intensity }) {
       ? window.matchMedia(REDUCED_MOTION_QUERY)
       : null
 
-    // Tokens are static per theme, but a theme swap reuses the same custom-property
-    // names — clear the parse cache so palettes are re-read for the new theme.
+    // Tokens are static per theme, but a swap reuses the same custom-property names —
+    // clear the parse cache so this layer reads its own theme's palette.
     clearColorCache()
 
-    const initFn = getBackdropInit(resolvedTheme)
+    const initFn = getBackdropInit(theme)
     const getParams = () => intensityRef.current
 
     let controller = null
@@ -80,14 +78,9 @@ export function AtmosphereBackdrop({ theme, intensity }) {
 
     const shouldReduceMotion = () => reducedMotion?.matches === true
 
-    // Show the live canvas only while a working controller exists; otherwise hide it
-    // so the backdrop div's opaque var(--bg) shows through. This is critical on the
-    // Tauri desktop: the native window is transparent, so a failed or context-lost
-    // alpha:false WebGL canvas would otherwise expose the desktop wallpaper instead
-    // of a dark background. The div bg is the guaranteed, GPU-independent floor.
-    // display:none (not visibility:hidden) fully removes the canvas's GPU surface,
-    // which otherwise keeps compositing — and bleeding through the transparent
-    // window — even while hidden. With it gone the div's opaque var(--bg) shows.
+    // display:none (not visibility:hidden) fully removes the canvas's GPU surface so a
+    // failed/paused canvas can't keep compositing — and bleed through the transparent
+    // window. The opaque floor is the parent .atmosphere-backdrop div's var(--bg).
     const showCanvas = () => { canvas.style.display = '' }
     const hideCanvas = () => { canvas.style.display = 'none' }
 
@@ -109,7 +102,7 @@ export function AtmosphereBackdrop({ theme, intensity }) {
     }
 
     function schedule() {
-      if (animationFrame || document.hidden || shouldReduceMotion() || !controller) return
+      if (animationFrame || document.hidden || shouldReduceMotion() || !controller || !activeRef.current) return
       animationFrame = window.requestAnimationFrame(frame)
     }
 
@@ -119,7 +112,21 @@ export function AtmosphereBackdrop({ theme, intensity }) {
       else controller.frame(0)
     }
 
-    // Build (or rebuild) the controller on the current/restored GL context.
+    // Show + size + paint + (maybe) animate, or pause + hide. Resizing requires the
+    // canvas to be laid out (display:block), so always show before resize.
+    function applyActive(isActive) {
+      if (!controller) return
+      if (isActive) {
+        showCanvas()
+        controller.resize(shouldReduceMotion())
+        renderOnce()
+        if (!shouldReduceMotion()) schedule()
+      } else {
+        stop()
+        hideCanvas()
+      }
+    }
+
     function setup() {
       try {
         controller = initFn(canvas, getParams)
@@ -131,17 +138,14 @@ export function AtmosphereBackdrop({ theme, intensity }) {
         hideCanvas()
         return false
       }
-      showCanvas()
-      controller.resize(shouldReduceMotion())
-      renderOnce()
-      if (!shouldReduceMotion()) schedule()
+      applyActive(activeRef.current)
       return true
     }
 
     const handleVisibility = () => {
       if (document.hidden) {
         stop()
-      } else {
+      } else if (activeRef.current) {
         lastNow = 0
         schedule()
       }
@@ -149,21 +153,17 @@ export function AtmosphereBackdrop({ theme, intensity }) {
 
     const handleReducedMotionChange = () => {
       stop()
-      if (!controller) return
+      if (!controller || !activeRef.current) return
       if (shouldReduceMotion()) controller.renderStatic()
       else schedule()
     }
 
     const handleResize = () => {
-      if (!controller) return
+      if (!controller || !activeRef.current) return
       controller.resize(shouldReduceMotion())
       renderOnce()
     }
 
-    // WebGL contexts can be reclaimed by the OS/WebView (window occlusion, GPU
-    // switch, memory pressure) — frequent in WKWebView. preventDefault keeps the
-    // context restorable; on restore we rebuild the program and resume. Until then
-    // the canvas is hidden so the opaque div bg holds the window (no desktop bleed).
     const handleContextLost = (event) => {
       event.preventDefault()
       stop()
@@ -174,8 +174,6 @@ export function AtmosphereBackdrop({ theme, intensity }) {
       setup()
     }
 
-    // ResizeObserver catches canvas box changes (grid/sidebar reflow); the window
-    // resize listener additionally catches DPR-only changes (e.g. moving monitors).
     const resizeObserver = new ResizeObserver(handleResize)
 
     canvas.addEventListener('webglcontextlost', handleContextLost, false)
@@ -185,10 +183,13 @@ export function AtmosphereBackdrop({ theme, intensity }) {
     document.addEventListener('visibilitychange', handleVisibility)
     window.addEventListener('resize', handleResize)
 
-    // Initial paint (hides the canvas + shows the opaque floor if init fails).
+    // Expose pause/resume to the [active] effect without re-running this heavy effect.
+    apiRef.current = { applyActive: (a) => applyActive(a) }
+
     setup()
 
     return () => {
+      apiRef.current = null
       stop()
       resizeObserver.disconnect()
       canvas.removeEventListener('webglcontextlost', handleContextLost, false)
@@ -202,11 +203,53 @@ export function AtmosphereBackdrop({ theme, intensity }) {
         console.warn('AtmosphereBackdrop destroy failed:', err)
       }
     }
-  }, [resolvedTheme, reinitNonce])
+    // intensityRef is a stable ref (read live via getParams), so it isn't a real dep.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [theme, reinitNonce])
+
+  // Toggle the loop on/off when activeness changes — without rebuilding the controller —
+  // and keep activeRef current for the frame loop's schedule guard.
+  useEffect(() => {
+    activeRef.current = active
+    apiRef.current?.applyActive(active)
+  }, [active])
+
+  // data-theme is on the canvas itself so it reads its OWN theme's tokens (the parent
+  // div carries the ACTIVE theme; an inactive layer's canvas must not inherit that).
+  return <canvas ref={canvasRef} data-theme={theme} className="atmosphere-backdrop__canvas" />
+}
+
+// Single mounted backdrop. Picks the per-theme animation implementation and keeps a
+// cached (paused) layer for every theme the user has visited, so theme switches are
+// instant after the first visit. Intensity comes from the useBackdropIntensity hook;
+// `intensity` prop overrides it when provided.
+export function AtmosphereBackdrop({ theme, intensity }) {
+  const ctx = useBackdropIntensity()
+  const activeIntensity = intensity || ctx.intensity || 'medium'
+
+  const intensityRef = useRef(activeIntensity)
+  useEffect(() => {
+    intensityRef.current = activeIntensity
+  }, [activeIntensity])
+
+  const resolvedTheme = resolveTheme(theme)
+
+  // Keep a layer mounted for each theme the user has activated. Switching to a visited
+  // theme just flips `active` (instant resume); switching to a new one mounts its layer
+  // (pays the one-time build once). Order doesn't matter — only the active one paints.
+  const [visited, setVisited] = useState(() => [resolvedTheme])
+  useEffect(() => {
+    // Append-only and idempotent (a no-op once a theme has been mounted), so it can't
+    // cascade — it only fires on the first visit to each theme.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setVisited((prev) => (prev.includes(resolvedTheme) ? prev : [...prev, resolvedTheme]))
+  }, [resolvedTheme])
 
   return (
     <div className="atmosphere-backdrop" data-theme={resolvedTheme} aria-hidden="true">
-      <canvas ref={canvasRef} className="atmosphere-backdrop__canvas" />
+      {visited.map((t) => (
+        <BackdropLayer key={t} theme={t} active={t === resolvedTheme} intensityRef={intensityRef} />
+      ))}
     </div>
   )
 }

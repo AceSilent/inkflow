@@ -81,5 +81,11 @@ export function clearColorCache() {
   _parseCache.clear()
 }
 
-export const DPR_CAP = 2
+// Cap the backdrop render resolution. The full-screen multi-octave fbm shaders are
+// GPU-bound on integrated GPUs (a MacBook Air measured ~20fps at 1.5×). The canvas
+// CSS-stretches to fill, so the backing buffer can be well below display size: at
+// 1.0 (no Retina supersampling) fragment count drops ~55% vs 1.5, roughly doubling
+// fps, with no perceptible loss on a soft atmospheric backdrop. DOM/text are
+// unaffected (full DPR) — this scales the canvas backing only.
+export const DPR_CAP = 1.0
 export const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)'

@@ -17,7 +17,10 @@ export function createGlContext(canvas) {
     // native window exposed it. Plain compositing is fine for a slow backdrop.
     powerPreference: 'high-performance',
     premultipliedAlpha: false,
-    preserveDrawingBuffer: true,
+    // No preserveDrawingBuffer — it forces the GPU to retain the drawing buffer
+    // every frame (a real perf tax that hurt smoothness). The fullscreen quad
+    // overwrites every pixel each frame and the composited result persists on
+    // screen between presents, so the static (reduced-motion) frame still holds.
     stencil: false,
   }
   return canvas.getContext('webgl', attrs) || canvas.getContext('experimental-webgl')

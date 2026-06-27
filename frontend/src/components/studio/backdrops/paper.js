@@ -223,7 +223,10 @@ export function init(canvas, getParams) {
   const uPaperLo = gl.getUniformLocation(program, 'u_paperLo')
   const uInkColLoc = gl.getUniformLocation(program, 'u_inkCol')
 
-  let palette = readPalette(PALETTE_SPEC)
+  // Read tokens off `canvas` (see mist.js): its parent .atmosphere-backdrop div has
+  // the new theme's data-theme at render time, while documentElement still lags by
+  // one effect — reading documentElement bakes the previous theme's colors in.
+  let palette = readPalette(PALETTE_SPEC, canvas)
 
   // Pre-allocated bloom/brush state (frame loop allocates nothing).
   const slots = [
@@ -429,7 +432,7 @@ export function init(canvas, getParams) {
   }
 
   function refreshPalette() {
-    palette = readPalette(PALETTE_SPEC)
+    palette = readPalette(PALETTE_SPEC, canvas)
     applyPalette()
   }
 

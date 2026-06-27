@@ -229,7 +229,12 @@ export function init(canvas, getParams) {
   let phaseC = 0
   let phaseW = 0
   let breathPhase = 0
-  let palette = readPalette(PALETTE_SPEC)
+  // Read tokens off `canvas`, NOT documentElement. The .atmosphere-backdrop div
+  // (canvas's parent) gets data-theme during React render, so its tokens are already
+  // the new theme here; documentElement's data-theme is written by useTheme's parent
+  // effect which fires AFTER this child effect — reading it would bake the PREVIOUS
+  // theme's colors into the new canvas (the theme-switch "residue" bug).
+  let palette = readPalette(PALETTE_SPEC, canvas)
 
   // Current (interpolated) params, seeded from the initial preset.
   const cur = {}
@@ -291,7 +296,7 @@ export function init(canvas, getParams) {
   }
 
   function refreshPalette() {
-    palette = readPalette(PALETTE_SPEC)
+    palette = readPalette(PALETTE_SPEC, canvas)
     applyPalette()
   }
 

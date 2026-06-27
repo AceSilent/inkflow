@@ -8,8 +8,10 @@ const useThemeSource = readFileSync(new URL('../../hooks/useTheme.js', import.me
 const authorChatPanel = readFileSync(new URL('../AuthorChatPanel.jsx', import.meta.url), 'utf8')
 const settingsPanel = readFileSync(new URL('../SettingsPanel.jsx', import.meta.url), 'utf8')
 const locales = readFileSync(new URL('../../i18n/locales.js', import.meta.url), 'utf8')
+const appSource = readFileSync(new URL('../../App.jsx', import.meta.url), 'utf8')
 const outlineView = readFileSync(new URL('../OutlineView.jsx', import.meta.url), 'utf8')
 const sidebar = readFileSync(new URL('../Sidebar.jsx', import.meta.url), 'utf8')
+const sidebarNavigation = readFileSync(new URL('./sidebarNavigation.js', import.meta.url), 'utf8')
 const chapterWorkbench = readFileSync(new URL('../ChapterWorkbench.jsx', import.meta.url), 'utf8')
 const chapterWorkspace = readFileSync(new URL('./ChapterWorkspace.jsx', import.meta.url), 'utf8')
 const workspaceTabs = readFileSync(new URL('./WorkspaceTabs.jsx', import.meta.url), 'utf8')
@@ -37,7 +39,7 @@ describe('visual polish direction', () => {
     expect(indexCss).toContain('--ambient-star-opacity')
     expect(indexCss).toContain('--ambient-star-twinkle-opacity')
     expect(indexCss).toContain('--glass-shell: color-mix')
-    expect(indexCss).toContain('backdrop-filter: blur(42px)')
+    expect(indexCss).toContain('backdrop-filter: blur(22px)')
     expect(indexCss).toContain('box-shadow: var(--glass-edge-shadow)')
     expect(indexCss).toContain('--frost-noise-opacity')
     expect(indexCss).toContain('frostGrain')
@@ -57,6 +59,15 @@ describe('visual polish direction', () => {
     expect(indexCss).toContain('transition: flex-basis var(--motion-smooth)')
     expect(indexCss).toContain('transition: opacity var(--motion-fast), transform var(--motion-smooth)')
     expect(indexCss).not.toContain('creationNotchPulse')
+  })
+
+  it('reveals theme changes with a point-origin view transition', () => {
+    // On Electron/Chromium the circular reveal is smooth (it was only WKWebView that
+    // snapshotted the live WebGL backdrop poorly), and the cached per-theme
+    // BackdropLayer keeps the target surface ready so the reveal is clean.
+    expect(useThemeSource).toMatch(/startViewTransition\(/)
+    expect(indexCss).toContain('themeReveal')
+    expect(settingsPanel).toContain('toggleTheme(palette.id, event)')
   })
 
   it('keeps dark themes deep, warm, and star-rich without dusty noise', () => {
@@ -156,11 +167,12 @@ describe('visual polish direction', () => {
   })
 
   it('atmosphere backdrop self-corrects the transparent-window first-paint via a re-init', () => {
-    // On the Tauri transparent WKWebView the first WebGL composite can come up
-    // transparent; the component bumps a nonce after mount to re-init once the
-    // window has settled (what a manual theme switch does by hand).
+    // On a transparent desktop window the first WebGL composite can come up
+    // transparent; each layer bumps a nonce after mount to re-init once the window has
+    // settled (what a manual theme switch does by hand). Gated to cold start so cached
+    // layers added by later switches don't rebuild twice.
     expect(atmosphereBackdrop).toContain('reinitNonce')
-    expect(atmosphereBackdrop).toMatch(/\[resolvedTheme, reinitNonce\]/)
+    expect(atmosphereBackdrop).toMatch(/\[theme, reinitNonce\]/)
   })
 
   it('keeps the retained deep-space backdrop module as a continuous WebGL shader', () => {
@@ -267,6 +279,27 @@ describe('visual polish direction', () => {
     expect(indexCss).toMatch(/\.settings-panel-inner \{[\s\S]*max-width:\s*680px;/)
   })
 
+  it('splits settings into sidebar categories instead of one long surface', () => {
+    expect(appSource).toContain('activeSettingsSection')
+    expect(appSource).toContain('setActiveSettingsSection')
+    expect(appSource).toContain('settingsSection={activeSettingsSection}')
+    expect(sidebarNavigation).toContain('settingsSidebarSections')
+    expect(sidebar).toContain('studio-settings-nav')
+    expect(sidebar).toContain("activePanel === 'settings'")
+    expect(settingsPanel).toContain('activeSection')
+    expect(settingsPanel).toContain("section.id === activeSection")
+    expect(locales).toContain("'settings.nav.providers': '供应商'")
+    expect(locales).toContain("'settings.nav.appearance': '外观'")
+  })
+
+  it('closes chat and chapter floating surfaces when entering settings', () => {
+    expect(appSource).toContain("if (panel === 'settings')")
+    expect(appSource).toContain('setCreateWorkOpen(false)')
+    expect(appSource).toContain('settingsModeToken')
+    expect(chapterWorkspace).toContain('floatingResetKey')
+    expect(chapterWorkspace).toContain('setSelection(null)')
+  })
+
   it('keeps the settings title text-only without a decorative icon', () => {
     expect(settingsPanel).toContain('className="settings-panel-title"')
     const titleBlock = settingsPanel.match(/<h2 className="settings-panel-title">[\s\S]*?<\/h2>/)?.[0] || ''
@@ -293,9 +326,9 @@ describe('visual polish direction', () => {
     expect(indexCss).toMatch(/\[data-theme="ink"\], \[data-theme="dark"\][\s\S]*--chat-composer-surface:\s*color-mix\(in oklch, var\(--bg-elevated\) 52%, transparent\);/)
     expect(indexCss).toMatch(/\[data-theme="ink"\], \[data-theme="dark"\][\s\S]*--chat-tool-menu-surface:\s*color-mix\(in oklch, var\(--bg-elevated\) 82%, transparent\);/)
     expect(indexCss).toMatch(/\.chat-composer \{[\s\S]*background:[\s\S]*var\(--chat-composer-surface\);/)
-    expect(indexCss).toMatch(/\.chat-composer \{[\s\S]*backdrop-filter:\s*blur\(38px\) saturate\(1\.24\);/)
+    expect(indexCss).toMatch(/\.chat-composer \{[\s\S]*backdrop-filter:\s*blur\(22px\) saturate\(1\.24\);/)
     expect(indexCss).toMatch(/\.chat-tool-menu \{[\s\S]*background:[\s\S]*var\(--chat-tool-menu-surface\);/)
-    expect(indexCss).toMatch(/\.chat-tool-menu \{[\s\S]*backdrop-filter:\s*blur\(42px\) saturate\(1\.32\);/)
+    expect(indexCss).toMatch(/\.chat-tool-menu \{[\s\S]*backdrop-filter:\s*blur\(22px\) saturate\(1\.32\);/)
     expect(indexCss).toMatch(/\.chat-tool-menu-item,[\s\S]*\.chat-mode-option \{[\s\S]*background:\s*var\(--chat-tool-item-surface\);/)
     expect(indexCss).toMatch(/\.assistant-message-bubble,[\s\S]*\.streaming-content-bubble \{[\s\S]*var\(--chat-frost-surface\);/)
     expect(indexCss).toMatch(/\.user-message-bubble \{[\s\S]*background:[\s\S]*var\(--chat-frost-surface\);/)

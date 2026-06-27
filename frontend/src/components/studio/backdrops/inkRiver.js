@@ -263,7 +263,10 @@ export function init(canvas, getParams) {
   let width = 1
   let height = 1
   let animTime = 0
-  let palette = readPalette(PALETTE_SPEC)
+  // Read tokens off `canvas` (see mist.js): its parent .atmosphere-backdrop div has
+  // the new theme's data-theme at render time, while documentElement still lags by
+  // one effect — reading documentElement bakes the previous theme's colors in.
+  let palette = readPalette(PALETTE_SPEC, canvas)
 
   // Meteor scheduler state (all pre-allocated; frame loop allocates nothing).
   let meteorStart = -10
@@ -349,7 +352,7 @@ export function init(canvas, getParams) {
   }
 
   function refreshPalette() {
-    palette = readPalette(PALETTE_SPEC)
+    palette = readPalette(PALETTE_SPEC, canvas)
     applyPalette()
   }
 

@@ -85,13 +85,17 @@ export function init(canvas, getParams) {
 
   // Palette pulled from real tokens (graphite --bg / --ink), with concept fallbacks.
   // The charcoal corner/swell-dark tone is derived as a deepened --bg.
-  let bgRgb = readTokenRgb('--bg', '#1a1d22')
-  let inkRgb = readTokenRgb('--ink', '#e7ecf0')
+  // Read tokens off `canvas` (see mist.js): the parent .atmosphere-backdrop div has
+  // the new theme's data-theme at render time; documentElement lags by one effect,
+  // and reading it bakes the previous theme's colors into the new canvas — the
+  // light-silver-over-graphite "residue" bug.
+  let bgRgb = readTokenRgb('--bg', '#1a1d22', canvas)
+  let inkRgb = readTokenRgb('--ink', '#e7ecf0', canvas)
   let inkStr = '231,236,240'
 
   function refreshTokens() {
-    bgRgb = readTokenRgb('--bg', '#1a1d22')
-    inkRgb = readTokenRgb('--ink', '#e7ecf0')
+    bgRgb = readTokenRgb('--bg', '#1a1d22', canvas)
+    inkRgb = readTokenRgb('--ink', '#e7ecf0', canvas)
     inkStr = `${Math.round(inkRgb[0] * 255)},${Math.round(inkRgb[1] * 255)},${Math.round(inkRgb[2] * 255)}`
   }
   refreshTokens()
