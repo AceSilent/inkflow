@@ -3,6 +3,7 @@
   "version": "1.0.1",
   "private": true,
   "description": "InkFlow novel authoring studio",
+  "main": "electron/main.cjs",
   "scripts": {
     "install:all": "npm --prefix server install && npm --prefix frontend install",
     "dev:server": "npm --prefix server run dev",
@@ -11,12 +12,18 @@
     "desktop:prepare-sidecar": "node scripts/build-sidecar.mjs",
     "desktop:dev": "node scripts/build-sidecar.mjs --mac-dev && tauri dev",
     "desktop:build:mac": "node scripts/build-sidecar.mjs --mac && tauri build",
+    "desktop:dev:electron": "node scripts/electron-dev.mjs",
+    "desktop:build:electron:mac": "node scripts/electron-build.mjs --mac",
+    "desktop:install:electron:mac": "node scripts/electron-install-mac.mjs",
     "test:desktop-config": "node --test scripts/desktop-window-config.node-test.mjs",
+    "test:electron-config": "node --test scripts/electron-desktop-config.node-test.mjs",
     "test": "npm --prefix server test",
     "start": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-dev.ps1"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.2",
-    "@yao-pkg/pkg": "^6.20.0"
+    "@yao-pkg/pkg": "^6.20.0",
+    "electron": "^42.5.0",
+    "electron-builder": "^26.15.3"
   }
 }

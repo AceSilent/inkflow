@@ -1,0 +1,25 @@
+appId: com.inkflow.studio
+productName: InkFlow
+copyright: Copyright (c) 2026 InkFlow
+asar: true
+directories:
+  output: dist-electron
+files:
+  - package.json
+  - electron/**/*
+  - frontend/dist/**/*
+extraResources:
+  - from: src-tauri/binaries/inkflow-server-aarch64-apple-darwin
+    to: binaries/inkflow-server-aarch64-apple-darwin
+mac:
+  category: public.app-category.productivity
+  icon: src-tauri/icons/icon.icns
+  target:
+    - target: dmg
+      arch:
+        - arm64
+    - target: dir
+      arch:
+        - arm64
+dmg:
+  artifactName: InkFlow_${version}_${arch}.${ext}

@@ -6,6 +6,7 @@ import tailwindcss from '@tailwindcss/vite'
 const apiTarget = process.env.INKFLOW_API_TARGET || 'http://localhost:3001'
 
 export default defineConfig({
+  base: './',
   plugins: [react(), tailwindcss()],
   server: {
     port: 5173,

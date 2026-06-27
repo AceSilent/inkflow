@@ -9,8 +9,15 @@ export function isTauriRuntime() {
   return window.location?.protocol === 'tauri:' || Boolean(window.__TAURI_INTERNALS__ || window.__TAURI__)
 }
 
+export function electronApiBase() {
+  if (typeof window === 'undefined') return ''
+  return window.__INKFLOW_DESKTOP__?.apiBase || ''
+}
+
 export function apiBase(options = {}) {
   if (options.apiBase !== undefined) return cleanBase(options.apiBase)
+  const electronBase = electronApiBase()
+  if (electronBase) return cleanBase(electronBase)
   const envBase = import.meta.env?.VITE_INKFLOW_API_BASE
   if (envBase) return cleanBase(envBase)
   const tauri = options.isTauri ?? isTauriRuntime()

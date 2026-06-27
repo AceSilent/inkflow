@@ -21,6 +21,13 @@ describe('resolveApiUrl', () => {
     expect(resolveApiUrl('/api/v1/books')).toBe('http://127.0.0.1:3001/api/v1/books')
   })
 
+  it('points api URLs at the sidecar when running inside Electron', () => {
+    vi.stubGlobal('window', { __INKFLOW_DESKTOP__: { apiBase: 'http://127.0.0.1:3001' } })
+
+    expect(apiBase()).toBe('http://127.0.0.1:3001')
+    expect(resolveApiUrl('/api/v1/books')).toBe('http://127.0.0.1:3001/api/v1/books')
+  })
+
   it('does not rewrite non-api URLs', () => {
     expect(resolveApiUrl('/assets/logo.png', { isTauri: true })).toBe('/assets/logo.png')
     expect(resolveApiUrl('https://example.com/api/v1/books', { isTauri: true })).toBe('https://example.com/api/v1/books')

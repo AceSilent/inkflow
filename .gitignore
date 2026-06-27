@@ -103,6 +103,9 @@ temp/
 /src-tauri/binaries/inkflow-server-*
 !/src-tauri/binaries/.gitkeep
 
+# Electron desktop artifacts
+/dist-electron/
+
 # Local Claude config / book data
 /.claude/
 /books/
