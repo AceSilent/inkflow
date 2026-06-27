@@ -1,17 +1,23 @@
 import { useState, useEffect } from 'react'
 import {
+  ArrowLeft,
   BookOpenText,
   BookPlus,
+  Brain,
   ChevronRight,
+  KeyRound,
+  Network,
+  Palette,
   Search,
   Settings,
+  SlidersHorizontal,
   Smartphone,
   SquarePen,
   Trash2,
 } from 'lucide-react'
 import { bookResourcePath } from '../api/books'
 import { useI18n } from '../hooks/useI18n'
-import { bottomSidebarActions, primarySidebarActions } from './studio/sidebarNavigation'
+import { bottomSidebarActions, primarySidebarActions, settingsSidebarSections } from './studio/sidebarNavigation'
 import { fetchExplorerTree } from './sidebarTreeFetch'
 import { resolveRestoredBookSelection } from './sidebarSelection'
 
@@ -47,11 +53,31 @@ const bottomIcons = {
   mobile: Smartphone,
 }
 
+const settingsIcons = {
+  providers: KeyRound,
+  models: SlidersHorizontal,
+  network: Network,
+  context: Brain,
+  appearance: Palette,
+}
+
 const treeIcons = {
   book: BookOpenText,
 }
 
-export function Sidebar({ activePanel, addToast, onSelect, onBookSelect, onNewConversation, onCreateBookClick, onActivityClick, dataVersion }) {
+export function Sidebar({
+  activePanel,
+  addToast,
+  onSelect,
+  onBookSelect,
+  onNewConversation,
+  onCreateBookClick,
+  onActivityClick,
+  onSettingsBack,
+  dataVersion,
+  settingsSection = 'providers',
+  onSettingsSectionChange,
+}) {
   const { t } = useI18n()
   const [selectedId, setSelectedId] = useState(null)
   const [selectedBookId, setSelectedBookId] = useState(null)
@@ -159,6 +185,68 @@ export function Sidebar({ activePanel, addToast, onSelect, onBookSelect, onNewCo
   }
 
   const visibleTree = filterTree(treeData, activePanel === 'search' ? searchQuery : '')
+
+  if (activePanel === 'settings') {
+    return (
+      <aside className="sidebar studio-sidebar-panel studio-settings-sidebar">
+        <div className="studio-settings-sidebar-head">
+          <button
+            type="button"
+            className="studio-settings-back"
+            onClick={() => onSettingsBack?.()}
+            aria-label={t('settings.back')}
+          >
+            <ArrowLeft size={16} />
+            <span>{t('settings.back')}</span>
+          </button>
+          <div className="studio-sidebar-section-label">{t('settings.title')}</div>
+        </div>
+        <nav className="studio-settings-nav" aria-label={t('settings.title')}>
+          {settingsSidebarSections(t).map(section => {
+            const Icon = settingsIcons[section.id] || Settings
+            const active = section.id === settingsSection
+            return (
+              <button
+                key={section.id}
+                type="button"
+                className={`studio-sidebar-action studio-settings-nav-item ${active ? 'active' : ''}`}
+                onClick={() => onSettingsSectionChange?.(section.id)}
+                aria-current={active ? 'page' : undefined}
+              >
+                <Icon size={18} />
+                <span>{section.label}</span>
+              </button>
+            )
+          })}
+        </nav>
+
+        <div className="studio-sidebar-bottom">
+          {bottomSidebarActions(t).map(action => {
+            const Icon = bottomIcons[action.id]
+            if (!action.enabled) {
+              return (
+                <span key={action.id} className="studio-sidebar-mobile" title={action.label}>
+                  <Icon size={18} />
+                </span>
+              )
+            }
+            return (
+              <button
+                key={action.id}
+                type="button"
+                className="studio-sidebar-action studio-sidebar-settings active"
+                onClick={() => onSettingsBack?.()}
+                aria-current="page"
+              >
+                <Icon size={18} />
+                <span>{action.label}</span>
+              </button>
+            )
+          })}
+        </div>
+      </aside>
+    )
+  }
 
   return (
     <aside className="sidebar studio-sidebar-panel">

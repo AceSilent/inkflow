@@ -163,6 +163,12 @@ const zh = {
 
   // Settings
   'settings.title': '设置',
+  'settings.back': '返回',
+  'settings.nav.providers': '供应商',
+  'settings.nav.models': '模型',
+  'settings.nav.network': '网络',
+  'settings.nav.context': '记忆',
+  'settings.nav.appearance': '外观',
   'settings.apiConfig': 'API 配置',
   'settings.baseUrl': '基础 URL',
   'settings.apiKey': 'API 密钥',
@@ -662,6 +668,12 @@ const en = {
   'emotion.innerRatio': 'Inner Narration',
 
   'settings.title': 'Settings',
+  'settings.back': 'Back',
+  'settings.nav.providers': 'Providers',
+  'settings.nav.models': 'Models',
+  'settings.nav.network': 'Network',
+  'settings.nav.context': 'Memory',
+  'settings.nav.appearance': 'Appearance',
   'settings.apiConfig': 'API Configuration',
   'settings.baseUrl': 'Base URL',
   'settings.apiKey': 'API Key',

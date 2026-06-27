@@ -14,3 +14,13 @@ export function bottomSidebarActions(t = defaultT) {
     { id: 'mobile', label: t('sidebar.mobile'), enabled: false },
   ]
 }
+
+export function settingsSidebarSections(t = defaultT) {
+  return [
+    { id: 'providers', label: t('settings.nav.providers') },
+    { id: 'models', label: t('settings.nav.models') },
+    { id: 'network', label: t('settings.nav.network') },
+    { id: 'context', label: t('settings.nav.context') },
+    { id: 'appearance', label: t('settings.nav.appearance') },
+  ]
+}

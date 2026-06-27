@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { useI18n } from './hooks/useI18n'
 import { Sidebar } from './components/Sidebar'
 import { BrainstormPanel } from './components/BrainstormPanel'
@@ -35,6 +35,9 @@ export default function App() {
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState(null)
   const [draftSessionId, setDraftSessionId] = useState(() => createDraftSessionId())
   const [createWorkOpen, setCreateWorkOpen] = useState(false)
+  const [chapterAskRequest, setChapterAskRequest] = useState(null)
+  const [activeSettingsSection, setActiveSettingsSection] = useState('providers')
+  const [settingsModeToken, setSettingsModeToken] = useState(0)
   const [dataVersion, setDataVersion] = useState(0)
   const { toasts, addToast, removeToast } = useToast()
   const currentBookId = currentBook?.book_id || currentBook?.id
@@ -50,8 +53,23 @@ export default function App() {
     setActiveWorkspaceTab('chapter')
   }, [])
 
+  // Remember where the user was before opening settings, so the back button returns
+  // there instead of always dumping them on the explorer/chat view.
+  const previousPanelRef = useRef('explorer')
+
   const handleActivityClick = useCallback((panel) => {
-    setActivePanel(panel)
+    if (panel === 'settings') {
+      setCreateWorkOpen(false)
+      setSettingsModeToken(token => token + 1)
+    }
+    setActivePanel(prev => {
+      if (panel === 'settings' && prev !== 'settings') previousPanelRef.current = prev
+      return panel
+    })
+  }, [])
+
+  const handleSettingsBack = useCallback(() => {
+    setActivePanel(previousPanelRef.current || 'explorer')
   }, [])
 
   const handleNewConversation = useCallback(() => {
@@ -87,6 +105,15 @@ export default function App() {
 
   const handleCreateBookClick = useCallback(() => {
     setCreateWorkOpen(true)
+  }, [])
+
+  const handleAskAuthorFromChapter = useCallback((payload) => {
+    if (!payload?.message) return
+    setActivePanel(panel => panel === 'settings' ? 'explorer' : panel)
+    setChapterAskRequest({
+      ...payload,
+      id: `chapter_ask_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    })
   }, [])
 
   const handleSceneSelect = useCallback((sceneInfo) => {
@@ -126,7 +153,7 @@ export default function App() {
           onChapterOpen={(ch) => handleSceneSelect({ type: 'chapter', id: ch.id, label: ch.label })}
         />;
       case 'memory-library': return <MemoryLibrary addToast={addToast} />;
-      case 'settings': return <SettingsPanel addToast={addToast} theme={theme} toggleTheme={toggleTheme} currentBook={currentBook} />;
+      case 'settings': return <SettingsPanel addToast={addToast} theme={theme} toggleTheme={toggleTheme} currentBook={currentBook} activeSection={activeSettingsSection} />;
       default:
         if (activeTab.startsWith('chapter-') && activeChapter) {
           return <ChapterWorkbench bookId={currentBook?.book_id} chapterId={activeChapter.id} chapterLabel={activeChapter.label} addToast={addToast} dataVersion={dataVersion} />;
@@ -141,6 +168,7 @@ export default function App() {
       theme={theme}
       toggleTheme={toggleTheme}
       currentBook={currentBook}
+      activeSection={activeSettingsSection}
     />
   ) : (
     <AuthorChatPanel
@@ -155,6 +183,7 @@ export default function App() {
       onLoreUpdated={refreshData}
       draftSessionId={draftSessionId}
       onBookCreated={handleBookCreatedByAgent}
+      incomingChapterAsk={chapterAskRequest}
     />
   )
 
@@ -167,7 +196,10 @@ export default function App() {
       onNewConversation={handleNewConversation}
       onCreateBookClick={handleCreateBookClick}
       onActivityClick={handleActivityClick}
+      onSettingsBack={handleSettingsBack}
       dataVersion={dataVersion}
+      settingsSection={activeSettingsSection}
+      onSettingsSectionChange={setActiveSettingsSection}
     />
   )
 
@@ -188,6 +220,8 @@ export default function App() {
             chapter={workspaceChapter}
             dataVersion={dataVersion}
             addToast={addToast}
+            onAskAuthor={handleAskAuthorFromChapter}
+            floatingResetKey={settingsModeToken}
           />
         }
         outline={
