@@ -10,11 +10,11 @@ export function createGlContext(canvas) {
     antialias: false,
     depth: false,
     // NO desynchronized:true. It requests a low-latency hardware overlay plane;
-    // inside the Tauri desktop's TRANSPARENT WKWebView window that overlay composites
-    // straight to screen and bleeds through to the desktop wallpaper. (DeepSpace also
-    // sets it but its container's opacity<1 forced normal compositing, masking the
-    // bug.) Renders correctly in Safari/Chrome regardless — only the transparent
-    // native window exposed it. Plain compositing is fine for a slow backdrop.
+    // inside a TRANSPARENT desktop window that overlay composites straight to screen
+    // and bleeds through to the desktop wallpaper. (DeepSpace also sets it but its
+    // container's opacity<1 forced normal compositing, masking the bug.) Renders
+    // correctly in a normal opaque tab regardless — only the transparent native window
+    // exposed it. Plain compositing is fine for a slow backdrop.
     powerPreference: 'high-performance',
     premultipliedAlpha: false,
     // No preserveDrawingBuffer — it forces the GPU to retain the drawing buffer

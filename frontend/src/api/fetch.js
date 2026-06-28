@@ -1,14 +1,10 @@
-const DEFAULT_SIDECAR_API = 'http://127.0.0.1:3001'
-
 function cleanBase(base) {
   return (base || '').replace(/\/$/, '')
 }
 
-export function isTauriRuntime() {
-  if (typeof window === 'undefined') return false
-  return window.location?.protocol === 'tauri:' || Boolean(window.__TAURI_INTERNALS__ || window.__TAURI__)
-}
-
+// In the Electron desktop app, preload.cjs exposes the sidecar base via
+// window.__INKFLOW_DESKTOP__.apiBase; in web/dev mode there is no base and /api/*
+// stays relative (proxied by vite / served same-origin).
 export function electronApiBase() {
   if (typeof window === 'undefined') return ''
   return window.__INKFLOW_DESKTOP__?.apiBase || ''
@@ -20,8 +16,7 @@ export function apiBase(options = {}) {
   if (electronBase) return cleanBase(electronBase)
   const envBase = import.meta.env?.VITE_INKFLOW_API_BASE
   if (envBase) return cleanBase(envBase)
-  const tauri = options.isTauri ?? isTauriRuntime()
-  return tauri ? DEFAULT_SIDECAR_API : ''
+  return ''
 }
 
 export function resolveApiUrl(input, options = {}) {

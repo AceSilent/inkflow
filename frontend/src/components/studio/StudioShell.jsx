@@ -4,7 +4,6 @@ import { CreativeFlowNotch } from '../CreativeFlowNotch'
 import { AtmosphereBackdrop } from './AtmosphereBackdrop'
 import { WorkspacePane } from './WorkspacePane'
 import { WorkspaceTabs } from './WorkspaceTabs'
-import { startNativeWindowDrag } from './nativeWindowDrag'
 import { studioChromeLayout } from './studioChrome'
 import { WORKSPACE_MIN_WIDTH, clampWorkspaceWidth, isWorkspaceTab, loadWorkspaceLayout, saveWorkspaceLayout } from './workspaceLayout'
 import { useI18n } from '../../hooks/useI18n'
@@ -189,8 +188,8 @@ export function StudioShell({
     >
       <AtmosphereBackdrop theme={theme} />
 
-      <header className="studio-titlebar" data-tauri-drag-region="deep" onMouseDownCapture={startNativeWindowDrag}>
-        <div className="studio-titlebar-drag-region" data-tauri-drag-region />
+      <header className="studio-titlebar">
+        <div className="studio-titlebar-drag-region" />
         <div className="studio-titlebar-context" aria-hidden={!currentBook}>
           {currentBook?.title || currentBook?.book_id || ''}
         </div>

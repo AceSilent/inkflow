@@ -29,7 +29,7 @@ describe('StudioShell drag region', () => {
     delete globalThis.window
   })
 
-  it('uses a full-width native tauri drag region instead of mouse event dragging', () => {
+  it('uses a full-width CSS app-region drag region instead of mouse event dragging', () => {
     const html = renderToStaticMarkup(
       <I18nContext.Provider value={{ t: key => key }}>
         <StudioShell
@@ -46,10 +46,10 @@ describe('StudioShell drag region', () => {
       </I18nContext.Provider>
     )
 
-    expect(html).toContain('class="studio-titlebar" data-tauri-drag-region="deep"')
+    expect(html).toContain('class="studio-titlebar"')
     expect(html).toContain('class="studio-titlebar-drag-region"')
-    expect(html).toContain('data-tauri-drag-region="true"')
     expect(html).toContain('data-window-drag-block="true"')
+    expect(html).not.toContain('data-tauri-drag-region')
     expect(html).not.toContain('startNativeDrag')
   })
 

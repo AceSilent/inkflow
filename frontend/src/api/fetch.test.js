@@ -7,29 +7,23 @@ afterEach(() => {
 
 describe('resolveApiUrl', () => {
   it('keeps relative api URLs in a normal browser dev server', () => {
-    expect(resolveApiUrl('/api/v1/books', { isTauri: false })).toBe('/api/v1/books')
+    expect(resolveApiUrl('/api/v1/books')).toBe('/api/v1/books')
   })
 
-  it('points api URLs at the sidecar when running inside Tauri', () => {
-    expect(resolveApiUrl('/api/v1/books', { isTauri: true })).toBe('http://127.0.0.1:3001/api/v1/books')
-  })
-
-  it('detects the packaged Tauri custom protocol even before globals are ready', () => {
-    vi.stubGlobal('window', { location: { protocol: 'tauri:' } })
-
-    expect(apiBase()).toBe('http://127.0.0.1:3001')
-    expect(resolveApiUrl('/api/v1/books')).toBe('http://127.0.0.1:3001/api/v1/books')
-  })
-
-  it('points api URLs at the sidecar when running inside Electron', () => {
+  it('points api URLs at the sidecar when running inside the Electron desktop app', () => {
     vi.stubGlobal('window', { __INKFLOW_DESKTOP__: { apiBase: 'http://127.0.0.1:3001' } })
 
     expect(apiBase()).toBe('http://127.0.0.1:3001')
     expect(resolveApiUrl('/api/v1/books')).toBe('http://127.0.0.1:3001/api/v1/books')
   })
 
+  it('honors an explicit apiBase override', () => {
+    expect(resolveApiUrl('/api/v1/books', { apiBase: 'http://127.0.0.1:3001/' })).toBe('http://127.0.0.1:3001/api/v1/books')
+  })
+
   it('does not rewrite non-api URLs', () => {
-    expect(resolveApiUrl('/assets/logo.png', { isTauri: true })).toBe('/assets/logo.png')
-    expect(resolveApiUrl('https://example.com/api/v1/books', { isTauri: true })).toBe('https://example.com/api/v1/books')
+    vi.stubGlobal('window', { __INKFLOW_DESKTOP__: { apiBase: 'http://127.0.0.1:3001' } })
+    expect(resolveApiUrl('/assets/logo.png')).toBe('/assets/logo.png')
+    expect(resolveApiUrl('https://example.com/api/v1/books')).toBe('https://example.com/api/v1/books')
   })
 })

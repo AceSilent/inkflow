@@ -10,7 +10,7 @@ describe('studio chrome layout', () => {
       titlebarLeftInset: 68,
       titlebarHeight: 40,
       draggableTitlebar: true,
-      dragRegionStrategy: 'tauri-region-overlay',
+      dragRegionStrategy: 'css-app-region',
     })
   })
 

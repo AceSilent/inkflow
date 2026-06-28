@@ -13,7 +13,7 @@ const CODEX_DEFAULT_MODELS = ['gpt-5.5', 'gpt-5.5-codex', 'gpt-5.4']
 
 function openExternalUrl(url) {
   if (!url) return
-  // window.open works in both web and the Tauri webview; the server never opens
+  // window.open works in both web and the Electron renderer; the server never opens
   // the browser itself, so the frontend is responsible for launching it.
   try {
     window.open(url, '_blank', 'noopener,noreferrer')
