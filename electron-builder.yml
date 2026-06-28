@@ -9,11 +9,11 @@ files:
   - electron/**/*
   - frontend/dist/**/*
 extraResources:
-  - from: src-tauri/binaries/inkflow-server-aarch64-apple-darwin
+  - from: desktop/binaries/inkflow-server-aarch64-apple-darwin
     to: binaries/inkflow-server-aarch64-apple-darwin
 mac:
   category: public.app-category.productivity
-  icon: src-tauri/icons/icon.icns
+  icon: desktop/icon.icns
   target:
     - target: dmg
       arch:

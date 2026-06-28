@@ -44,8 +44,8 @@ test('Electron builder packages the frontend and backend sidecar without changin
   assert.match(builder, /appId:\s*com\.inkflow\.studio/)
   assert.match(builder, /productName:\s*InkFlow/)
   assert.match(builder, /frontend\/dist\/\*\*\//)
-  assert.match(builder, /src-tauri\/binaries\/inkflow-server/)
-  assert.match(builder, /src-tauri\/icons\/icon\.icns/)
+  assert.match(builder, /desktop\/binaries\/inkflow-server/)
+  assert.match(builder, /desktop\/icon\.icns/)
 })
 
 test('frontend build emits relative asset URLs for Electron file loading', () => {

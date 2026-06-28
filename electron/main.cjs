@@ -36,7 +36,7 @@ function resolveSidecarPath() {
   if (app.isPackaged) {
     return path.join(process.resourcesPath, 'binaries', name)
   }
-  return path.join(appRoot(), 'src-tauri', 'binaries', name)
+  return path.join(appRoot(), 'desktop', 'binaries', name)
 }
 
 function resolveFrontendIndex() {

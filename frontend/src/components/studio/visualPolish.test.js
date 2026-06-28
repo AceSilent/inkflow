@@ -22,7 +22,7 @@ const deepSpaceBackdrop = existsSync(deepSpaceBackdropUrl) ? readFileSync(deepSp
 const atmosphereBackdrop = readFileSync(new URL('./AtmosphereBackdrop.jsx', import.meta.url), 'utf8')
 const romanUtilUrl = new URL('../../utils/roman.ts', import.meta.url)
 const previewHtml = readFileSync(new URL('../../../../docs/design/creative-flow-preview.html', import.meta.url), 'utf8')
-const tauriConfig = readFileSync(new URL('../../../../src-tauri/tauri.conf.json', import.meta.url), 'utf8')
+const electronMain = readFileSync(new URL('../../../../electron/main.cjs', import.meta.url), 'utf8')
 
 function cssBlock(selector) {
   const start = indexCss.indexOf(`${selector} {`)
@@ -44,8 +44,8 @@ describe('visual polish direction', () => {
     expect(indexCss).toContain('--frost-noise-opacity')
     expect(indexCss).toContain('frostGrain')
     expect(indexCss).toContain('mix-blend-mode: var(--ambient-blend')
-    expect(tauriConfig).toContain('"windowEffects"')
-    expect(tauriConfig).toContain('"underWindowBackground"')
+    expect(electronMain).toContain("vibrancy: 'under-window'")
+    expect(electronMain).toContain('transparent: true')
   })
 
   it('defaults new installs to the ink deep-space theme', () => {

@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const args = new Set(process.argv.slice(2))
-const binariesDir = path.join(root, 'src-tauri', 'binaries')
+const binariesDir = path.join(root, 'desktop', 'binaries')
 const serverDir = path.join(root, 'server')
 const serverEntry = path.join(root, 'server', 'dist', 'index.js')
 const pkgConfig = path.join(root, 'scripts', 'pkg-sidecar.config.cjs')

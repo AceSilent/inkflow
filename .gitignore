@@ -97,14 +97,10 @@ temp/
 # Top-level node_modules (for repo-level smoke test deps)
 /node_modules/
 
-# Tauri desktop artifacts
-/src-tauri/target/
-/src-tauri/gen/
-/src-tauri/binaries/inkflow-server-*
-!/src-tauri/binaries/.gitkeep
-
 # Electron desktop artifacts
 /dist-electron/
+/desktop/binaries/inkflow-server-*
+!/desktop/binaries/.gitkeep
 
 # Local Claude config / book data
 /.claude/

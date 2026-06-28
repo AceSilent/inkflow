@@ -15,10 +15,9 @@ describe('studio chrome layout', () => {
   })
 
   it('keeps native mac traffic lights vertically centered in the overlay titlebar', () => {
-    const config = JSON.parse(readFileSync(new URL('../../../../src-tauri/tauri.conf.json', import.meta.url), 'utf8'))
-    const [windowConfig] = config.app.windows
+    const main = readFileSync(new URL('../../../../electron/main.cjs', import.meta.url), 'utf8')
 
-    expect(windowConfig.titleBarStyle).toBe('Overlay')
-    expect(windowConfig.trafficLightPosition).toEqual({ x: 14, y: 22 })
+    expect(main).toContain("titleBarStyle: 'hiddenInset'")
+    expect(main).toMatch(/trafficLightPosition:\s*\{\s*x:\s*14,\s*y:\s*22\s*\}/)
   })
 })
