@@ -17,10 +17,10 @@ describe('Editorial Tool Registration', () => {
     expect(tool!.permissionLevel).toBe('read')
   })
 
-  it('should have 28 total tools registered', () => {
+  it('should have 29 total tools registered', () => {
     const registry = createAllTools()
     const names = registry.listNames()
-    expect(names.length).toBe(28)
+    expect(names.length).toBe(29)
     expect(names).toContain('create_book')
     expect(names).toContain('read_game_outline')
     expect(names).toContain('save_game_outline')

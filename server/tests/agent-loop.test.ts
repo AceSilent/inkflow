@@ -56,11 +56,12 @@ describe('Tool Registry Summary', () => {
     expect(summary).toContain('submit_to_editorial')
   })
 
-  it('should list all 28 tools in summary', () => {
+  it('should list all 29 tools in summary', () => {
     const registry = createAllTools()
     const names = registry.listNames()
-    expect(names).toHaveLength(28)
+    expect(names).toHaveLength(29)
     expect(names).toContain('create_book')
+    expect(names).toContain('update_book_metadata')
     expect(names).toContain('read_game_outline')
     expect(names).toContain('save_game_outline')
     expect(names).toContain('save_script')

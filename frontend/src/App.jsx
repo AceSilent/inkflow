@@ -53,6 +53,16 @@ export default function App() {
     setActiveWorkspaceTab('chapter')
   }, [])
 
+  // After a book is renamed (sidebar inline edit), keep the titlebar's current book in
+  // sync and refresh dependent panels. book_id is unchanged, so nothing else moves.
+  const handleBookRenamed = useCallback((bookId, newTitle) => {
+    setCurrentBook(prev => {
+      const prevId = prev?.book_id || prev?.id
+      return prevId === bookId ? { ...prev, title: newTitle } : prev
+    })
+    refreshData()
+  }, [refreshData])
+
   // Remember where the user was before opening settings, so the back button returns
   // there instead of always dumping them on the explorer/chat view.
   const previousPanelRef = useRef('explorer')
@@ -197,6 +207,7 @@ export default function App() {
       onCreateBookClick={handleCreateBookClick}
       onActivityClick={handleActivityClick}
       onSettingsBack={handleSettingsBack}
+      onBookRenamed={handleBookRenamed}
       dataVersion={dataVersion}
       settingsSection={activeSettingsSection}
       onSettingsSectionChange={setActiveSettingsSection}

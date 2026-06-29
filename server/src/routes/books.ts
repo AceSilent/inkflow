@@ -6,6 +6,7 @@
  *   GET    /api/v1/books/explorer  — tree structure for sidebar navigation
  *   GET    /api/v1/books/:bookId   — get single book metadata
  *   POST   /api/v1/books           — create book with directory structure
+ *   PATCH  /api/v1/books/:bookId   — update book metadata (title, etc.)
  *   DELETE /api/v1/books/:bookId   — delete book directory
  */
 import { type FastifyInstance } from 'fastify'
@@ -13,7 +14,7 @@ import fs from 'fs'
 import path from 'path'
 import { sanitizePathSegment } from '../utils/path-sanitizer.js'
 import { safeReadJson, ensureDir, writeJson } from '../utils/file-io.js'
-import { createBookBody, bookIdParam } from './schemas.js'
+import { createBookBody, updateBookBody, bookIdParam } from './schemas.js'
 import { bindSessionHistoryToBook } from './chat-history.js'
 
 // ── Types ──
@@ -106,6 +107,33 @@ export function deleteBook(dataDir: string, bookId: string): void {
     throw new Error(`Book '${bookId}' not found`)
   }
   fs.rmSync(bookDir, { recursive: true, force: true })
+}
+
+// Update an existing book's metadata in place. Only mutable display fields are touched;
+// `book_id` (the directory identity) and `created_at` are immutable, so renaming the
+// title never moves the directory or renames any chapter file.
+export function updateBook(
+  dataDir: string,
+  bookId: string,
+  patch: Partial<Omit<BookMeta, 'book_id' | 'created_at'>>,
+): BookMeta {
+  const metaPath = path.join(dataDir, bookId, '00_Config', 'book_meta.json')
+  const existing = safeReadJson<BookMeta>(metaPath)
+  if (!existing) {
+    throw new Error(`Book '${bookId}' not found`)
+  }
+  const next: BookMeta = { ...existing }
+  if (patch.title !== undefined) {
+    const title = patch.title.trim()
+    if (!title) throw new Error('Book title cannot be empty')
+    next.title = title
+  }
+  if (patch.genre !== undefined) next.genre = patch.genre
+  if (patch.tone !== undefined) next.tone = patch.tone
+  if (patch.concept !== undefined) next.concept = patch.concept
+  if (patch.target_words !== undefined) next.target_words = patch.target_words
+  writeJson(metaPath, next)
+  return next
 }
 
 export function recoverBookIdFromRawBooksUrl(rawUrl: string | undefined, routePrefix = '/api/v1/books/'): string | null {
@@ -246,6 +274,26 @@ export async function booksRoutes(app: FastifyInstance): Promise<void> {
         return book
       } catch (err: any) {
         reply.code(err.message.includes('already exists') ? 409 : 400)
+        return { error: err.message }
+      }
+    }
+  )
+
+  // PATCH /api/v1/books/:bookId — update book metadata (title, concept, genre, tone…)
+  app.patch<{ Params: { bookId: string }; Body: unknown }>(
+    '/api/v1/books/:bookId',
+    async (request, reply) => {
+      try {
+        const bookId = sanitizePathSegment(request.params.bookId, 'bookId')
+        const parsed = updateBookBody.safeParse(request.body)
+        if (!parsed.success) {
+          reply.code(400)
+          return { error: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ') }
+        }
+        const book = updateBook(dataDir(), bookId, parsed.data)
+        return book
+      } catch (err: any) {
+        reply.code(err.message.includes('not found') ? 404 : 400)
         return { error: err.message }
       }
     }

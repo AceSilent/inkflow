@@ -30,6 +30,7 @@ import { loadSkillTool, listSkillsTool } from './skills.js'
 import { analyzeStyleProfileTool, browseExamplesTool, readExemplarChapterTool } from './examples.js'
 import { submitToEditorialTool } from '../editorial/editorial.js'
 import { createBookTool } from './create-book.js'
+import { updateBookTool } from './update-book.js'
 
 export interface CreateAllToolsOptions {
   includeCreateBook?: boolean
@@ -48,6 +49,7 @@ export function createAllTools(options: CreateAllToolsOptions = {}): ToolRegistr
 
   // Write tools
   if (includeCreateBook) registry.register(createBookTool)
+  registry.register(updateBookTool)
   registry.register(saveGameOutlineTool)
   registry.register(saveScriptTool)
   registry.register(saveDraftTool)

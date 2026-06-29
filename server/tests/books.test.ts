@@ -8,6 +8,7 @@ import {
   getBook,
   createBook,
   createBookSpace,
+  updateBook,
   deleteBook,
   explorerTree,
   type BookMeta,
@@ -89,6 +90,32 @@ describe('Books CRUD', () => {
     expect(book!.title).toBe('我的书')
   })
 
+  it('updateBook renames the title in place without moving the directory', () => {
+    const meta: BookMeta = {
+      book_id: 'keep-id',
+      title: '旧名',
+      genre: '玄幻',
+      tone: 'light',
+      target_words: 200000,
+    }
+    createBook(TEST_DIR, meta)
+
+    const updated = updateBook(TEST_DIR, 'keep-id', { title: '新名' })
+    expect(updated.title).toBe('新名')
+    expect(updated.book_id).toBe('keep-id')
+    // directory (identity) unchanged; persisted to book_meta.json
+    expect(fs.existsSync(path.join(TEST_DIR, 'keep-id'))).toBe(true)
+    expect(getBook(TEST_DIR, 'keep-id')!.title).toBe('新名')
+  })
+
+  it('updateBook rejects an empty title and a missing book', () => {
+    createBook(TEST_DIR, {
+      book_id: 'b1', title: 't', genre: 'g', tone: 'x', target_words: 1000,
+    })
+    expect(() => updateBook(TEST_DIR, 'b1', { title: '   ' })).toThrow(/empty/)
+    expect(() => updateBook(TEST_DIR, 'nope', { title: 'x' })).toThrow(/not found/)
+  })
+
   it('should delete a book directory', () => {
     const meta: BookMeta = {
       book_id: 'to-delete',
@@ -122,6 +149,37 @@ describe('Books CRUD', () => {
 
       expect(response.statusCode).toBe(200)
       expect(fs.existsSync(path.join(TEST_DIR, 'delete?ui-smoke'))).toBe(false)
+    } finally {
+      await app.close()
+      if (previousDataDir === undefined) delete process.env.AUTONOVEL_DATA_DIR
+      else process.env.AUTONOVEL_DATA_DIR = previousDataDir
+    }
+  })
+
+  it('PATCH route updates a book title and rejects an empty body', async () => {
+    createBook(TEST_DIR, {
+      book_id: 'patch-me', title: '原标题', genre: 'g', tone: 'x', target_words: 1000,
+    })
+    const previousDataDir = process.env.AUTONOVEL_DATA_DIR
+    process.env.AUTONOVEL_DATA_DIR = TEST_DIR
+    const app = Fastify()
+    try {
+      await app.register(booksRoutes)
+
+      const ok = await app.inject({
+        method: 'PATCH',
+        url: '/api/v1/books/patch-me',
+        payload: { title: '改后的标题' },
+      })
+      expect(ok.statusCode).toBe(200)
+      expect(ok.json().title).toBe('改后的标题')
+      expect(getBook(TEST_DIR, 'patch-me')!.title).toBe('改后的标题')
+
+      const empty = await app.inject({ method: 'PATCH', url: '/api/v1/books/patch-me', payload: {} })
+      expect(empty.statusCode).toBe(400)
+
+      const missing = await app.inject({ method: 'PATCH', url: '/api/v1/books/nope', payload: { title: 'x' } })
+      expect(missing.statusCode).toBe(404)
     } finally {
       await app.close()
       if (previousDataDir === undefined) delete process.env.AUTONOVEL_DATA_DIR

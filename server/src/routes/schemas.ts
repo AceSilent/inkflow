@@ -19,6 +19,18 @@ export const createBookBody = z.object({
   source_session_id: z.string().min(1).max(128).optional(),
 })
 
+// Partial update of an existing book's metadata (book_id and created_at are immutable).
+// At least one field must be provided.
+export const updateBookBody = z
+  .object({
+    title: z.string().min(1).max(200).optional(),
+    genre: z.string().min(1).max(50).optional(),
+    tone: z.string().min(1).max(50).optional(),
+    concept: z.string().max(10000).optional(),
+    target_words: z.number().int().positive().max(10000000).optional(),
+  })
+  .refine((d) => Object.keys(d).length > 0, { message: 'Provide at least one field to update' })
+
 // ── Author-chat schemas ──
 
 export const chatAttachmentSchema = z.object({

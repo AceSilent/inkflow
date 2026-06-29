@@ -875,6 +875,17 @@ button:active:not(:disabled) {
 }
 .tree-item-icon svg { width: 14px; height: 14px; stroke-width: 1.65; }
 .tree-item-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tree-item-rename-input {
+  flex: 1;
+  min-width: 0;
+  padding: 1px 6px;
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  background: var(--bg-elevated, var(--bg));
+  color: var(--ink);
+  font: inherit;
+  outline: none;
+}
 .tree-children { padding-left: 16px; }
 .tree-children.collapsed { display: none; }
 
