@@ -6,11 +6,10 @@ describe('studio sidebar navigation', () => {
     const t = key => ({
       'sidebar.newChat': '新对话',
       'sidebar.newWork': '新作品',
-      'sidebar.search': '搜索',
     }[key] || key)
 
-    expect(primarySidebarActions(t).map(action => action.id)).toEqual(['new-chat', 'new-book', 'search'])
-    expect(primarySidebarActions(t).map(action => action.label)).toEqual(['新对话', '新作品', '搜索'])
+    expect(primarySidebarActions(t).map(action => action.id)).toEqual(['new-chat', 'new-book'])
+    expect(primarySidebarActions(t).map(action => action.label)).toEqual(['新对话', '新作品'])
     expect(primarySidebarActions(t).every(action => action.shortcut === undefined)).toBe(true)
   })
 

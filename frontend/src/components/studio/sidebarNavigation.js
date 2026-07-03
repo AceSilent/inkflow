@@ -4,7 +4,6 @@ export function primarySidebarActions(t = defaultT) {
   return [
     { id: 'new-chat', label: t('sidebar.newChat'), enabled: true },
     { id: 'new-book', label: t('sidebar.newWork'), enabled: true },
-    { id: 'search', label: t('sidebar.search'), enabled: true },
   ]
 }
 

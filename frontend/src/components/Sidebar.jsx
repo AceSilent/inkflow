@@ -350,7 +350,6 @@ export function Sidebar({
 function TreeNode({ node, index = 0, bookId, level = 0, selectedId, onSelect, onDeleteBook, onRenameBook, pendingDelete }) {
   const { t } = useI18n()
   const [open, setOpen] = useState(level < 2)
-  const [hovered, setHovered] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const [draftName, setDraftName] = useState('')
   const hasChildren = node.children?.length > 0
@@ -389,8 +388,6 @@ function TreeNode({ node, index = 0, bookId, level = 0, selectedId, onSelect, on
         aria-expanded={hasChildren ? open : undefined}
         onClick={activateNode}
         onKeyDown={handleKeyDown}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
       >
         <span className={`tree-item-toggle ${open ? 'open' : ''}`} style={{ visibility: hasChildren ? 'visible' : 'hidden' }}><ChevronRight size={12} /></span>
         {Icon && <span className="tree-item-icon"><Icon size={14} /></span>}
@@ -430,33 +427,35 @@ function TreeNode({ node, index = 0, bookId, level = 0, selectedId, onSelect, on
             background: node.status === 'draft' ? 'var(--success)' : node.status === 'reviewed' ? 'var(--accent)' : 'var(--warning)',
           }} title={node.status === 'draft' ? t('sidebar.statusDraft') : node.status === 'reviewed' ? t('sidebar.statusReviewed') : t('sidebar.statusOutline')} />
         )}
-        {isBook && isConfirming && (
-          <button
-            style={{ marginLeft: 'auto', background: 'var(--danger)', color: '#fff', border: 'none', borderRadius: 4, padding: '1px 8px', fontSize: 10, cursor: 'pointer', fontWeight: 600 }}
-            onClick={(e) => { e.stopPropagation(); onDeleteBook?.(node); }}
-          >
-            {t('sidebar.confirmDelete')}
-          </button>
-        )}
-        {isBook && hovered && !isConfirming && !renaming && (
-          <>
-            <button
-              className="btn-icon"
-              style={{ marginLeft: 'auto', opacity: 0.7, padding: 2 }}
-              title={t('sidebar.renameBook')}
-              onClick={(e) => { e.stopPropagation(); beginRename() }}
-            >
-              <Pencil size={12} />
-            </button>
-            <button
-              className="btn-icon"
-              style={{ color: 'var(--danger)', opacity: 0.7, padding: 2 }}
-              title={t('sidebar.deleteBook')}
-              onClick={(e) => { e.stopPropagation(); onDeleteBook?.(node); }}
-            >
-              <Trash2 size={12} />
-            </button>
-          </>
+        {isBook && !renaming && (
+          <span className={`tree-item-actions ${isConfirming ? 'visible' : ''}`}>
+            {isConfirming ? (
+              <button
+                className="tree-item-confirm-delete"
+                onClick={(e) => { e.stopPropagation(); onDeleteBook?.(node); }}
+              >
+                {t('sidebar.confirmDelete')}
+              </button>
+            ) : (
+              <>
+                <button
+                  className="btn-icon"
+                  title={t('sidebar.renameBook')}
+                  onClick={(e) => { e.stopPropagation(); beginRename() }}
+                >
+                  <Pencil size={12} />
+                </button>
+                <button
+                  className="btn-icon"
+                  style={{ color: 'var(--danger)' }}
+                  title={t('sidebar.deleteBook')}
+                  onClick={(e) => { e.stopPropagation(); onDeleteBook?.(node); }}
+                >
+                  <Trash2 size={12} />
+                </button>
+              </>
+            )}
+          </span>
         )}
       </div>
       {hasChildren && <div className={`tree-children ${!open ? 'collapsed' : ''}`}>{node.children.map((c, i) => <TreeNode key={c.id} node={c} index={i} bookId={effectiveBookId} level={level+1} selectedId={selectedId} onSelect={onSelect} onDeleteBook={onDeleteBook} onRenameBook={onRenameBook} pendingDelete={pendingDelete} />)}</div>}
