@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react'
 import { Send, Trash2, Plus, X, FileText, PenTool, Loader, Square, Paperclip, Gamepad2, Check, ArrowDown } from 'lucide-react'
 import { useI18n } from '../hooks/useI18n'
 import { MessageBubble, OptionsCard, ThinkingCard, ToolActivityGroup } from './author-chat/MessageCards'
@@ -538,6 +538,18 @@ export function AuthorChatPanel({
     if (!draftStorageKey) return
     persistDraftInput(window.localStorage, draftStorageKey, value)
   }, [draftStorageKey])
+
+  // Auto-grow the composer with line count, up to a cap (then it scrolls inside),
+  // so multi-line prompts stay fully visible instead of being trapped in a 1-row box.
+  // Runs for typed AND programmatic input changes (e.g. chapter-ask), and resets on send.
+  useLayoutEffect(() => {
+    const el = inputRef.current
+    if (!el) return
+    const MAX = 200
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, MAX)}px`
+    el.style.overflowY = el.scrollHeight > MAX ? 'auto' : 'hidden'
+  }, [input])
 
   const handleChatScroll = useCallback(() => {
     const el = chatScrollRef.current

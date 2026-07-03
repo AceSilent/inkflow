@@ -3365,7 +3365,7 @@ textarea.editable-input { resize: vertical; font-family: var(--font-body); }
 .chat-composer textarea {
   width: 100%;
   min-height: 28px;
-  max-height: 150px;
+  max-height: 200px;
   resize: none;
   border: none;
   outline: none;
