@@ -10,8 +10,12 @@
  */
 import fs from 'fs'
 import path from 'path'
-import { generateText } from 'ai'
-import { type LLMConfig, createProvider } from '../llm/provider.js'
+import { generateText, streamText } from 'ai'
+import {
+  type LLMConfig,
+  createProvider,
+  openAIProviderOptionsForConfig,
+} from '../llm/provider.js'
 import { chapterSubgraph, unresolvedSetups } from '../services/plot-graph.js'
 import type { ToolProgressEvent } from '../tools/base-tool.js'
 import {
@@ -99,6 +103,23 @@ async function rawChatCompletion(
 function isReasoningModel(model: string): boolean {
   const m = (model || '').toLowerCase()
   return m.includes('glm-5') || m.includes('glm5')
+}
+
+async function generateReviewerAnswer(llmConfig: LLMConfig, prompt: string): Promise<string> {
+  const model = createProvider(llmConfig)
+  if (llmConfig.kind === 'codex-oauth') {
+    const result = streamText({
+      model,
+      prompt,
+      temperature: 0.3,
+      maxRetries: 0,
+      providerOptions: openAIProviderOptionsForConfig(llmConfig),
+    })
+    return await result.text
+  }
+
+  const result = await generateText({ model, prompt, temperature: 0.3 })
+  return result.text
 }
 
 export interface EditorialResult {
@@ -195,14 +216,10 @@ async function runReviewer(
         thinking = raw.thinking
       } else {
         // Raw call failed — fall back to AI SDK so we still get a result (no thinking).
-        const model = createProvider(llmConfig)
-        const result = await generateText({ model, prompt, temperature: 0.3 })
-        answerText = result.text
+        answerText = await generateReviewerAnswer(llmConfig, prompt)
       }
     } else {
-      const model = createProvider(llmConfig)
-      const result = await generateText({ model, prompt, temperature: 0.3 })
-      answerText = result.text
+      answerText = await generateReviewerAnswer(llmConfig, prompt)
     }
 
     // Parse JSON from response (strip markdown fences if present)

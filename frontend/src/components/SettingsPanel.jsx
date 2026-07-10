@@ -7,9 +7,16 @@ import { themePalettes } from '../theme/palettes'
 const CODEX_PROVIDER_KIND = 'codex-oauth'
 // Models offered when adding a Codex provider. reasoning effort is set server-side
 // via request body, not the model name, so we keep the selectable list short.
-// gpt-5.5 leads the list and is the default the convenience action restores to.
+// gpt-5.5 remains the stable default while GPT-5.6 is entitlement-gated preview.
 const CODEX_PREFERRED_MODEL = 'gpt-5.5'
-const CODEX_DEFAULT_MODELS = ['gpt-5.5', 'gpt-5.5-codex', 'gpt-5.4']
+export const CODEX_DEFAULT_MODELS = [
+  'gpt-5.5',
+  'gpt-5.6-sol',
+  'gpt-5.6-terra',
+  'gpt-5.6-luna',
+  'gpt-5.5-codex',
+  'gpt-5.4',
+]
 
 function openExternalUrl(url) {
   if (!url) return
@@ -23,8 +30,8 @@ function openExternalUrl(url) {
   }
 }
 
-function withRecommendedProviders(data) {
-  const providers = data.providers?.length ? data.providers : [
+export function withRecommendedProviders(data) {
+  const configuredProviders = data.providers?.length ? data.providers : [
     {
       id: 'gemini',
       name: 'Gemini',
@@ -42,6 +49,14 @@ function withRecommendedProviders(data) {
       models: ['deepseek-v4-pro', 'deepseek-v4-flash'],
     },
   ]
+  const providers = configuredProviders.map((provider) => {
+    if (provider.kind !== CODEX_PROVIDER_KIND) return provider
+    const models = [...(provider.models || [])]
+    for (const model of CODEX_DEFAULT_MODELS) {
+      if (!models.includes(model)) models.push(model)
+    }
+    return { ...provider, models }
+  })
 
   return {
     ...data,

@@ -117,6 +117,13 @@ describe('resolveCodexModel', () => {
   it('aliases gpt-5-codex to gpt-5.1-codex', () => {
     expect(resolveCodexModel('gpt-5-codex')).toBe('gpt-5.1-codex')
   })
+  it.each([
+    'gpt-5.6-sol',
+    'gpt-5.6-terra',
+    'gpt-5.6-luna',
+  ])('passes through GPT-5.6 preview model %s unchanged', (model) => {
+    expect(resolveCodexModel(model)).toBe(model)
+  })
   it('passes through unknown model names unchanged', () => {
     expect(resolveCodexModel('gpt-5.1')).toBe('gpt-5.1')
   })
@@ -191,7 +198,7 @@ describe('createCodexFetch', () => {
     expect(sessionIds[0]).toMatch(/^[0-9a-f-]{36}$/)
   })
 
-  it('uses a current Codex client version by default for gpt-5.5 access', async () => {
+  it('uses a current Codex client version by default for GPT-5.6 access', async () => {
     let capturedVersion = ''
     const fetchImpl: typeof globalThis.fetch = async (_url, init) => {
       capturedVersion = new Headers(init?.headers).get('version') ?? ''
@@ -201,7 +208,7 @@ describe('createCodexFetch', () => {
     const codexFetch = createCodexFetch({ dataDir: tmpDir, fetchImpl })
     await codexFetch('https://chatgpt.com/backend-api/codex/responses', { method: 'POST', body: '{}' })
 
-    expect(capturedVersion).toBe('0.140.0-alpha.2')
+    expect(capturedVersion).toBe('0.144.0-alpha.4')
     expect(capturedVersion).not.toBe('0.20.0')
   })
 

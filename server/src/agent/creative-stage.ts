@@ -48,6 +48,12 @@ function readJson(file: string): any {
   }
 }
 
+function compactLine(value: unknown, maxChars: number): string {
+  const text = String(value ?? '').replace(/\s+/g, ' ').trim()
+  if (text.length <= maxChars) return text
+  return `${text.slice(0, maxChars)}...`
+}
+
 function countCollection(value: unknown): number {
   if (Array.isArray(value)) return value.length
   if (value && typeof value === 'object') return Object.keys(value).length
@@ -221,6 +227,7 @@ export function getCreativeStageStatus(bookDir: string): CreativeStageStatus {
 
 export function buildCreativeStagePrompt(bookDir: string): string {
   const status = getCreativeStageStatus(bookDir)
+  const pendingWorkbench = buildPendingWorkbenchPrompt(bookDir, status.metrics.currentChapterId)
   const lines = [
     `当前阶段：${status.label}`,
     `下一步：${status.nextAction}`,
@@ -231,6 +238,40 @@ export function buildCreativeStagePrompt(bookDir: string): string {
   ]
   if (status.blockers.length > 0) {
     lines.push('', '当前阻塞：', ...status.blockers.map((b) => `- ${b}`))
+  }
+  if (pendingWorkbench) {
+    lines.push('', pendingWorkbench)
+  }
+  return lines.join('\n')
+}
+
+function buildPendingWorkbenchPrompt(bookDir: string, chapterId?: string): string {
+  if (!chapterId) return ''
+  const file = path.join(bookDir, '04_Drafts', `annotations_${chapterId}.json`)
+  const annotations = readJson(file)
+  if (!Array.isArray(annotations)) return ''
+
+  const open = annotations.filter((item) => item?.status === 'open')
+  if (open.length === 0) return ''
+
+  const shown = open.slice(0, 8)
+  const lines = [
+    '【工作台待处理问题】',
+    `当前章节 ${chapterId} 有 ${open.length} 条用户已采纳/添加但尚未发送或处理的批注。`,
+    '如果用户说“我同意了其中几个”“按采纳项改”“处理批注”，优先依据这里的条目；不要只读原始 review 后反问是哪几条。',
+  ]
+  for (const item of shown) {
+    const source = item.source === 'adopted_review'
+      ? `采纳自 ${item.source_reviewer ?? '慢审'}`
+      : '用户批注'
+    const quote = compactLine(item.quote, 90)
+    const comment = compactLine(item.comment, 220)
+    lines.push(`- [${item.id}] ${source}`)
+    if (quote) lines.push(`  引用：${quote}`)
+    if (comment) lines.push(`  要求：${comment}`)
+  }
+  if (open.length > shown.length) {
+    lines.push(`- 其余 ${open.length - shown.length} 条请用 read_file 读取 04_Drafts/annotations_${chapterId}.json。`)
   }
   return lines.join('\n')
 }

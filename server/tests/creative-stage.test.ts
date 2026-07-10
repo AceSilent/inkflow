@@ -149,4 +149,49 @@ describe('creative stage status', () => {
     expect(prompt).toContain('稳定信息先落盘')
     expect(prompt).toContain('不要急着进入正文')
   })
+
+  it('surfaces open workbench annotations for the current chapter', () => {
+    seedLore()
+    seedOutline()
+    writeJson('plot_graph.json', {
+      nodes: [{ id: 'n1' }, { id: 'n2' }, { id: 'n3' }, { id: 'n4' }],
+      edges: [{ id: 'e1', source: 'n1', target: 'n2' }],
+    })
+    writeText('04_Drafts/ch01.md', '正文')
+    writeJson('04_Drafts/review_ch01.json', { overall_pass: true })
+    approveChapter('ch01')
+    writeText('04_Drafts/ch02.md', '正文')
+    writeJson('04_Drafts/review_ch02.json', { overall_pass: false })
+    writeJson('04_Drafts/annotations_ch02.json', [
+      {
+        id: 'ann_keep',
+        quote: '圣玛格丽特医学会名片',
+        anchor_start: 0,
+        anchor_end: 0,
+        comment: 'Dropped_Foreshadow：承接第一章名片伏笔',
+        source: 'adopted_review',
+        source_reviewer: 'editorial_causality',
+        status: 'open',
+        created_at: '2026-07-08T00:00:00Z',
+      },
+      {
+        id: 'ann_sent',
+        quote: '旧问题',
+        anchor_start: 0,
+        anchor_end: 0,
+        comment: '已经发送的不应重复出现在待处理提示里',
+        source: 'user',
+        status: 'sent',
+        created_at: '2026-07-08T00:00:00Z',
+      },
+    ])
+
+    const prompt = buildCreativeStagePrompt(tmpDir)
+
+    expect(prompt).toContain('【工作台待处理问题】')
+    expect(prompt).toContain('ann_keep')
+    expect(prompt).toContain('采纳自 editorial_causality')
+    expect(prompt).toContain('Dropped_Foreshadow：承接第一章名片伏笔')
+    expect(prompt).not.toContain('已经发送的不应重复出现在待处理提示里')
+  })
 })

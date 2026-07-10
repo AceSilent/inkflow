@@ -491,11 +491,10 @@ export function openAIProviderOptionsForConfig(config: Pick<LLMConfig, 'kind'>):
 /**
  * Required Codex client version string sent on every Responses request.
  *
- * The ChatGPT Codex backend gates newer models by this version header; gpt-5.5
- * rejects the older 0.20.0 value with "requires a newer version of Codex".
- * Keep this aligned with the currently installed official Codex CLI line.
+ * The ChatGPT Codex backend gates preview models by this version header. Keep
+ * it aligned with the locally verified official CLI line for GPT-5.6 access.
  */
-const CODEX_CLIENT_VERSION = '0.140.0-alpha.2'
+const CODEX_CLIENT_VERSION = '0.144.0-alpha.4'
 
 /**
  * Force `store:false` and ensure the encrypted reasoning content is included.

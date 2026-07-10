@@ -3,10 +3,9 @@
  * the human-driven "re-run editorial" entry point used by the chapter
  * workbench UI.
  *
- * We mock `runEditorialPipelineForChapter` via `vi.doMock` to avoid an actual
- * LLM round-trip. The route handler dynamic-imports the editorial module at
- * request time precisely so this per-test mock takes effect without needing
- * to clear Vitest's static-import cache.
+ * The editorial pipeline is injected through Fastify options so tests can
+ * avoid an actual LLM round-trip without relying on runtime dynamic import,
+ * which is not safe in the packaged sidecar VM.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import Fastify, { type FastifyInstance } from 'fastify'
@@ -14,9 +13,18 @@ import fs from 'fs'
 import path from 'path'
 import os from 'os'
 import { workbenchRoutes } from '../src/routes/workbench.js'
+import type {
+  RunEditorialPipelineForChapterArgs,
+  RunEditorialPipelineResult,
+} from '../src/editorial/editorial.js'
+
+type RunEditorialPipelineForChapter = (
+  args: RunEditorialPipelineForChapterArgs,
+) => Promise<RunEditorialPipelineResult>
 
 let app: FastifyInstance
 let tmpDir: string
+let runEditorialMock: ReturnType<typeof vi.fn>
 
 beforeEach(async () => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wbr-'))
@@ -32,17 +40,26 @@ beforeEach(async () => {
     path.join(tmpDir, 'book1', '00_Config', 'book_meta.json'),
     JSON.stringify({ book_id: 'book1', title: 't', genre: 'g', tone: 'n' }),
   )
+  runEditorialMock = vi.fn().mockResolvedValue({
+    overall_pass: true,
+    feedbacks: [],
+    merged_summary: 'ok',
+    revision_round: 1,
+    persistent_issues: [],
+  })
 
   app = Fastify()
-  await app.register(workbenchRoutes, { prefix: '/api/v1', dataDir: tmpDir })
+  await app.register(workbenchRoutes, {
+    prefix: '/api/v1',
+    dataDir: tmpDir,
+    runEditorialPipelineForChapter: runEditorialMock as RunEditorialPipelineForChapter,
+  })
 })
 
 afterEach(async () => {
   await app.close()
   fs.rmSync(tmpDir, { recursive: true, force: true })
   vi.restoreAllMocks()
-  vi.doUnmock('../src/editorial/editorial.js')
-  vi.resetModules()
 })
 
 describe('resubmit-review', () => {
@@ -82,14 +99,6 @@ describe('resubmit-review', () => {
     ].join('\n\n')
     fs.writeFileSync(path.join(tmpDir, 'book1', '04_Drafts', 'ch01.md'), draft, 'utf8')
 
-    const runMock = vi.fn()
-    vi.doMock('../src/editorial/editorial.js', async () => {
-      const real = await vi.importActual<typeof import('../src/editorial/editorial.js')>(
-        '../src/editorial/editorial.js',
-      )
-      return { ...real, runEditorialPipelineForChapter: runMock }
-    })
-
     const r = await app.inject({
       method: 'POST',
       url: '/api/v1/books/book1/chapters/ch01/resubmit-review',
@@ -99,29 +108,10 @@ describe('resubmit-review', () => {
     const body = JSON.parse(r.payload)
     expect(body.code).toBe('DRAFT_SELF_CHECK_FAILED')
     expect(body.message).toContain('Opening_Camera_Blocking_Density')
-    expect(runMock).not.toHaveBeenCalled()
+    expect(runEditorialMock).not.toHaveBeenCalled()
   })
 
   it('returns 200 or 202 when draft exists (pipeline mocked)', async () => {
-    // Mock the editorial pipeline module to avoid a real LLM call. The route
-    // handler uses a dynamic `await import(...)` for this module, so
-    // `vi.doMock` applied here takes effect for the upcoming request.
-    vi.doMock('../src/editorial/editorial.js', async () => {
-      const real = await vi.importActual<typeof import('../src/editorial/editorial.js')>(
-        '../src/editorial/editorial.js',
-      )
-      return {
-        ...real,
-        runEditorialPipelineForChapter: vi.fn().mockResolvedValue({
-          overall_pass: true,
-          feedbacks: [],
-          merged_summary: 'ok',
-          revision_round: 1,
-          persistent_issues: [],
-        }),
-      }
-    })
-
     const r = await app.inject({
       method: 'POST',
       url: '/api/v1/books/book1/chapters/ch01/resubmit-review',
@@ -137,12 +127,7 @@ describe('resubmit-review', () => {
       revision_round: 2,
       persistent_issues: [],
     })
-    vi.doMock('../src/editorial/editorial.js', async () => {
-      const real = await vi.importActual<typeof import('../src/editorial/editorial.js')>(
-        '../src/editorial/editorial.js',
-      )
-      return { ...real, runEditorialPipelineForChapter: runMock }
-    })
+    runEditorialMock.mockImplementationOnce(runMock)
 
     const r = await app.inject({
       method: 'POST',

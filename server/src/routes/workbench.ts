@@ -21,9 +21,17 @@ import { sanitizePathSegment } from '../utils/path-sanitizer.js'
 import { ensureDir, safeReadJson, writeJson } from '../utils/file-io.js'
 import { MIN_REVIEW_DRAFT_CHARS } from '../tools/write-tools.js'
 import { formatDraftSelfCheck, runDraftSelfCheck } from '../tools/draft-self-check.js'
+import {
+  runEditorialPipelineForChapter as defaultRunEditorialPipelineForChapter,
+  type RunEditorialPipelineForChapterArgs,
+  type RunEditorialPipelineResult,
+} from '../editorial/editorial.js'
 
 interface WorkbenchOptions {
   dataDir: string
+  runEditorialPipelineForChapter?: (
+    args: RunEditorialPipelineForChapterArgs,
+  ) => Promise<RunEditorialPipelineResult>
 }
 
 function annotationsFile(dataDir: string, bookId: string, chId: string): string {
@@ -88,7 +96,10 @@ function buildAnnotationPrompt(
 }
 
 export const workbenchRoutes: FastifyPluginAsync<WorkbenchOptions> = async (app, opts) => {
-  const { dataDir } = opts
+  const {
+    dataDir,
+    runEditorialPipelineForChapter = defaultRunEditorialPipelineForChapter,
+  } = opts
 
   app.get('/books/:bookId/chapters/:chId/annotations', async (req, reply) => {
     const { bookId, chId } = req.params as { bookId: string; chId: string }
@@ -233,10 +244,6 @@ export const workbenchRoutes: FastifyPluginAsync<WorkbenchOptions> = async (app,
   // Re-submit an already-saved draft to the Editorial department without going
   // through the Author Agent. The Agent path uses the same
   // runEditorialPipelineForChapter() helper, so both entry points converge.
-  //
-  // Dynamic import of ../editorial/editorial.js is deliberate: it lets vitest
-  // `vi.doMock()` intercept the pipeline function per-test without having to
-  // plumb a dependency-injection hook through the Fastify options.
   app.post('/books/:bookId/chapters/:chId/resubmit-review', async (req, reply) => {
     const { bookId, chId } = req.params as { bookId: string; chId: string }
     try {
@@ -273,7 +280,6 @@ export const workbenchRoutes: FastifyPluginAsync<WorkbenchOptions> = async (app,
       ) ?? {}
       const body = resubmitReviewBodySchema.parse(req.body ?? {})
 
-      const { runEditorialPipelineForChapter } = await import('../editorial/editorial.js')
       const result = await runEditorialPipelineForChapter({
         bookDir,
         chapterId: safeCh,
