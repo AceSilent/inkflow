@@ -19,6 +19,7 @@ import { PlotGraphWorkspace } from './components/studio/PlotGraphWorkspace'
 import { LoreWorkspace } from './components/studio/LoreWorkspace'
 import { GameScriptWorkspace } from './components/studio/GameScriptWorkspace'
 import { createBookFromDraft } from './components/books/createBookFromDraft'
+import { clearConsumedChapterAsk } from './components/author-chat/chapterAskRequest'
 
 function createDraftSessionId() {
   return `session_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`
@@ -47,6 +48,7 @@ export default function App() {
   }, [])
 
   const handleBookSelect = useCallback((book) => {
+    setChapterAskRequest(null)
     setCurrentBook(book)
     setActiveChapter(null)
     setWorkspaceChapter(null)
@@ -93,6 +95,7 @@ export default function App() {
   }, [activePanel, handleSettingsBack])
 
   const handleNewConversation = useCallback(() => {
+    setChapterAskRequest(null)
     setCurrentBook(null)
     setActiveChapter(null)
     setWorkspaceChapter(null)
@@ -128,12 +131,16 @@ export default function App() {
   }, [])
 
   const handleAskAuthorFromChapter = useCallback((payload) => {
-    if (!payload?.message) return
+    if (!payload?.message || !payload?.bookId) return
     setActivePanel(panel => panel === 'settings' ? 'explorer' : panel)
     setChapterAskRequest({
       ...payload,
       id: `chapter_ask_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     })
+  }, [])
+
+  const handleChapterAskConsumed = useCallback((requestId) => {
+    setChapterAskRequest(current => clearConsumedChapterAsk(current, requestId))
   }, [])
 
   const handleSceneSelect = useCallback((sceneInfo) => {
@@ -204,6 +211,7 @@ export default function App() {
       draftSessionId={draftSessionId}
       onBookCreated={handleBookCreatedByAgent}
       incomingChapterAsk={chapterAskRequest}
+      onChapterAskConsumed={handleChapterAskConsumed}
     />
   )
 

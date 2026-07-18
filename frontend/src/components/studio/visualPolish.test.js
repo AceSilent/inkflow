@@ -138,6 +138,14 @@ describe('visual polish direction', () => {
     expect(useEditorSelection).toContain("event.target.closest?.('.annotation-popover')")
   })
 
+  it('consumes an inline chapter question once and keeps it bound to its book', () => {
+    expect(chapterWorkspace).toContain('bookId,')
+    expect(authorChatPanel).toContain('isChapterAskForBook(incomingChapterAsk, currentBook)')
+    expect(authorChatPanel).toContain('onChapterAskConsumed?.(incomingChapterAsk.id)')
+    expect(appSource).toContain('setChapterAskRequest(null)')
+    expect(appSource).toContain('onChapterAskConsumed={handleChapterAskConsumed}')
+  })
+
   it('covers the entire studio shell with a deep-space mesh, not just the chat center', () => {
     expect(indexCss).toContain('--deep-space-mesh-opacity')
     expect(indexCss).toContain('--deep-space-core-opacity')

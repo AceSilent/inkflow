@@ -26,6 +26,7 @@ import { presentCompactResult } from './author-chat/compactResult'
 import { agentLifecycleState } from './author-chat/agentState'
 import { groupAssistantSegments } from './author-chat/toolActivity'
 import { buildAuthorChatRequestBody } from './author-chat/requestPayload'
+import { isChapterAskForBook } from './author-chat/chapterAskRequest'
 
 const CHAT_MODE_STORAGE_KEY = 'inkflow.chatMode'
 
@@ -554,6 +555,7 @@ export function AuthorChatPanel({
   draftSessionId,
   onBookCreated,
   incomingChapterAsk,
+  onChapterAskConsumed,
 }) {
   const { t } = useI18n()
   const [messages, setMessages] = useState([])
@@ -983,10 +985,12 @@ export function AuthorChatPanel({
 
   useEffect(() => {
     if (!incomingChapterAsk?.id || handledChapterAskRef.current === incomingChapterAsk.id) return
+    if (!isChapterAskForBook(incomingChapterAsk, currentBook)) return
     const message = String(incomingChapterAsk.message || '').trim()
     if (!message) return
 
     handledChapterAskRef.current = incomingChapterAsk.id
+    onChapterAskConsumed?.(incomingChapterAsk.id)
     if (loading) {
       updateInput(message)
       window.setTimeout(() => inputRef.current?.focus(), 0)
@@ -995,7 +999,7 @@ export function AuthorChatPanel({
     }
 
     handleSendRef.current?.(message)
-  }, [addToast, incomingChapterAsk, loading, updateInput])
+  }, [addToast, currentBook, incomingChapterAsk, loading, onChapterAskConsumed, updateInput])
 
   const openCheckpointEditor = (msg) => {
     if (loading || checkpointResending || !msg?.id || !msg?.checkpoint_id) return

@@ -356,13 +356,14 @@ export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast, onAsk
     })
     onAskAuthor({
       message,
+      bookId,
       chapterId,
       chapterTitle,
       selectedText: selection.text,
     })
     setSelection(null)
     addToast?.('已发送到作者对话', 'success')
-  }, [addToast, chapterId, chapterTitle, mode, onAskAuthor, selection, setSelection])
+  }, [addToast, bookId, chapterId, chapterTitle, mode, onAskAuthor, selection, setSelection])
 
   const refreshAfterAgentAnnotations = useCallback(async () => {
     const [draftResponse, annotationsResponse, statusResponse, reviewResponse] = await Promise.all([
