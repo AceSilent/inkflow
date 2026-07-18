@@ -114,6 +114,10 @@ export const saveSettingsBody = z.object({
   }).optional(),
 })
 
+export const authorModelSelectionBody = z.object({
+  authorModel: z.string().min(1).max(200),
+})
+
 // ── Data schemas ──
 
 export const chapterIdParam = z.object({

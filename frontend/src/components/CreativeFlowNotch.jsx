@@ -13,7 +13,7 @@ function StageMarker({ state }) {
   return <span className={className} aria-hidden="true" />
 }
 
-export function CreativeFlowNotch({ bookId, refreshKey }) {
+export function CreativeFlowNotch({ bookId, refreshKey, contextLabel = '' }) {
   const { t } = useI18n()
   const [stageStatus, setStageStatus] = useState({ bookId: null, data: null, error: '' })
   const [expanded, setExpanded] = useState(false)
@@ -44,6 +44,9 @@ export function CreativeFlowNotch({ bookId, refreshKey }) {
   const currentStageIndex = Math.max(0, stages.findIndex(stage => stage.id === currentStage?.id))
   const progressPercent = stages.length > 1 ? Math.max(10, Math.round((currentStageIndex / (stages.length - 1)) * 100)) : 100
   const currentLabel = status?.label || t(currentStage?.labelKey || 'creativeFlow.ready')
+  const compactLabel = contextLabel
+    ? `${currentLabel} · ${contextLabel.replace(/\s*[·・]\s*.*$/, '')}`
+    : currentLabel
   const blockers = status?.blockers || []
   const panelNote = error || blockers.slice(0, 2).join(' · ')
 
@@ -59,7 +62,7 @@ export function CreativeFlowNotch({ bookId, refreshKey }) {
       >
         <span className="creation-notch-balance-spacer" aria-hidden="true" />
         <span className="creation-notch-current">
-          <span className="creation-notch-current-label">{currentLabel}</span>
+          <span className="creation-notch-current-label">{compactLabel}</span>
         </span>
         <span className="creation-notch-pull-handle" aria-hidden="true">
           <ChevronDown size={10} strokeWidth={2.25} />

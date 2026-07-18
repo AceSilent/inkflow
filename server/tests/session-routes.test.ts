@@ -89,9 +89,35 @@ describe('session routes', () => {
     expect(response.statusCode).toBe(200)
     expect(JSON.parse(response.body)).toEqual({
       ok: true,
+      status: 'noop',
+      reason: 'no_history',
       compactedCount: 0,
-      message: 'No history to compact',
+      decayedCount: 0,
     })
+  })
+
+  it('reports recent history as a no-op instead of a zero-message compaction', async () => {
+    const dataDir = makeDataDir()
+    const bookId = 'book-one'
+    fs.mkdirSync(path.join(dataDir, bookId), { recursive: true })
+    saveHistory(dataDir, bookId, [
+      { role: 'user', content: '最近的讨论' } as any,
+      { role: 'assistant', content: '继续保留完整上下文' } as any,
+    ])
+
+    const app = Fastify()
+    await app.register(sessionRoutes, { prefix: '/api/v1', dataDir })
+    const response = await app.inject({ method: 'POST', url: `/api/v1/books/${bookId}/session/compact` })
+
+    expect(response.statusCode).toBe(200)
+    expect(JSON.parse(response.body)).toMatchObject({
+      ok: true,
+      status: 'noop',
+      reason: 'no_cold_history',
+      compactedCount: 0,
+      decayedCount: 0,
+    })
+    expect(generateWithPtlRetryMock).not.toHaveBeenCalled()
   })
 
   it('compacts non-empty history with route dataDir settings and preserves the summary', async () => {
@@ -125,6 +151,8 @@ describe('session routes', () => {
 
     expect(response.statusCode).toBe(200)
     expect(body.ok).toBe(true)
+    expect(body.status).toBe('compacted')
+    expect(body.reason).toBeUndefined()
     expect(body.compactedCount).toBeGreaterThan(0)
     expect(body.action).toBe('force_compact_and_warn')
     expect(body.breakerTripped).toBe(false)

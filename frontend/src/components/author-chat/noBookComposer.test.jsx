@@ -19,6 +19,9 @@ const labels = {
   'authorChat.suggestion2': '帮我比较复仇和救赎两条主线',
   'authorChat.suggestion3': '先问我几个问题来确定题材',
   'authorChat.removeAttachment': '移除附件',
+  'authorChat.authorIdentity': '作者 · {model}',
+  'authorChat.currentModel': '当前模型',
+  'authorChat.switchModel': '切换作者模型',
 }
 
 function renderNoBookComposer() {
@@ -42,6 +45,9 @@ describe('NoBookChatStarter', () => {
     expect(html).not.toContain('讨论成熟后再创建作品。')
     expect(html).not.toContain('作者模式')
     expect(html).not.toContain('示例模式')
+    expect(html).toContain('class="chat-model-trigger"')
+    expect(html).toContain('aria-label="切换作者模型"')
+    expect(html).toContain('作者 · 当前模型')
   })
 
   it('renders uploaded documents inside the composer body', () => {

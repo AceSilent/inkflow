@@ -35,6 +35,7 @@ export interface ContextDecision {
   action: 'none' | 'decay_tool_results' | 'decay_and_cold_compact' | 'force_compact_and_warn'
   decayedCount: number
   compactedCount: number
+  compactStatus: 'not_needed' | 'compacted' | 'failed' | 'blocked'
   breakerTripped: boolean
 }
 
@@ -64,6 +65,7 @@ export async function processContext(
     action: input.mode === 'disabled' ? 'none' : tier.action,
     decayedCount: 0,
     compactedCount: 0,
+    compactStatus: 'not_needed',
     breakerTripped: false,
   }
 
@@ -87,6 +89,11 @@ export async function processContext(
   }
 
   const allowCompact = input.mode === 'auto' && !breakerState.tripped
+  if (!allowCompact
+      && breakerState.tripped
+      && (decision.action === 'decay_and_cold_compact' || decision.action === 'force_compact_and_warn')) {
+    decision.compactStatus = 'blocked'
+  }
   if (allowCompact && (decision.action === 'decay_and_cold_compact' || decision.action === 'force_compact_and_warn')) {
     try {
       const zones = zoneByTokens(messages, input.boundaries)
@@ -101,11 +108,13 @@ export async function processContext(
         })
         messages = result.newMessages
         decision.compactedCount = result.stats.compacted
+        decision.compactStatus = 'compacted'
         recordSuccess(input.bookDir)
       }
     } catch (e) {
       recordFailure(input.bookDir)
       decision.breakerTripped = loadBreakerState(input.bookDir).tripped
+      decision.compactStatus = 'failed'
       console.warn('[context] cold compact failed:', e)
     }
   }

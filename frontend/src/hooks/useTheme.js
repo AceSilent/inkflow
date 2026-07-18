@@ -4,7 +4,15 @@ import { isThemeId } from '../theme/palettes'
 
 function nextThemeFor(current, requested) {
   if (isThemeId(requested)) return requested
-  return current === 'ink' ? 'mist' : 'ink'
+  return current === 'monet' ? 'sketch' : 'monet'
+}
+
+const LEGACY_THEME_MIGRATION = {
+  mist: 'monet',
+  ink: 'monet',
+  dark: 'monet',
+  paper: 'sketch',
+  graphite: 'sketch',
 }
 
 function themeTransitionOrigin(event) {
@@ -33,8 +41,8 @@ export function useTheme() {
   const [theme, setTheme] = useState(() => {
     const saved = localStorage.getItem('autonovel-theme') || localStorage.getItem('inkflow-theme')
     if (isThemeId(saved)) return saved
-    if (saved === 'dark') return 'ink'
-    return 'ink'
+    if (LEGACY_THEME_MIGRATION[saved]) return LEGACY_THEME_MIGRATION[saved]
+    return 'monet'
   })
 
   useEffect(() => {

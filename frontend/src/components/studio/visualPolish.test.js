@@ -44,13 +44,13 @@ describe('visual polish direction', () => {
     expect(indexCss).toContain('--frost-noise-opacity')
     expect(indexCss).toContain('frostGrain')
     expect(indexCss).toContain('mix-blend-mode: var(--ambient-blend')
-    expect(electronMain).toContain("vibrancy: 'under-window'")
-    expect(electronMain).toContain('transparent: true')
+    expect(electronMain).not.toContain('vibrancy:')
+    expect(electronMain).toContain('transparent: false')
   })
 
-  it('defaults new installs to the ink deep-space theme', () => {
-    expect(useThemeSource).toContain("return 'ink'")
-    expect(useThemeSource).not.toContain("return 'mist'")
+  it('defaults new installs to Monet and migrates legacy themes', () => {
+    expect(useThemeSource).toContain("return 'monet'")
+    expect(useThemeSource).toContain("graphite: 'sketch'")
   })
 
   it('softens hover, press, and expand/collapse motion', () => {
@@ -166,13 +166,18 @@ describe('visual polish direction', () => {
     expect(studioShell).not.toContain('DeepSpaceBackdrop')
   })
 
-  it('atmosphere backdrop self-corrects the transparent-window first-paint via a re-init', () => {
-    // On a transparent desktop window the first WebGL composite can come up
-    // transparent; each layer bumps a nonce after mount to re-init once the window has
-    // settled (what a manual theme switch does by hand). Gated to cold start so cached
-    // layers added by later switches don't rebuild twice.
-    expect(atmosphereBackdrop).toContain('reinitNonce')
-    expect(atmosphereBackdrop).toMatch(/\[theme, reinitNonce\]/)
+  it('keeps theme switching in settings and leaves the library unobstructed', () => {
+    expect(studioShell).not.toContain('studio-theme-switcher')
+    expect(studioShell).not.toContain('themePalettes')
+    expect(indexCss).not.toMatch(/\.studio-library \{[^}]*backdrop-filter:\s*blur\(24px\)/)
+    expect(indexCss).toMatch(/\.studio-library \{[\s\S]*?background:\s*transparent;[\s\S]*?backdrop-filter:\s*none;/)
+    expect(indexCss).toMatch(/\[data-theme="sketch"\] \.studio-library \{[\s\S]*?background:\s*transparent;[\s\S]*?backdrop-filter:\s*none;/)
+  })
+
+  it('uses authored artwork layers without a duplicate UI screenshot', () => {
+    expect(atmosphereBackdrop).toContain('atmosphere-backdrop__artwork')
+    expect(atmosphereBackdrop).toContain('atmosphere-backdrop__paper')
+    expect(atmosphereBackdrop).not.toContain('<canvas')
   })
 
   it('keeps the retained deep-space backdrop module as a continuous WebGL shader', () => {
@@ -276,7 +281,7 @@ describe('visual polish direction', () => {
   it('lets settings scroll inside the fixed chat surface', () => {
     expect(indexCss).toMatch(/\.settings-panel \{[\s\S]*height:\s*100%;/)
     expect(indexCss).toMatch(/\.settings-panel \{[\s\S]*overflow-y:\s*auto;/)
-    expect(indexCss).toMatch(/\.settings-panel-inner \{[\s\S]*max-width:\s*680px;/)
+    expect(indexCss).toMatch(/\.settings-panel-frame \{[\s\S]*width:\s*min\(820px, 100%\);/)
   })
 
   it('splits settings into sidebar categories instead of one long surface', () => {
@@ -286,8 +291,10 @@ describe('visual polish direction', () => {
     expect(sidebarNavigation).toContain('settingsSidebarSections')
     expect(sidebar).toContain('studio-settings-nav')
     expect(sidebar).toContain("activePanel === 'settings'")
+    expect(sidebar).not.toContain('studio-settings-back')
+    expect(sidebar).not.toContain("t('settings.back')")
     expect(settingsPanel).toContain('activeSection')
-    expect(settingsPanel).toContain("section.id === activeSection")
+    expect(settingsPanel).toContain('id === activeSection')
     expect(locales).toContain("'settings.nav.providers': '供应商'")
     expect(locales).toContain("'settings.nav.appearance': '外观'")
   })
@@ -300,10 +307,12 @@ describe('visual polish direction', () => {
     expect(chapterWorkspace).toContain('setSelection(null)')
   })
 
-  it('keeps the settings title text-only without a decorative icon', () => {
-    expect(settingsPanel).toContain('className="settings-panel-title"')
-    const titleBlock = settingsPanel.match(/<h2 className="settings-panel-title">[\s\S]*?<\/h2>/)?.[0] || ''
-    expect(titleBlock).not.toContain('<Globe')
+  it('uses only the active category title and a non-overlapping action footer', () => {
+    expect(settingsPanel).not.toContain('className="settings-panel-title"')
+    expect(settingsPanel).toContain('className="settings-section-header"')
+    expect(settingsPanel).toContain('className="settings-panel-actions"')
+    expect(indexCss).toMatch(/\.settings-panel-actions \{[\s\S]*background:\s*color-mix/)
+    expect(appSource).toContain("event.key !== 'Escape'")
   })
 
   it('keeps messages and composer on one centered chat axis', () => {
@@ -334,6 +343,15 @@ describe('visual polish direction', () => {
     expect(indexCss).toMatch(/\.user-message-bubble \{[\s\S]*background:[\s\S]*var\(--chat-frost-surface\);/)
     expect(indexCss).toMatch(/\.user-message-bubble \{[\s\S]*box-shadow:[\s\S]*0 8px 28px oklch\(0% 0 0 \/ 0\.045\)/)
     expect(userMessageBubbleCss).not.toContain('var(--accent)')
+  })
+
+  it('renders the composer model identity as a frosted drop-up switcher', () => {
+    expect(indexCss).toContain('--chat-popover-surface: color-mix(in oklch, var(--bg-elevated) 94%, var(--theme-panel-strong));')
+    expect(indexCss).toMatch(/\.chat-model-trigger \{[\s\S]*background:\s*transparent;/)
+    expect(indexCss).toMatch(/\.chat-model-menu \{[\s\S]*bottom:\s*calc\(100% \+ 8px\);[\s\S]*background:\s*var\(--chat-popover-surface\);[\s\S]*backdrop-filter:\s*blur\(24px\) saturate\(1\.1\)/)
+    expect(indexCss).toMatch(/\.chat-tool-menu \{[\s\S]*background:\s*var\(--chat-popover-surface\);[\s\S]*backdrop-filter:\s*blur\(24px\) saturate\(1\.1\)/)
+    expect(authorChatPanel).toContain("fetch('/api/v1/settings/author-model'")
+    expect(authorChatPanel).toContain('aria-haspopup="menu"')
   })
 
   it('removes stale waiting copy and roman-number presentation debt', () => {

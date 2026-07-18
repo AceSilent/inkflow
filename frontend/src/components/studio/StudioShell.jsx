@@ -38,6 +38,8 @@ function loadNormalizedWorkspaceLayout(bookId) {
 export function StudioShell({
   theme,
   currentBook,
+  currentChapterTitle,
+  settingsMode = false,
   sidebar,
   chat,
   chapter,
@@ -191,20 +193,24 @@ export function StudioShell({
       <header className="studio-titlebar">
         <div className="studio-titlebar-drag-region" />
         <div className="studio-titlebar-context" aria-hidden={!currentBook}>
-          {currentBook?.title || currentBook?.book_id || ''}
+          <span>{currentBook?.title || currentBook?.book_id || ''}</span>
+          {currentBook && currentChapterTitle && <span className="studio-titlebar-context-separator">/</span>}
+          {currentChapterTitle && <span>{currentChapterTitle}</span>}
         </div>
-        <div className="studio-titlebar-actions">
-          <button
-            className="studio-titlebar-button workspace-titlebar-toggle"
-            data-window-drag-block
-            type="button"
-            onClick={handleToggleWorkspace}
-            title={layout.collapsed ? t('workspace.expand') : t('workspace.collapse')}
-            aria-label={layout.collapsed ? t('workspace.expand') : t('workspace.collapse')}
-          >
-            {layout.collapsed ? <PanelRightOpen size={16} /> : <PanelRightClose size={16} />}
-          </button>
-        </div>
+        {!settingsMode && (
+          <div className="studio-titlebar-actions">
+            <button
+              className="studio-titlebar-button workspace-titlebar-toggle"
+              data-window-drag-block
+              type="button"
+              onClick={handleToggleWorkspace}
+              title={layout.collapsed ? t('workspace.expand') : t('workspace.collapse')}
+              aria-label={layout.collapsed ? t('workspace.expand') : t('workspace.collapse')}
+            >
+              {layout.collapsed ? <PanelRightOpen size={16} /> : <PanelRightClose size={16} />}
+            </button>
+          </div>
+        )}
       </header>
 
       <aside className="studio-library">
@@ -213,14 +219,17 @@ export function StudioShell({
 
       <main className="studio-main">
         <section className="studio-chat">
-          <CreativeFlowNotch
-            bookId={flowBookId}
-            refreshKey={flowRefreshKey}
-          />
+          {!settingsMode && (
+            <CreativeFlowNotch
+              bookId={flowBookId}
+              refreshKey={flowRefreshKey}
+              contextLabel={currentChapterTitle}
+            />
+          )}
           {chat}
         </section>
         <WorkspacePane
-          collapsed={layout.collapsed}
+          collapsed={settingsMode || layout.collapsed}
           width={visualWidth}
           maxWidth={visualMaxWidth}
           activeTab={layout.activeTab}
@@ -230,6 +239,7 @@ export function StudioShell({
           <WorkspaceTabs
             activeTab={layout.activeTab}
             onTabChange={handleTabChange}
+            chapterTitle={currentChapterTitle}
             chapter={chapter}
             outline={outline}
             plot={plot}

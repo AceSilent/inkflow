@@ -4,11 +4,12 @@
  * Endpoints:
  *   GET /api/v1/settings  — return settings with masked API keys
  *   PUT /api/v1/settings  — save settings to settings.json
+ *   PATCH /api/v1/settings/author-model — switch only the author model
  */
 import { type FastifyInstance } from 'fastify'
 import path from 'path'
 import { safeReadJson, writeJson } from '../utils/file-io.js'
-import { saveSettingsBody } from './schemas.js'
+import { authorModelSelectionBody, saveSettingsBody } from './schemas.js'
 
 // ── Types ──
 
@@ -133,6 +134,12 @@ export function saveSettings(dataDir: string, settings: AppSettings): void {
   writeJson(settingsPath(dataDir), settings)
 }
 
+export function isConfiguredModel(settings: AppSettings, selector: string): boolean {
+  return settings.providers.some(provider =>
+    provider.models.some(model => `${provider.id}/${model}` === selector)
+  )
+}
+
 export function mergeMaskedApiKeys(incoming: AppSettings, existing: AppSettings): AppSettings {
   const existingById = new Map(existing.providers.map(provider => [provider.id, provider]))
   return {
@@ -235,6 +242,26 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
         reply.code(500)
         return { error: err.message }
       }
+    }
+  )
+
+  app.patch<{ Body: { authorModel: string } }>(
+    '/api/v1/settings/author-model',
+    async (request, reply) => {
+      const parsed = authorModelSelectionBody.safeParse(request.body)
+      if (!parsed.success) {
+        reply.code(400)
+        return { error: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ') }
+      }
+
+      const settings = getSettings(dataDir())
+      if (!isConfiguredModel(settings, parsed.data.authorModel)) {
+        reply.code(400)
+        return { error: 'authorModel must reference a configured provider model' }
+      }
+
+      saveSettings(dataDir(), { ...settings, authorModel: parsed.data.authorModel })
+      return { status: 'ok', authorModel: parsed.data.authorModel }
     }
   )
 }

@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import {
-  ArrowLeft,
   BookOpenText,
   BookPlus,
   Brain,
@@ -50,7 +49,7 @@ const primaryIcons = {
 }
 
 const bottomIcons = {
-  settings: Settings,
+  settings: SlidersHorizontal,
   mobile: Smartphone,
 }
 
@@ -137,9 +136,10 @@ export function Sidebar({
     if (node.type === 'chapter' || node.type === 'volume' || node.type === 'draft') {
       // Also set book context so ChapterWorkbench gets the bookId
       if (bookId) {
+        const parentBook = treeData.find(item => item.type === 'book' && item.id === bookId)
         localStorage.setItem('autonovel:lastBookId', bookId)
         setSelectedBookId(bookId)
-        onBookSelect?.({ book_id: bookId, title: '' })
+        onBookSelect?.({ book_id: bookId, title: parentBook?.label || bookId })
       }
       onSelect?.({ id: node.id, label: node.label, type: node.type, summary: node.summary, bookId })
     }
@@ -213,18 +213,6 @@ export function Sidebar({
   if (activePanel === 'settings') {
     return (
       <aside className="sidebar studio-sidebar-panel studio-settings-sidebar">
-        <div className="studio-settings-sidebar-head">
-          <button
-            type="button"
-            className="studio-settings-back"
-            onClick={() => onSettingsBack?.()}
-            aria-label={t('settings.back')}
-          >
-            <ArrowLeft size={16} />
-            <span>{t('settings.back')}</span>
-          </button>
-          <div className="studio-sidebar-section-label">{t('settings.title')}</div>
-        </div>
         <nav className="studio-settings-nav" aria-label={t('settings.title')}>
           {settingsSidebarSections(t).map(section => {
             const Icon = settingsIcons[section.id] || Settings

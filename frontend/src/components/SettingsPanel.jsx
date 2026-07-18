@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Save, Languages, Plus, Trash2, Key, Globe, Box, Check, Network, Sparkles, LogIn, LogOut, Loader2 } from 'lucide-react'
 import { useI18n } from '../hooks/useI18n'
-import { useBackdropIntensity } from '../hooks/useBackdropIntensity'
 import { themePalettes } from '../theme/palettes'
 
 const CODEX_PROVIDER_KIND = 'codex-oauth'
@@ -95,13 +94,16 @@ export function ThemePaletteOption({ palette, active, onSelect }) {
           '--theme-preview-sidebar': preview.sidebar,
           '--theme-preview-accent': preview.accent,
           '--theme-preview-ink': preview.ink,
+          '--theme-preview-artwork': `url(${palette.artwork})`,
         }}
       >
-        <span className="theme-palette-preview-sidebar" />
-        <span className="theme-palette-preview-content">
-          <span className="theme-palette-preview-line strong" />
-          <span className="theme-palette-preview-line" />
-          <span className="theme-palette-preview-accent" />
+        <span className="theme-palette-preview-window">
+          <span className="theme-palette-preview-sidebar" />
+          <span className="theme-palette-preview-content">
+            <span className="theme-palette-preview-line strong" />
+            <span className="theme-palette-preview-line" />
+            <span className="theme-palette-preview-accent" />
+          </span>
         </span>
       </span>
       <span className="theme-palette-label">
@@ -114,7 +116,6 @@ export function ThemePaletteOption({ palette, active, onSelect }) {
 
 export function SettingsPanel({ addToast, theme, toggleTheme, currentBook, activeSection = 'providers' }) {
   const { t, lang, switchLang } = useI18n()
-  const { intensity, setIntensity, INTENSITY_OPTIONS } = useBackdropIntensity()
   const [settings, setSettings] = useState(null)
   const [loading, setLoading] = useState(true)
 
@@ -362,8 +363,10 @@ export function SettingsPanel({ addToast, theme, toggleTheme, currentBook, activ
   if (loading || !settings) {
     return (
       <div className="settings-panel">
-        <div className="settings-panel-inner settings-panel-loading">
-          {t('settings.loading')}
+        <div className="settings-panel-frame">
+          <div className="settings-panel-inner settings-panel-loading">
+            {t('settings.loading')}
+          </div>
         </div>
       </div>
     )
@@ -378,76 +381,66 @@ export function SettingsPanel({ addToast, theme, toggleTheme, currentBook, activ
 
   return (
     <div className="settings-panel">
-      <div className="settings-panel-inner">
-      {/* Header aligned like Brainstorm */}
-      <h2 className="settings-panel-title">
-        {t('settings.title') || 'Settings'}
-      </h2>
+      <div className="settings-panel-frame">
+        <div className="settings-panel-inner">
 
       {/* Providers Configuration */}
-      <Section id="providers" activeSection={activeSection} title={t('settings.apiConfig') || 'API & Providers'}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <Section id="providers" activeSection={activeSection} title={t('settings.nav.providers')}>
+        <div className="settings-provider-list">
           {settings.providers.map((provider, i) => {
             const isCodex = provider.kind === CODEX_PROVIDER_KIND
             return (
-            <div key={provider.id} style={{
-              background: 'var(--bg-elevated)',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: 'var(--radius-lg)',
-              padding: 16
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+            <div key={provider.id} className="settings-provider-card">
+              <div className="settings-provider-head">
+                <div className="settings-provider-name-row">
                   <input
-                    className="input"
+                    className="settings-provider-name"
                     value={provider.name}
                     onChange={e => updateProvider(i, 'name', e.target.value)}
-                    style={{ fontWeight: 600, background: 'transparent', border: 'none', padding: 0, fontSize: 14 }}
                   />
                   {isCodex && (
-                    <span style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 4,
-                      fontSize: 10, fontWeight: 600, padding: '2px 8px', flex: '0 0 auto',
-                      borderRadius: 'var(--radius-full)', color: 'var(--accent)',
-                      background: 'color-mix(in oklch, var(--accent) 14%, transparent)',
-                    }}>
+                    <span className="settings-provider-badge">
                       <Sparkles size={10} /> {t('settings.codexProviderBadge')}
                     </span>
                   )}
                 </div>
-                <button className="btn-icon" style={{ color: 'var(--danger)' }} onClick={() => removeProvider(i)}>
+                <button
+                  type="button"
+                  className="btn-icon settings-provider-delete"
+                  onClick={() => removeProvider(i)}
+                  aria-label={t('settings.removeProvider')}
+                >
                   <Trash2 size={14} />
                 </button>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12 }}>
+              <div className="settings-provider-grid">
                 {!isCodex && (
                   <div className="field">
-                    <label className="field-label" style={{ fontSize: 11 }}><Globe size={10}/> {t('settings.baseUrl')}</label>
+                    <label className="field-label"><Globe size={10}/> {t('settings.baseUrl')}</label>
                     <input className="input" value={provider.baseUrl} onChange={e => updateProvider(i, 'baseUrl', e.target.value)} />
                   </div>
                 )}
                 {isCodex ? (
-                  <div className="settings-help" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div className="settings-help settings-provider-wide settings-inline-help">
                     <Key size={10} /> {t('settings.codexNoApiKey')}
                   </div>
                 ) : (
                   <div className="field">
-                    <label className="field-label" style={{ fontSize: 11 }}><Key size={10}/> {t('settings.apiKey')}</label>
+                    <label className="field-label"><Key size={10}/> {t('settings.apiKey')}</label>
                     <input className="input" type="password" placeholder="sk-..." value={provider.apiKey} onChange={e => updateProvider(i, 'apiKey', e.target.value)} />
                   </div>
                 )}
-                <div className="field">
-                  <label className="field-label" style={{ fontSize: 11 }}><Box size={10}/> {t('settings.providerModels')}</label>
+                <div className="field settings-provider-wide">
+                  <label className="field-label"><Box size={10}/> {t('settings.providerModels')}</label>
                   <input className="input" value={provider.models.join(', ')} onChange={e => updateProvider(i, 'models', e.target.value)} />
                   {isCodex && (
-                    <div className="settings-help" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <div className="settings-help settings-inline-help">
                       <span>{t('settings.codexDefaultModelHint')}</span>
                       {provider.models?.[0] !== CODEX_PREFERRED_MODEL && (
                         <button
                           type="button"
                           className="btn btn-ghost btn-sm"
-                          style={{ padding: '2px 8px' }}
                           onClick={() => updateProvider(i, 'models', CODEX_DEFAULT_MODELS.join(', '))}
                         >
                           {t('settings.codexSetDefaultModel')}
@@ -461,7 +454,7 @@ export function SettingsPanel({ addToast, theme, toggleTheme, currentBook, activ
             )
           })}
 
-          <button className="btn btn-secondary" onClick={addProvider} style={{ display: 'flex', justifyContent: 'center', borderStyle: 'dashed' }}>
+          <button className="btn btn-secondary settings-add-provider" onClick={addProvider}>
             <Plus size={14} /> {t('settings.addProvider')}
           </button>
 
@@ -558,7 +551,7 @@ export function SettingsPanel({ addToast, theme, toggleTheme, currentBook, activ
         </div>
       </Section>
 
-      <Section id="network" activeSection={activeSection} title={t('settings.network')}>
+      <Section id="network" activeSection={activeSection} title={t('settings.nav.network')}>
         <div className="settings-proxy-card">
           <div className="settings-proxy-row">
             <div className="settings-proxy-heading">
@@ -590,7 +583,7 @@ export function SettingsPanel({ addToast, theme, toggleTheme, currentBook, activ
       </Section>
 
       {/* Models Selection */}
-      <Section id="models" activeSection={activeSection} title={t('settings.modelConfig') || 'Model Assignment'}>
+      <Section id="models" activeSection={activeSection} title={t('settings.nav.models')}>
         <ModelSelector 
           label={t('settings.authorModel') || 'Author Model'} 
           value={settings.authorModel} 
@@ -624,7 +617,7 @@ export function SettingsPanel({ addToast, theme, toggleTheme, currentBook, activ
       {/* Context Manager: mode dropdown + breaker reset.
           contextManager is persisted globally via settings.json; breaker reset
           is per-book since the breaker file lives in the book directory. */}
-      <Section id="context" activeSection={activeSection} title={t('settings.context')}>
+      <Section id="context" activeSection={activeSection} title={t('settings.nav.context')}>
         <div className="field">
           <label className="field-label">{t('settings.contextMode')}</label>
           <select
@@ -657,7 +650,7 @@ export function SettingsPanel({ addToast, theme, toggleTheme, currentBook, activ
         </div>
       </Section>
 
-      <Section id="appearance" activeSection={activeSection} title={t('settings.appearance') || 'Appearance'}>
+      <Section id="appearance" activeSection={activeSection} title={t('settings.nav.appearance')}>
         <div className="theme-palette-grid">
           {themePalettes.map(palette => (
             <ThemePaletteOption
@@ -668,40 +661,6 @@ export function SettingsPanel({ addToast, theme, toggleTheme, currentBook, activ
             />
           ))}
         </div>
-        <div className="field" style={{ marginBottom: 4 }}>
-          <label className="field-label">{t('settings.backdrop')}</label>
-          <div
-            role="radiogroup"
-            aria-label={t('settings.backdrop')}
-            style={{
-              display: 'grid',
-              gridTemplateColumns: `repeat(${INTENSITY_OPTIONS.length}, 1fr)`,
-              gap: 4,
-              padding: 4,
-              borderRadius: 'var(--radius-lg)',
-              border: '1px solid var(--border-subtle)',
-              background: 'var(--bg-elevated)',
-            }}
-          >
-            {INTENSITY_OPTIONS.map(opt => {
-              const active = intensity === opt.value
-              return (
-                <button
-                  key={opt.value}
-                  type="button"
-                  role="radio"
-                  aria-checked={active ? 'true' : 'false'}
-                  className={`btn ${active ? 'btn-primary' : 'btn-ghost'} btn-sm`}
-                  style={{ justifyContent: 'center', width: '100%' }}
-                  onClick={() => setIntensity(opt.value)}
-                >
-                  {t(opt.labelKey) || opt.label}
-                </button>
-              )
-            })}
-          </div>
-          <div className="settings-help">{t('settings.backdropHint')}</div>
-        </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span className="field-label" style={{ margin: 0 }}>{t('settings.language')}</span>
           <button className="btn btn-secondary btn-sm" onClick={switchLang}>
@@ -711,9 +670,10 @@ export function SettingsPanel({ addToast, theme, toggleTheme, currentBook, activ
         </div>
       </Section>
 
-      <div className="settings-panel-actions">
-        <button className="btn btn-primary btn-lg" onClick={handleSave}><Save size={14} /> {t('settings.save') || 'Save Changes'}</button>
-      </div>
+        </div>
+        <div className="settings-panel-actions">
+          <button className="btn btn-primary" onClick={handleSave}><Save size={14} /> {t('settings.save') || 'Save Changes'}</button>
+        </div>
       </div>
     </div>
   )
@@ -725,13 +685,14 @@ const REVIEWER_MODEL_LABELS = [
 ]
 
 function Section({ id, activeSection, title, children }) {
-  const section = { id }
-  if (section.id === activeSection) {
+  if (id === activeSection) {
     return (
-      <div style={{ marginBottom: 28 }}>
-        <h3 className="label-sc" style={{ fontSize: 13, fontWeight: 600, paddingBottom: 8, marginBottom: 16, borderBottom: '1px solid var(--border-subtle)' }}>{title}</h3>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>{children}</div>
-      </div>
+      <section className="settings-section" aria-labelledby={`settings-section-${id}`}>
+        <header className="settings-section-header">
+          <h2 id={`settings-section-${id}`}>{title}</h2>
+        </header>
+        <div className="settings-section-body">{children}</div>
+      </section>
     )
   }
 

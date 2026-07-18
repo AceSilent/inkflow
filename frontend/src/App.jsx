@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useI18n } from './hooks/useI18n'
 import { Sidebar } from './components/Sidebar'
 import { BrainstormPanel } from './components/BrainstormPanel'
@@ -81,6 +81,16 @@ export default function App() {
   const handleSettingsBack = useCallback(() => {
     setActivePanel(previousPanelRef.current || 'explorer')
   }, [])
+
+  useEffect(() => {
+    if (activePanel !== 'settings') return undefined
+    const handleKeyDown = (event) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return
+      handleSettingsBack()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [activePanel, handleSettingsBack])
 
   const handleNewConversation = useCallback(() => {
     setCurrentBook(null)
@@ -220,6 +230,8 @@ export default function App() {
       <StudioShell
         theme={theme}
         currentBook={currentBook}
+        currentChapterTitle={workspaceChapter?.label || workspaceChapter?.title || activeChapter?.label || ''}
+        settingsMode={activePanel === 'settings'}
         flowRefreshKey={dataVersion}
         activeWorkspaceTab={activeWorkspaceTab}
         onWorkspaceTabChange={setActiveWorkspaceTab}

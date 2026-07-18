@@ -15,7 +15,7 @@ test('Electron desktop scripts build, run, and install the mac app', () => {
   assert.ok(pkg.devDependencies['electron-builder'])
 })
 
-test('Electron main window keeps the native macOS shell polish', async () => {
+test('Electron main window keeps native macOS chrome without tinting app themes', async () => {
   assert.equal(existsSync(new URL('../electron/main.cjs', import.meta.url)), true)
   assert.equal(existsSync(new URL('../electron/preload.cjs', import.meta.url)), true)
 
@@ -23,9 +23,10 @@ test('Electron main window keeps the native macOS shell polish', async () => {
   assert.match(main, /new BrowserWindow/)
   assert.match(main, /titleBarStyle:\s*'hiddenInset'/)
   assert.match(main, /trafficLightPosition:\s*\{\s*x:\s*14,\s*y:\s*22\s*\}/)
-  assert.match(main, /transparent:\s*true/)
-  assert.match(main, /vibrancy:\s*'under-window'/)
-  assert.match(main, /backgroundColor:\s*'#00000000'/)
+  assert.match(main, /transparent:\s*false/)
+  assert.doesNotMatch(main, /vibrancy:/)
+  assert.doesNotMatch(main, /visualEffectState:/)
+  assert.match(main, /backgroundColor:\s*'#f5f2e9'/)
 })
 
 test('Electron sidecar uses the existing InkFlow data directory', async () => {

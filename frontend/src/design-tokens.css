@@ -1,151 +1,109 @@
-/* Design tokens · Literary Journal aesthetic
- * Spec: docs/superpowers/specs/2026-04-18-design-system.md
- * Light theme (mist) is the default token set. data-theme="ink" / "graphite"
- * activate the dark variants; the legacy "dark" id maps to ink.
- */
+/* InkFlow visual system: two deliberate light themes, each expressed through
+ * full-window artwork and a small set of translucent working surfaces. */
 
-:root {
+:root,
+[data-theme="monet"] {
   color-scheme: light;
 
   --font-body: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-serif: ui-serif, Georgia, "Times New Roman", serif;
+  --font-serif: "Songti SC", "STSong", ui-serif, Georgia, serif;
   --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 
-  --bg: oklch(98.4% 0.006 255);
-  --bg-subtle: oklch(96.8% 0.008 255);
-  --bg-elevated: oklch(99.2% 0.004 255);
-  --surface-glass: oklch(100% 0 0 / 0.72);
-  --surface-paper: oklch(98.8% 0.012 82);
+  --bg: oklch(95.8% 0.018 218);
+  --bg-subtle: oklch(94.5% 0.026 194);
+  --bg-elevated: oklch(98.8% 0.009 215);
+  --surface-glass: oklch(99% 0.008 215 / 0.66);
+  --surface-paper: oklch(98.4% 0.015 89 / 0.84);
 
-  --ink: oklch(23% 0.025 260);
-  --ink-secondary: oklch(42% 0.022 260);
-  --ink-muted: oklch(60% 0.018 260);
+  --ink: oklch(25% 0.024 232);
+  --ink-secondary: oklch(39% 0.025 226);
+  --ink-muted: oklch(59% 0.022 220);
 
-  --border-subtle: oklch(88.5% 0.012 255);
-  --border-strong: oklch(78% 0.018 255);
+  --border-subtle: oklch(79% 0.025 205 / 0.46);
+  --border-strong: oklch(68% 0.036 196 / 0.58);
 
-  --accent: oklch(58% 0.18 250);
-  --accent-soft: oklch(94% 0.035 250);
-  --accent-strong: oklch(47% 0.2 250);
+  --accent: oklch(53% 0.075 168);
+  --accent-soft: oklch(91% 0.055 168 / 0.68);
+  --accent-strong: oklch(42% 0.085 170);
 
-  --success: oklch(64% 0.14 145);
-  --warning: oklch(74% 0.15 75);
-  --danger: oklch(60% 0.18 28);
-  --info: oklch(62% 0.13 220);
-  --thinking: oklch(62% 0.16 285);
+  --success: oklch(59% 0.11 145);
+  --warning: oklch(69% 0.12 76);
+  --danger: oklch(58% 0.16 28);
+  --info: oklch(58% 0.09 220);
+  --thinking: oklch(56% 0.08 190);
 
-  --reviewer-lore: oklch(58% 0.16 285);
-  --reviewer-pacing: oklch(62% 0.13 220);
-  --reviewer-tone: oklch(70% 0.14 75);
-  --reviewer-character: oklch(64% 0.14 145);
-  --reviewer-causality: oklch(60% 0.18 28);
-
+  --reviewer-lore: oklch(56% 0.11 300);
+  --reviewer-pacing: oklch(58% 0.09 220);
+  --reviewer-tone: oklch(69% 0.12 76);
+  --reviewer-character: oklch(59% 0.11 145);
+  --reviewer-causality: oklch(58% 0.16 28);
   --reviewer-ai-tone: var(--reviewer-tone);
   --reviewer-user: var(--success);
 
+  --theme-artwork: url('/themes/monet-water.jpg');
+  --theme-artwork-position: center center;
+  --theme-artwork-opacity: 1;
+  --theme-panel: oklch(99% 0.01 210 / 0.36);
+  --theme-panel-strong: oklch(99% 0.008 210 / 0.7);
+  --theme-sidebar-panel: oklch(99% 0.008 210 / 0.14);
+  --theme-line: oklch(58% 0.04 202 / 0.22);
+  --theme-user-bubble: oklch(99% 0.008 190 / 0.54);
+  --theme-send: oklch(52% 0.065 172);
+  --theme-send-hover: oklch(46% 0.074 172);
+
   --font-display: var(--font-serif);
   --font-label: var(--font-body);
-
   --fs-hero: 34px;
   --fs-display: 22px;
   --fs-heading: 17px;
   --fs-body: 14px;
   --fs-small: 12px;
   --fs-label: 10px;
-
   --gold: var(--warning);
 }
 
-[data-theme="ink"], [data-theme="dark"] {
-  color-scheme: dark;
-  --bg: oklch(18% 0.018 260);
-  --bg-subtle: oklch(21% 0.018 260);
-  --bg-elevated: oklch(24% 0.018 260);
-  --surface-glass: oklch(25% 0.018 260 / 0.78);
-  --surface-paper: oklch(26% 0.018 82);
-
-  --ink: oklch(93% 0.01 255);
-  --ink-secondary: oklch(78% 0.012 255);
-  --ink-muted: oklch(63% 0.012 255);
-
-  --border-subtle: oklch(32% 0.014 260);
-  --border-strong: oklch(42% 0.016 260);
-
-  --accent: oklch(70% 0.13 250);
-  --accent-soft: oklch(30% 0.06 250);
-  --accent-strong: oklch(78% 0.14 250);
-
-  --thinking: oklch(73% 0.12 285);
-
-  --reviewer-lore: oklch(73% 0.12 285);
-  --reviewer-pacing: oklch(74% 0.1 220);
-  --reviewer-tone: oklch(78% 0.12 75);
-  --reviewer-character: oklch(72% 0.11 145);
-  --reviewer-causality: oklch(70% 0.14 28);
-
-  --reviewer-ai-tone: var(--reviewer-tone);
-  --reviewer-user: oklch(72% 0.11 145);
-  --gold: oklch(78% 0.12 75);
-}
-
-[data-theme="paper"] {
+[data-theme="sketch"] {
   color-scheme: light;
-  --bg: oklch(97.8% 0.018 86);
-  --bg-subtle: oklch(95.8% 0.02 86);
-  --bg-elevated: oklch(99.1% 0.012 86);
-  --surface-glass: oklch(100% 0.006 86 / 0.76);
-  --surface-paper: oklch(98.5% 0.024 86);
 
-  --ink: oklch(24% 0.03 55);
-  --ink-secondary: oklch(43% 0.027 55);
-  --ink-muted: oklch(58% 0.025 55);
+  --bg: oklch(97.2% 0.012 82);
+  --bg-subtle: oklch(95.4% 0.016 78);
+  --bg-elevated: oklch(98.6% 0.01 82);
+  --surface-glass: oklch(99% 0.008 82 / 0.67);
+  --surface-paper: oklch(98% 0.017 82 / 0.88);
 
-  --border-subtle: oklch(87% 0.023 82);
-  --border-strong: oklch(76% 0.03 82);
+  --ink: oklch(27% 0.018 70);
+  --ink-secondary: oklch(42% 0.018 70);
+  --ink-muted: oklch(61% 0.016 70);
 
-  --accent: oklch(55% 0.12 42);
-  --accent-soft: oklch(92.5% 0.045 42);
-  --accent-strong: oklch(44% 0.14 42);
-  --success: oklch(57% 0.11 182);
-  --warning: oklch(72% 0.14 80);
-  --danger: oklch(58% 0.17 28);
-  --thinking: oklch(57% 0.12 305);
-}
+  --border-subtle: oklch(71% 0.018 72 / 0.42);
+  --border-strong: oklch(57% 0.025 70 / 0.58);
 
-[data-theme="graphite"] {
-  color-scheme: dark;
-  --bg: oklch(23% 0.01 255);
-  --bg-subtle: oklch(26% 0.012 255);
-  --bg-elevated: oklch(30% 0.012 255);
-  --surface-glass: oklch(31% 0.012 255 / 0.76);
-  --surface-paper: oklch(32% 0.014 255);
+  --accent: oklch(54% 0.12 35);
+  --accent-soft: oklch(91% 0.045 35 / 0.68);
+  --accent-strong: oklch(45% 0.13 35);
+  --thinking: oklch(56% 0.12 35);
 
-  --ink: oklch(94% 0.008 250);
-  --ink-secondary: oklch(78% 0.01 250);
-  --ink-muted: oklch(64% 0.01 250);
-
-  --border-subtle: oklch(38% 0.012 255);
-  --border-strong: oklch(48% 0.016 255);
-
-  --accent: oklch(72% 0.11 205);
-  --accent-soft: oklch(35% 0.045 205);
-  --accent-strong: oklch(82% 0.12 205);
-  --success: oklch(72% 0.1 155);
-  --warning: oklch(76% 0.12 82);
-  --danger: oklch(70% 0.13 15);
-  --thinking: oklch(76% 0.12 285);
+  --theme-artwork: url('/themes/sketch-redhead.jpg');
+  --theme-artwork-position: center center;
+  --theme-artwork-opacity: 1;
+  --theme-panel: oklch(99% 0.008 82 / 0.37);
+  --theme-panel-strong: oklch(99% 0.008 82 / 0.72);
+  --theme-sidebar-panel: oklch(99% 0.008 82 / 0.08);
+  --theme-line: oklch(43% 0.018 70 / 0.23);
+  --theme-user-bubble: oklch(99% 0.008 82 / 0.57);
+  --theme-send: oklch(54% 0.12 35);
+  --theme-send-hover: oklch(47% 0.13 35);
 }
 
 body {
+  position: relative;
   background: var(--bg);
   color: var(--ink);
   font-family: var(--font-body);
   font-size: var(--fs-body);
   line-height: 1.7;
-  position: relative;
 }
 
-/* Paper texture (Light) */
 body::before {
   content: none;
 }

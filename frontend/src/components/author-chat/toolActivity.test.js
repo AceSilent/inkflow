@@ -64,6 +64,13 @@ describe('tool activity presentation', () => {
     ])).toBe('已调用 2 个工具')
   })
 
+  it('names a single chapter read instead of reporting an anonymous file count', () => {
+    const t = key => key === 'authorChat.toolReadDocument' ? '已阅读《{name}》' : key
+    expect(toolActivitySummary([
+      { type: 'tool_call', name: 'read_file', argsPreview: '{"relative_path":"04_Drafts/第十七章 · 低吟.md"}' },
+    ], t)).toBe('已阅读《第十七章 · 低吟》')
+  })
+
   it('extracts readable activity lines from tool arguments', () => {
     expect(toolActivityLine({
       name: 'read_file',

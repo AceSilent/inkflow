@@ -6,12 +6,13 @@ import fs from 'fs'
 import path from 'path'
 import {
   getSettings,
+  isConfiguredModel,
   mergeMaskedApiKeys,
   saveSettings,
   maskApiKey,
   type AppSettings,
 } from '../src/routes/settings.js'
-import { saveSettingsBody } from '../src/routes/schemas.js'
+import { authorModelSelectionBody, saveSettingsBody } from '../src/routes/schemas.js'
 
 const TEST_DIR = path.join(process.cwd(), '__test_settings_routes__')
 
@@ -47,6 +48,11 @@ describe('Settings Zod Validation', () => {
     }
     const result = saveSettingsBody.safeParse(body)
     expect(result.success).toBe(true)
+  })
+
+  it('validates the focused author-model switch payload', () => {
+    expect(authorModelSelectionBody.safeParse({ authorModel: 'codex/gpt-5.6-sol' }).success).toBe(true)
+    expect(authorModelSelectionBody.safeParse({ authorModel: '' }).success).toBe(false)
   })
 
   it('should accept settings with empty providers', () => {
@@ -143,6 +149,25 @@ describe('Settings Zod Validation', () => {
 })
 
 describe('Settings Save/Load with Validated Data', () => {
+  it('recognizes only provider-qualified models configured in settings', () => {
+    const settings: AppSettings = {
+      providers: [{
+        id: 'codex',
+        name: 'Codex',
+        baseUrl: '',
+        apiKey: '',
+        models: ['gpt-5.6-sol', 'gpt-5.5'],
+        kind: 'codex-oauth',
+      }],
+      authorModel: 'codex/gpt-5.6-sol',
+      editorModel: '',
+    }
+
+    expect(isConfiguredModel(settings, 'codex/gpt-5.5')).toBe(true)
+    expect(isConfiguredModel(settings, 'gpt-5.5')).toBe(false)
+    expect(isConfiguredModel(settings, 'codex/not-configured')).toBe(false)
+  })
+
   it('should save validated settings and reload them', () => {
     const settings: AppSettings = {
       providers: [{

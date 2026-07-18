@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Loader, ChevronDown, ChevronRight, FileText, Pencil, SquareTerminal } from 'lucide-react'
+import { BookOpen, Loader, ChevronDown, ChevronRight, FileText, Pencil, PencilLine, Sparkles, SquareTerminal } from 'lucide-react'
 import { useI18n } from '../../hooks/useI18n'
 import { messageDisplayParts, visibleUserMessageContent } from './messageUtils'
 import { groupAssistantSegments, toolActivityLine, toolActivitySummary } from './toolActivity'
@@ -13,6 +13,9 @@ export function ToolActivityGroup({ segments }) {
   const { t } = useI18n()
   const [expanded, setExpanded] = useState(false)
   const running = segments.some(segment => segment.status === 'running')
+  const allReading = segments.every(segment => ['read_file', 'read_outline', 'read_graph', 'browse_examples'].includes(segment.name))
+  const allEditing = segments.every(segment => ['save_draft', 'save_outline', 'save_lore'].includes(segment.name))
+  const ActivityIcon = allReading ? BookOpen : allEditing ? PencilLine : SquareTerminal
 
   return (
     <div className={`tool-activity-group ${expanded ? 'is-expanded' : ''} ${running ? 'is-running' : ''}`}>
@@ -22,7 +25,7 @@ export function ToolActivityGroup({ segments }) {
         onClick={() => setExpanded(value => !value)}
         aria-expanded={expanded}
       >
-        <SquareTerminal size={14} />
+        <ActivityIcon size={14} />
         <span>{toolActivitySummary(segments, t)}</span>
         {running && <Loader size={12} className="tool-activity-spinner" />}
         <ChevronDown size={14} className="tool-activity-chevron" />
@@ -50,7 +53,7 @@ export function ThinkingCard({ segment, t }) {
   const live = !!segment.streaming
   const [expanded, setExpanded] = useState(false)
   const len = segment.text?.length ?? 0
-  const token = live ? 'thinking...' : 'thought'
+  const token = live ? t('authorChat.thinkingLive') : t('authorChat.thinkingDone')
   return (
     <div className={`thinking-card ${live ? 'is-live' : ''}`}>
       <button
@@ -60,9 +63,9 @@ export function ThinkingCard({ segment, t }) {
         aria-expanded={expanded}
       >
         {expanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
-        <span className="thinking-pulse-dot" aria-hidden="true" />
+        <Sparkles size={13} className="thinking-spark" aria-hidden="true" />
         <span className={`thinking-token ${live ? 'agent-shimmer' : ''}`}>{token}</span>
-        <span className="thinking-detail">{t('authorChat.thinkingCollapsed')} · {len} {t('authorChat.chars')}</span>
+        {!live && <span className="thinking-detail">{t('authorChat.thinkingCollapsed')} · {len} {t('authorChat.chars')}</span>}
       </button>
       {expanded && (
         <div className="thinking-body">

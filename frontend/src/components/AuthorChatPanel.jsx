@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react'
-import { Send, Trash2, Plus, X, FileText, PenTool, Loader, Square, Paperclip, Gamepad2, Check, ArrowDown } from 'lucide-react'
+import { Send, Trash2, Plus, X, FileText, PenTool, Loader, Square, Paperclip, Gamepad2, Check, ArrowDown, ChevronDown, Sparkles } from 'lucide-react'
 import { useI18n } from '../hooks/useI18n'
 import { MessageBubble, OptionsCard, ThinkingCard, ToolActivityGroup } from './author-chat/MessageCards'
 import { MarkdownContent } from './author-chat/MarkdownContent'
@@ -22,6 +22,7 @@ import {
 } from './author-chat/messageUtils'
 import { fetchChatHistory } from './author-chat/historyLoader'
 import { parseSlashCommand } from './author-chat/slashCommands'
+import { presentCompactResult } from './author-chat/compactResult'
 import { agentLifecycleState } from './author-chat/agentState'
 import { groupAssistantSegments } from './author-chat/toolActivity'
 import { buildAuthorChatRequestBody } from './author-chat/requestPayload'
@@ -237,7 +238,7 @@ function AgentStateBadge({ phase }) {
   const state = agentLifecycleState(phase)
   return (
     <span className="agent-state-badge">
-      <span className="agent-state-dot" />
+      <Sparkles size={13} className="agent-state-spark" aria-hidden="true" />
       <span className="agent-state-copy">
         <span className="agent-state-token agent-shimmer">{state.token}</span>
         <span className="agent-state-label">{state.label}</span>
@@ -383,7 +384,7 @@ export function NoBookChatStarter({
           onModeChange={onModeChange}
           onAttachFile={() => fileInputRef.current?.click()}
         />
-        <ChatComposerBody attachments={attachments} onRemoveAttachment={removeAttachment}>
+        <ChatComposerBody attachments={attachments} onRemoveAttachment={removeAttachment} addToast={addToast}>
           <textarea
             value={draft}
             onChange={event => setDraft(event.target.value)}
@@ -432,13 +433,116 @@ function AttachmentPreview({ attachments, onRemove }) {
   )
 }
 
-export function ChatComposerBody({ attachments = [], onRemoveAttachment, children }) {
+export function ChatComposerBody({ attachments = [], onRemoveAttachment, addToast, children }) {
+  const { t } = useI18n()
+  const [settings, setSettings] = useState(null)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [savingModel, setSavingModel] = useState(false)
+  const switcherRef = useRef(null)
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/v1/settings')
+      .then(response => response.ok ? response.json() : null)
+      .then(settings => {
+        if (cancelled || !settings) return
+        setSettings(settings)
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
+
+  useEffect(() => {
+    if (!menuOpen) return undefined
+    const handlePointerDown = event => {
+      if (!switcherRef.current?.contains(event.target)) setMenuOpen(false)
+    }
+    const handleKeyDown = event => {
+      if (event.key === 'Escape') setMenuOpen(false)
+    }
+    document.addEventListener('pointerdown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [menuOpen])
+
+  const authorModel = settings?.authorModel || ''
+  const authorModelName = authorModel ? authorModel.split('/').pop() : t('authorChat.currentModel')
+  const providers = (settings?.providers || []).filter(provider => provider.models?.length)
+
+  const selectAuthorModel = async nextModel => {
+    if (!nextModel || nextModel === authorModel || savingModel) {
+      setMenuOpen(false)
+      return
+    }
+    setSavingModel(true)
+    try {
+      const response = await fetch('/api/v1/settings/author-model', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ authorModel: nextModel }),
+      })
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      setSettings(current => ({ ...current, authorModel: nextModel }))
+      setMenuOpen(false)
+      addToast?.(t('authorChat.modelSwitched').replace('{model}', nextModel.split('/').pop()), 'success')
+    } catch {
+      addToast?.(t('authorChat.modelSwitchFailed'), 'error')
+    } finally {
+      setSavingModel(false)
+    }
+  }
+
   return (
     <div className="chat-composer-body">
       {attachments.length > 0 && (
         <AttachmentPreview attachments={attachments} onRemove={onRemoveAttachment} />
       )}
       {children}
+      <div className="chat-composer-meta">
+        <div className="chat-model-switcher" ref={switcherRef}>
+          <button
+            type="button"
+            className="chat-model-trigger"
+            onClick={() => setMenuOpen(open => !open)}
+            aria-label={t('authorChat.switchModel')}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            disabled={providers.length === 0 || savingModel}
+          >
+            <span>{t('authorChat.authorIdentity').replace('{model}', authorModelName)}</span>
+            {savingModel ? <Loader size={11} className="spin" /> : <ChevronDown size={11} />}
+          </button>
+          {menuOpen && (
+            <div className="chat-model-menu" role="menu" aria-label={t('authorChat.switchModel')}>
+              {providers.map(provider => (
+                <div className="chat-model-provider" key={provider.id}>
+                  <div className="chat-model-provider-name">{provider.name}</div>
+                  {provider.models.map(model => {
+                    const selector = `${provider.id}/${model}`
+                    const active = selector === authorModel
+                    return (
+                      <button
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={active}
+                        className={`chat-model-option ${active ? 'active' : ''}`}
+                        key={selector}
+                        onClick={() => selectAuthorModel(selector)}
+                      >
+                        <span>{model}</span>
+                        {active && <Check size={12} />}
+                      </button>
+                    )
+                  })}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
@@ -947,16 +1051,13 @@ export function AuthorChatPanel({
       const r = await fetch(`/api/v1/books/${bookId}/session/compact`, { method: 'POST' })
       const data = await r.json().catch(() => ({}))
       if (!r.ok) throw new Error(data.error || data.message || 'compact failed')
-      const hasCount = data.compactedCount !== undefined && data.compactedCount !== null
-      const notice = hasCount
-        ? `${t('authorChat.manualCompact').replace('{count}', data.compactedCount)}${data.message ? ` (${data.message})` : ''}`
-        : (data.message || t('authorChat.manualCompact').replace('{count}', '0'))
+      const presentation = presentCompactResult(data, t)
       setMessages(prev => [...prev, {
         id: `manual_compact_${Date.now()}`,
         role: 'system_notice',
-        content: notice,
+        content: presentation.content,
       }])
-      addToast?.(data.message || t('authorChat.contextCompactedSuccess'), 'success')
+      addToast?.(presentation.toast, presentation.tone)
     } catch (e) {
       addToast?.(t('authorChat.compactFailed').replace('{message}', e.message), 'error')
     }
@@ -1127,7 +1228,7 @@ export function AuthorChatPanel({
           onAttachFile={() => fileInputRef.current?.click()}
           disabled={loading}
         />
-        <ChatComposerBody attachments={attachments} onRemoveAttachment={removeAttachment}>
+        <ChatComposerBody attachments={attachments} onRemoveAttachment={removeAttachment} addToast={addToast}>
           <textarea
             ref={inputRef}
             value={input}

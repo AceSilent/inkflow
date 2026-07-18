@@ -36,8 +36,10 @@ export async function sessionRoutes(app: FastifyInstance, opts: SessionRoutesOpt
       if (history.length === 0) {
         return {
           ok: true,
+          status: 'noop',
+          reason: 'no_history',
           compactedCount: 0,
-          message: 'No history to compact',
+          decayedCount: 0,
         }
       }
 
@@ -66,14 +68,33 @@ export async function sessionRoutes(app: FastifyInstance, opts: SessionRoutesOpt
         'utf8',
       )
 
+      const compactStatus = processed.decision.compactStatus
+      const status = compactStatus === 'compacted'
+        ? 'compacted'
+        : compactStatus === 'failed' || compactStatus === 'blocked'
+          ? 'unavailable'
+          : processed.decision.decayedCount > 0
+            ? 'decayed'
+            : 'noop'
+      const reason = compactStatus === 'failed'
+        ? 'compact_failed'
+        : compactStatus === 'blocked'
+          ? 'breaker_tripped'
+          : status === 'decayed'
+            ? 'warm_history_decayed'
+            : status === 'noop'
+              ? 'no_cold_history'
+              : undefined
+
       return {
         ok: true,
+        status,
+        ...(reason ? { reason } : {}),
         compactedCount: processed.decision.compactedCount,
         decayedCount: processed.decision.decayedCount,
         tier: processed.decision.tier,
         action: processed.decision.action,
         breakerTripped: processed.decision.breakerTripped,
-        ...(processed.decision.compactedCount === 0 ? { message: 'No cold history to compact' } : {}),
       }
     } catch (e) {
       return reply.code(400).send({ error: String((e as Error).message) })

@@ -96,6 +96,13 @@ function labelFromArgs(argsPreview) {
   return loose?.[1] || ''
 }
 
+function literaryDocumentLabel(label) {
+  return label
+    .replace(/\.(md|markdown|txt)$/i, '')
+    .replace(/^\d+[-_]/, '')
+    .trim()
+}
+
 function isReadTool(segment) {
   return READ_TOOLS.has(segment.name)
 }
@@ -147,6 +154,13 @@ export function groupAssistantSegments(segments = []) {
 export function toolActivitySummary(segments = [], t) {
   const count = segments.length
   if (count === 0) return formatWithCount('authorChat.toolCalled', count, t)
+  if (count === 1 && segments[0].name === 'read_file') {
+    const label = literaryDocumentLabel(labelFromArgs(segments[0].argsPreview))
+    if (label) {
+      const template = t?.('authorChat.toolReadDocument') || '已阅读《{name}》'
+      return template.replace('{name}', label)
+    }
+  }
   if (segments.every(isReadTool)) return formatWithCount('authorChat.toolExplored', count, t)
   if (segments.every(isEditTool)) return formatWithCount('authorChat.toolEdited', count, t)
   return formatWithCount('authorChat.toolCalled', count, t)
