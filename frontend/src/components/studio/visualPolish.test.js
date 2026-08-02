@@ -112,14 +112,27 @@ describe('visual polish direction', () => {
     expect(chapterWorkspace.indexOf('chapter-workspace-reviewbar')).toBeLessThan(chapterWorkspace.indexOf('chapter-workspace-editor'))
     expect(cssBlock('.chapter-workspace')).toContain('grid-template-rows: auto auto minmax(0, 1fr) auto;')
     expect(indexCss).toMatch(/\.chapter-workspace-reviewbar \{[\s\S]*backdrop-filter:/)
-    expect(indexCss).toMatch(/\.chapter-workspace-review-actions \{[\s\S]*justify-content:\s*flex-end;/)
+    expect(indexCss).toMatch(/\.chapter-workspace-review-actions \{[\s\S]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\);/)
+  })
+
+  it('keeps chapter commands visible while the manuscript scrolls independently', () => {
+    expect(chapterWorkspace).toContain('readerPositionRef')
+    expect(chapterWorkspace).toContain('handleReaderScroll')
+    expect(chapterWorkspace).toContain('ref={previewRef}')
+    expect(chapterWorkspace).toContain('ref={editorRef}')
+    expect(chapterWorkspace).toContain('chapter-workspace-action-divider')
+    expect(cssBlock('.chapter-workspace')).toContain('height: 100%;')
+    expect(cssBlock('.chapter-workspace')).toContain('overflow: hidden;')
+    expect(cssBlock('.chapter-history-trigger')).toContain('border: 0;')
+    expect(cssBlock('.chapter-history-trigger')).toContain('background: transparent;')
   })
 
   it('keeps lore and characters visible in the right workspace tabs', () => {
     expect(workspaceTabs).toContain("id: 'lore'")
     expect(workspaceTabs).toContain('workspace.lore')
-    expect(locales).toContain("'workspace.lore': '设定'")
-    expect(locales).toContain("'workspace.lore': 'Lore'")
+    expect(locales).toContain("'workspace.lore': '设定集'")
+    expect(locales).toContain("'workspace.lore': 'Lore Book'")
+    expect(workspaceTabs).toContain('workspace-tab-shortcuts')
   })
 
   it('restores inline chapter annotations and review feed in the studio chapter workspace', () => {
@@ -128,7 +141,8 @@ describe('visual polish direction', () => {
     expect(chapterWorkspace).toContain('CommentFeed')
     expect(chapterWorkspace).toContain('/annotations')
     expect(chapterWorkspace).toContain('/send-annotations')
-    expect(chapterWorkspace).toContain('/author-chat/${bookId}/send')
+    expect(chapterWorkspace).toContain('autoSend: true')
+    expect(chapterWorkspace).not.toContain('/author-chat/${bookId}/send')
     expect(chapterWorkspace).toContain('chapter-workspace-reader')
     expect(chapterWorkspace).toContain('chapter-workspace-inspector')
     expect(chapterWorkspace).toContain("rootSelector: '.chapter-workspace-preview'")

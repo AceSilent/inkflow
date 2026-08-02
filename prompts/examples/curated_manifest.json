@@ -245,6 +245,24 @@
           "recommended_chapter_types": ["开局受压", "宗教/税粮冲突", "基层动员", "火器/制度破局"]
         }
       ]
+    },
+    {
+      "id": "light_novel_fanfiction",
+      "title": "轻小说 / 衍生 / 日常喜剧",
+      "description": "群像互动、生活动作、轻喜剧节奏、社群对话与长篇连载推进。",
+      "works": [
+        {
+          "id": "no-intention-to-be-trainer",
+          "title": "我真没想当训练家啊",
+          "author": "北川南海",
+          "study_status": "personal_study",
+          "source_note": "用户本机导入的个人研读文本，不随应用或仓库分发。",
+          "tags": ["light_novel", "fanfiction", "pokemon", "slice_of_life", "comedy", "dialogue", "character_chemistry"],
+          "learn": ["人物之间的熟稔感", "生活动作与对话结合", "轻喜剧停顿与回收", "群像和长期连载推进"],
+          "avoid": ["复用宝可梦专名或桥段", "把网络梗当作通用幽默", "用游戏设定替代人物关系"],
+          "recommended_chapter_types": ["日常相处", "群聊与多人对话", "比赛前后", "关系推进", "轻松过渡章"]
+        }
+      ]
     }
   ]
 }

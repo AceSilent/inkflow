@@ -2,36 +2,7 @@ import path from 'path'
 import { safeReadJson } from '../utils/file-io.js'
 import { collectChapters } from '../utils/outline.js'
 import type { EditorialContext } from './pipeline.js'
-
-function formatCharacters(data: unknown): string {
-  if (!data || typeof data !== 'object') return ''
-  const entries = Object.entries(data as Record<string, unknown>)
-  if (entries.length === 0) return ''
-  const lines: string[] = []
-  for (const [name, val] of entries) {
-    if (val && typeof val === 'object') {
-      const summary = JSON.stringify(val)
-      lines.push(`- ${name}: ${summary.length > 400 ? summary.slice(0, 400) + '…' : summary}`)
-    } else {
-      lines.push(`- ${name}: ${String(val)}`)
-    }
-  }
-  return lines.join('\n')
-}
-
-function formatWorldLore(data: unknown): string {
-  if (!data) return ''
-  if (typeof data === 'string') return data
-  if (typeof data !== 'object') return String(data)
-  const entries = Object.entries(data as Record<string, unknown>)
-  if (entries.length === 0) return ''
-  return entries
-    .map(([k, v]) => {
-      const body = typeof v === 'string' ? v : JSON.stringify(v)
-      return `- **${k}**: ${body.length > 500 ? body.slice(0, 500) + '…' : body}`
-    })
-    .join('\n')
-}
+import { readLoreDocument, renderLoreDocumentForPrompt } from '../lore/lore-document.js'
 
 function formatOutlineContext(outline: unknown, chapterId: string): string {
   const chapters = collectChapters(outline)
@@ -64,14 +35,14 @@ function formatStyleProfile(data: unknown): string {
 }
 
 export function loadEditorialContextByDir(bookDir: string, chapterId: string): Pick<EditorialContext, 'charactersInfo' | 'worldLore' | 'outlineContext' | 'styleProfile'> {
-  const characters = safeReadJson(path.join(bookDir, '01_Global_Settings', 'characters.json'))
-  const worldLore = safeReadJson(path.join(bookDir, '01_Global_Settings', 'world_lore.json'))
+  const characters = readLoreDocument(bookDir, 'characters')
+  const worldLore = readLoreDocument(bookDir, 'world_setting')
   const outline = safeReadJson(path.join(bookDir, '02_Outlines', 'outline.json'))
   const styleProfile = safeReadJson(path.join(bookDir, '01_Global_Settings', 'style_profile.json'))
 
   return {
-    charactersInfo: formatCharacters(characters),
-    worldLore: formatWorldLore(worldLore),
+    charactersInfo: renderLoreDocumentForPrompt(characters),
+    worldLore: renderLoreDocumentForPrompt(worldLore),
     outlineContext: formatOutlineContext(outline, chapterId),
     styleProfile: formatStyleProfile(styleProfile),
   }

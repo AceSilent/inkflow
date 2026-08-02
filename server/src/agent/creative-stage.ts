@@ -1,5 +1,6 @@
 import fs from 'fs'
 import path from 'path'
+import { readLoreDocument } from '../lore/lore-document.js'
 
 export type CreativeStageId =
   | 'story_bible'
@@ -105,8 +106,10 @@ export function getCreativeStageStatus(bookDir: string): CreativeStageStatus {
 
   const metrics = {
     hasStyleProfile: existsNonEmpty(styleProfileFile),
-    hasCharacters: existsNonEmpty(charactersFile),
-    hasWorldLore: existsNonEmpty(worldLoreFile),
+    hasCharacters: existsNonEmpty(charactersFile) &&
+      readLoreDocument(bookDir, 'characters').entries.some(entry => entry.status !== 'deprecated'),
+    hasWorldLore: existsNonEmpty(worldLoreFile) &&
+      readLoreDocument(bookDir, 'world_setting').entries.some(entry => entry.status !== 'deprecated'),
     hasOutline: existsNonEmpty(outlineFile),
     plotNodes: countCollection(graph?.nodes),
     plotEdges: countCollection(graph?.edges),

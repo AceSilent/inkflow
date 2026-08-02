@@ -41,6 +41,22 @@ export function shouldReplaceDraftAfterSave(savedContent, currentDraft) {
   return normalizeChapterContent(savedContent) === normalizeChapterContent(currentDraft)
 }
 
+export function captureReaderPosition({ scrollTop = 0, scrollHeight = 0, clientHeight = 0 } = {}) {
+  const maxScrollTop = Math.max(0, Number(scrollHeight) - Number(clientHeight))
+  const top = Math.min(maxScrollTop, Math.max(0, Number(scrollTop) || 0))
+
+  return {
+    top,
+    ratio: maxScrollTop > 0 ? top / maxScrollTop : 0,
+  }
+}
+
+export function readerScrollTopForPosition(position, { scrollHeight = 0, clientHeight = 0 } = {}) {
+  const maxScrollTop = Math.max(0, Number(scrollHeight) - Number(clientHeight))
+  const ratio = Math.min(1, Math.max(0, Number(position?.ratio) || 0))
+  return maxScrollTop * ratio
+}
+
 export function canEditLoadedChapter(hasLoaded, loadError) {
   return Boolean(hasLoaded) && !loadError
 }

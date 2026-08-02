@@ -1,6 +1,7 @@
 // Unified comment feed — renders editorial review issues + user annotations
 // with filter chips (all / open / high / mine) and severity-descending sort.
 import { useState, useMemo } from 'react'
+import { Loader, Play } from 'lucide-react'
 
 const REVIEWER_COLOR = {
   '设定审稿': 'var(--reviewer-lore)',
@@ -47,7 +48,18 @@ function reviewerEffectivePass(fb) {
   return fb.pass_status !== false && maxSeverity < 4 && weightedSeverity < 8
 }
 
-export function CommentFeed({ review, annotations, onJump, onAdopt, onIgnore, onDelete, onSendBatch }) {
+export function CommentFeed({
+  review,
+  annotations,
+  onJump,
+  onAdopt,
+  onIgnore,
+  onDelete,
+  onProcess,
+  onSendBatch,
+  processingAnnotationId = null,
+  processingDisabled = false,
+}) {
   const [filter, setFilter] = useState('all')  // all | open | high | mine
   const feedbacks = review?.feedbacks ?? []
   const failedReviewers = feedbacks.filter(fb => !reviewerEffectivePass(fb))
@@ -150,8 +162,17 @@ export function CommentFeed({ review, annotations, onJump, onAdopt, onIgnore, on
       </div>
 
       {openAnnotationCount > 0 && (
-        <button className="btn btn-sm" style={{ width: '100%', marginBottom: 8 }} onClick={onSendBatch}>
-          发送 {openAnnotationCount} 条待处理给作者
+        <button
+          className="btn btn-sm"
+          type="button"
+          style={{ width: '100%', marginBottom: 8 }}
+          onClick={onSendBatch}
+          disabled={processingDisabled}
+        >
+          {processingAnnotationId === '__batch__' && <Loader size={12} className="anim-spin" />}
+          {processingAnnotationId === '__batch__'
+            ? '正在处理'
+            : `全部进行处理（${openAnnotationCount}）`}
         </button>
       )}
 
@@ -171,10 +192,23 @@ export function CommentFeed({ review, annotations, onJump, onAdopt, onIgnore, on
           {it.quote && <div className="comment-quote">&quot;{it.quote}&quot;</div>}
           <div className="comment-text">{it.text}</div>
           <div className="comment-actions">
-            {it.quote && <button onClick={() => onJump?.(it.quote)}>定位原文</button>}
-            {it.kind === 'review' && <button onClick={() => onAdopt?.(it)}>采纳</button>}
-            {it.kind === 'review' && <button onClick={() => onIgnore?.(it.id)}>忽略</button>}
-            {it.kind === 'annotation' && <button onClick={() => onDelete?.(it.id)}>删除</button>}
+            {it.quote && <button type="button" onClick={() => onJump?.(it.quote)}>定位原文</button>}
+            {it.kind === 'review' && <button type="button" onClick={() => onAdopt?.(it)}>采纳</button>}
+            {it.kind === 'review' && <button type="button" onClick={() => onIgnore?.(it.id)}>忽略</button>}
+            {it.kind === 'annotation' && it.status === 'open' && (
+              <button
+                type="button"
+                className="comment-action-process"
+                onClick={() => onProcess?.(it.id)}
+                disabled={processingDisabled}
+              >
+                {processingAnnotationId === it.id
+                  ? <Loader size={11} className="anim-spin" />
+                  : <Play size={11} />}
+                {processingAnnotationId === it.id ? '处理中' : '进行处理'}
+              </button>
+            )}
+            {it.kind === 'annotation' && <button type="button" onClick={() => onDelete?.(it.id)} disabled={processingDisabled}>删除</button>}
           </div>
         </div>
       ))}

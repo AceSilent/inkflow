@@ -21,7 +21,7 @@ import { createTipHooks } from '../stats/tips/index.js'
 import { composeHooks, type ToolHooks } from '../tools/base-tool.js'
 import { createSnapshot } from '../snapshots/snapshots.js'
 import { processContext, type ContextMode } from '../context/decision.js'
-import { createSessionState, updateSessionStateAfterToolCall } from '../context/session-state.js'
+import { createSessionState, renderLoadedSkillsForPrompt, updateSessionStateAfterToolCall } from '../context/session-state.js'
 import { ensureObservationMigration, recordToolObservation, renderWorkingSetForPrompt } from '../context/observation-ledger.js'
 import { buildMemoryContext } from '../memory/context-builder.js'
 import { loadBreakerState, resetBreaker } from '../context/circuit-breaker.js'
@@ -29,7 +29,7 @@ import { getModelContextWindow, evaluateBudgetTier } from '../context/model-wind
 import { appendRunEvent, createRunId, loadRecentRuns, type RunTimelineEvent, type RunEventStatus } from '../runs/run-timeline.js'
 import { clearAuthorChatSession, loadAuthorChatConfig, persistUsageBestEffort, previewValue } from './author-chat-support.js'
 import { ReasoningSegmentAccumulator } from './stream-segments.js'
-import { buildTransientWorkbenchStateMessages, persistAuthorChatTurn, prepareHistoryForAuthorChatSend, stripTransientWorkbenchStateMessages, type AuthorChatTurnStatus } from './author-chat-persistence.js'
+import { buildTransientSkillStateMessages, buildTransientWorkbenchStateMessages, persistAuthorChatTurn, prepareHistoryForAuthorChatSend, stripTransientWorkbenchStateMessages, type AuthorChatTurnStatus } from './author-chat-persistence.js'
 import { renderUserMessageForModel, summarizeAttachmentsForCheckpoint, type ChatAttachment } from './chat-attachments.js'
 import { createProvider, openAIProviderOptionsForConfig, type ProviderProgressEvent } from '../llm/provider.js'
 import { extractMemories, ingestExtracted } from '../memory/extractor.js'
@@ -464,6 +464,7 @@ export async function authorChatRoutes(app: FastifyInstance) {
             error: String((obsErr as any)?.message ?? obsErr).slice(0, 500),
           }, false)
         }
+        const sessionState = createSessionState(replayableHistory)
         const recentObservations = renderWorkingSetForPrompt(dataDir, bookId)
         const memoryContext = buildMemoryContext(dataDir, bookId)
         timeline('memory_context_done', '长期记忆已载入', 'done', {
@@ -475,9 +476,11 @@ export async function authorChatRoutes(app: FastifyInstance) {
         // unanswered user message would corrupt subsequent reasoning).
         // Also strip UI-only metadata (`thinking`, `segments`, `status`).
         const workbenchStateMessages = buildTransientWorkbenchStateMessages(recentObservations)
+        const skillStateMessages = buildTransientSkillStateMessages(renderLoadedSkillsForPrompt(sessionState))
         const history: ModelMessage[] = [
           ...replayableHistory.map(toModelMessage),
           ...workbenchStateMessages,
+          ...skillStateMessages,
         ]
         persistAssistant = (status: AuthorChatTurnStatus = 'incomplete') => {
           persistAuthorChatTurn({
@@ -512,7 +515,6 @@ export async function authorChatRoutes(app: FastifyInstance) {
         // context_log.jsonl even when it's a no-op, so the debug panel has a
         // consistent audit trail.
         const bookDir = path.join(dataDir, bookId)
-        const sessionState = createSessionState()
         const usageFile = path.join(bookDir, 'last_usage.json')
         const lastUsage = fs.existsSync(usageFile)
           ? (() => {
@@ -569,8 +571,8 @@ export async function authorChatRoutes(app: FastifyInstance) {
         // (there are no named SSE events in this stream).
         sse({ type: 'context', decision })
 
-        // Session-state hook: update recentReads / activeSkill after each tool
-        // call so cold-compact on the NEXT turn has accurate workbench state.
+        // Session-state hook: update recent reads / active skills during this
+        // turn. The next request rebuilds the same state from persisted segments.
         // Composed alongside the existing stats + tips hooks.
         const sessionStateHook: ToolHooks = {
           async afterToolCall(name, args, result) {

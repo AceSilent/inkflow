@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { PanelRightClose, PanelRightOpen } from 'lucide-react'
+import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from 'lucide-react'
 import { CreativeFlowNotch } from '../CreativeFlowNotch'
 import { AtmosphereBackdrop } from './AtmosphereBackdrop'
 import { WorkspacePane } from './WorkspacePane'
 import { WorkspaceTabs } from './WorkspaceTabs'
 import { studioChromeLayout } from './studioChrome'
+import { loadLibraryCollapsed, saveLibraryCollapsed } from './libraryLayout'
 import { WORKSPACE_MIN_WIDTH, clampWorkspaceWidth, isWorkspaceTab, loadWorkspaceLayout, saveWorkspaceLayout } from './workspaceLayout'
 import { useI18n } from '../../hooks/useI18n'
 
@@ -57,6 +58,7 @@ export function StudioShell({
   const resizeCleanupRef = useRef(null)
   const [viewportWidth, setViewportWidth] = useState(() => currentViewportWidth())
   const [layout, setLayout] = useState(() => loadNormalizedWorkspaceLayout(bookId))
+  const [libraryCollapsed, setLibraryCollapsed] = useState(() => loadLibraryCollapsed())
 
   useEffect(() => {
     setLayout(loadNormalizedWorkspaceLayout(bookId))
@@ -106,6 +108,10 @@ export function StudioShell({
   const handleToggleWorkspace = useCallback(() => {
     persistLayout({ collapsed: !layout.collapsed })
   }, [layout.collapsed, persistLayout])
+
+  const handleToggleLibrary = useCallback(() => {
+    setLibraryCollapsed(prev => saveLibraryCollapsed(!prev))
+  }, [])
 
   const handleTabChange = useCallback((tabId) => {
     persistLayout({ activeTab: tabId })
@@ -184,14 +190,32 @@ export function StudioShell({
 
   return (
     <div
-      className="studio-shell"
+      className={`studio-shell ${libraryCollapsed ? 'library-collapsed' : ''}`}
       data-theme={theme}
-      style={{ '--studio-titlebar-left-inset': `${studioChromeLayout.titlebarLeftInset}px` }}
+      style={{
+        '--studio-titlebar-left-inset': `${studioChromeLayout.titlebarLeftInset}px`,
+        '--studio-titlebar-control-y': `${studioChromeLayout.titlebarControlCenterY}px`,
+      }}
     >
       <AtmosphereBackdrop theme={theme} />
 
       <header className="studio-titlebar">
         <div className="studio-titlebar-drag-region" />
+        <div className="studio-titlebar-leading-actions">
+          <button
+            className="studio-titlebar-button library-titlebar-toggle"
+            data-window-drag-block
+            type="button"
+            onClick={handleToggleLibrary}
+            title={libraryCollapsed ? t('sidebar.expand') : t('sidebar.collapse')}
+            aria-label={libraryCollapsed ? t('sidebar.expand') : t('sidebar.collapse')}
+            aria-expanded={!libraryCollapsed}
+          >
+            {libraryCollapsed
+              ? <PanelLeftOpen size={studioChromeLayout.panelIconSize} />
+              : <PanelLeftClose size={studioChromeLayout.panelIconSize} />}
+          </button>
+        </div>
         <div className="studio-titlebar-context" aria-hidden={!currentBook}>
           <span>{currentBook?.title || currentBook?.book_id || ''}</span>
           {currentBook && currentChapterTitle && <span className="studio-titlebar-context-separator">/</span>}
@@ -207,13 +231,15 @@ export function StudioShell({
               title={layout.collapsed ? t('workspace.expand') : t('workspace.collapse')}
               aria-label={layout.collapsed ? t('workspace.expand') : t('workspace.collapse')}
             >
-              {layout.collapsed ? <PanelRightOpen size={16} /> : <PanelRightClose size={16} />}
+              {layout.collapsed
+                ? <PanelRightOpen size={studioChromeLayout.panelIconSize} />
+                : <PanelRightClose size={studioChromeLayout.panelIconSize} />}
             </button>
           </div>
         )}
       </header>
 
-      <aside className="studio-library">
+      <aside className="studio-library" aria-hidden={libraryCollapsed}>
         {sidebar}
       </aside>
 

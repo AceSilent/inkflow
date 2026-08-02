@@ -65,6 +65,14 @@ interface CuratedWork {
   categoryTitle?: string
 }
 
+const GENRE_ALIASES: Record<string, string[]> = {
+  xuanhuan_jianghu: ['xuanhuan_jianghu', 'xuanhuan', '玄幻', '江湖', '玄幻江湖'],
+  xianxia: ['xianxia', '仙侠', '修仙', '传统修仙', '志怪'],
+  mystery_occult: ['mystery_occult', 'mystery', 'occult', '悬疑', '推理', '灵异', '民俗', '克系', '恐怖'],
+  western_fantasy_lordship: ['western_fantasy_lordship', 'western_fantasy', 'fantasy', '西幻', '奇幻', '领主', '建设'],
+  light_novel_fanfiction: ['light_novel_fanfiction', 'light_novel', 'fanfiction', '轻小说', '衍生', '同人', '日常喜剧'],
+}
+
 function parseFrontmatter(content: string): { meta: Record<string, string>; body: string } {
   const match = content.match(/^---\s*\n([\s\S]*?)\n---\s*\n/)
   if (!match) return { meta: {}, body: content.trim() }
@@ -143,16 +151,104 @@ function discoverAllChapterExamples(dataDir: string): ExampleMeta[] {
   ]
 }
 
-export function discoverCuratedExemplars(manifestPath = CURATED_MANIFEST_PATH): CuratedWork[] {
+function searchableChapterMetadata(example: ExampleMeta): string {
+  return [
+    example.id,
+    example.title,
+    example.category,
+    example.workId,
+    example.workTitle,
+    example.author,
+    example.relativePath,
+    ...example.tags,
+  ].filter(Boolean).join('\n').toLowerCase()
+}
+
+function queryTerms(query: string | undefined): string[] {
+  if (!query?.trim()) return []
+  return Array.from(new Set(
+    query
+      .toLowerCase()
+      .split(/[\s,，、;；|/]+/)
+      .map(term => term.trim())
+      .filter(Boolean),
+  ))
+}
+
+function textQueryScore(text: string, terms: string[]): number {
+  if (terms.length === 0) return 1
+  return terms.reduce((score, term) => score + (text.includes(term) ? 1 : 0), 0)
+}
+
+function chapterQueryScore(example: ExampleMeta, terms: string[]): number {
+  if (terms.length === 0) return 1
+  const metadata = searchableChapterMetadata(example)
+  const body = fs.readFileSync(example.filePath, 'utf-8').toLowerCase()
+  return terms.reduce((score, term) => {
+    if (metadata.includes(term)) return score + 4
+    if (body.includes(term)) return score + 1
+    return score
+  }, 0)
+}
+
+function chapterMatchesWork(example: ExampleMeta, work: string): boolean {
+  const normalized = work.trim().toLowerCase()
+  if (!normalized) return true
+  return [example.workId, example.workTitle]
+    .filter(Boolean)
+    .some(value => value!.toLowerCase().includes(normalized))
+}
+
+function normalizeGenre(genre: string | undefined): string {
+  const normalized = genre?.trim().toLowerCase()
+  if (!normalized) return ''
+  for (const [id, aliases] of Object.entries(GENRE_ALIASES)) {
+    if (aliases.some(alias => alias.toLowerCase() === normalized)) return id
+  }
+  return normalized
+}
+
+function discoverCuratedCategories(manifestPath = CURATED_MANIFEST_PATH): CuratedCategory[] {
   if (!fs.existsSync(manifestPath)) return []
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as CuratedManifest
-  return manifest.categories.flatMap(category =>
+  return manifest.categories
+}
+
+export function discoverCuratedExemplars(manifestPath = CURATED_MANIFEST_PATH): CuratedWork[] {
+  return discoverCuratedCategories(manifestPath).flatMap(category =>
     category.works.map(work => ({
       ...work,
       categoryId: category.id,
       categoryTitle: category.title,
     })),
   )
+}
+
+function buildChapterGenreLookup(): Map<string, string> {
+  const lookup = new Map<string, string>()
+  for (const work of discoverCuratedExemplars()) {
+    if (!work.categoryId) continue
+    lookup.set(work.id.toLowerCase(), work.categoryId)
+    lookup.set(work.title.toLowerCase(), work.categoryId)
+  }
+  return lookup
+}
+
+function chapterGenre(example: ExampleMeta, lookup: Map<string, string>): string {
+  const mapped = [example.workId, example.workTitle]
+    .filter(Boolean)
+    .map(value => lookup.get(value!.toLowerCase()))
+    .find(Boolean)
+  if (mapped) return mapped
+
+  const category = example.category.toLowerCase()
+  if (category === 'xianxia') return 'xianxia'
+  if (category === 'fantasy') return 'western_fantasy_lordship'
+  return normalizeGenre(category)
+}
+
+function chapterMatchesGenre(example: ExampleMeta, genre: string, lookup: Map<string, string>): boolean {
+  return !genre || chapterGenre(example, lookup) === genre
 }
 
 function renderExample(example: ExampleMeta): string {
@@ -192,74 +288,231 @@ function renderChapterCatalogEntry(example: ExampleMeta): string {
   ].filter(Boolean).join('\n')
 }
 
+function renderLocalWorkEntry(examples: ExampleMeta[], genreLookup: Map<string, string>): string {
+  const first = examples[0]
+  const categories = Array.from(new Set(examples.map(item => item.category))).join(', ')
+  const genres = Array.from(new Set(examples.map(item => chapterGenre(item, genreLookup)))).join(', ')
+  const tags = Array.from(new Set(examples.flatMap(item => item.tags))).slice(0, 12).join(', ')
+  return [
+    `- ${first.workTitle || first.workId || first.title}${first.author ? ` / ${first.author}` : ''}`,
+    `  work: ${first.workId || first.workTitle || first.id}`,
+    `  chapters: ${examples.length}`,
+    `  genres: ${genres || 'uncategorized'}`,
+    `  categories: ${categories || 'general'}`,
+    `  tags: ${tags || 'none'}`,
+    `  browse: browse_examples(scope='chapter', work='${first.workId || first.workTitle || first.id}')`,
+  ].join('\n')
+}
+
 export const browseExamplesTool: ToolDefinition = {
   name: 'browse_examples',
   description: [
-    '按 category/tags 检索范文。',
-    '默认返回短范文正反例；scope=curated 时返回高质量候选书目；scope=chapter 时返回章节级范文目录项，再用 read_exemplar_chapter 按 id 阅读整章。',
+    '自主浏览和检索写作范文库。',
+    '不需要关键词也能按书籍题材阅读：scope=genres 查看题材，scope=library + genre 查看该题材下的本机作品，scope=chapter + genre/work 浏览章节，再用 read_exemplar_chapter 按 id 阅读整章。',
+    'scope=curated 返回候选书目；scope=micro 返回短范文正反例。category 表示微型案例分类，genre 表示小说题材，不要混用。',
+    '章节结果支持 offset 分页，不限制 Agent 只能浏览书库开头或只读一章。',
     '用于学习写作手法，不用于照搬原文。',
   ].join('\n'),
   parameters: z.object({
-    scope: z.enum(['micro', 'curated', 'chapter']).optional().describe("检索范围：'micro' 返回短例子；'curated' 返回高质量候选书目；'chapter' 返回章节级范文目录。默认 micro。"),
-    category: z.string().optional().describe("示例分类，如 'ai_tone'、'opening'、'dialogue'、'battle'。留空则搜索全部。"),
+    scope: z.enum(['micro', 'genres', 'curated', 'library', 'chapter']).optional().describe("检索范围：'micro' 返回短例子；'genres' 返回题材目录；'curated' 返回候选书目；'library' 返回本机已有作品；'chapter' 返回可阅读全文的章节目录。默认 micro。"),
+    genre: z.string().optional().describe("小说题材，如 'xianxia' / '仙侠'、'mystery_occult' / '悬疑灵异'、'western_fantasy_lordship' / '西幻领主'。可不提供 query，直接按题材浏览作品和章节。"),
+    category: z.string().optional().describe("微型案例或章节元数据分类，如 'ai_tone'、'opening'、'dialogue'、'battle'。小说大类请使用 genre。"),
     tags: z.array(z.string()).optional().describe("标签过滤，如 ['camera_blocking', 'webnovel_clean']。任一标签命中即可。"),
-    limit: z.number().int().min(1).max(12).optional().describe('最多返回几条，短例默认 3，章节目录默认 5。'),
+    work: z.string().optional().describe("作品 id 或书名，可部分匹配。例如 'seventy-two-transformations' 或 '地煞七十二变'。"),
+    query: z.string().min(1).optional().describe('可选关键词。章节范围会检索作品、作者、章节名、标签和正文内容；只想按题材翻阅时不要填写。'),
+    offset: z.number().int().min(0).optional().describe('从第几条结果开始，用于继续翻阅目录。默认 0。'),
+    limit: z.number().int().min(1).max(30).optional().describe('本页最多返回几条，短例默认 3，书库和章节目录默认 8。'),
   }),
   permissionLevel: 'read',
   category: '范文库',
-  execute: async ({ scope, category, tags, limit }, ctx) => {
+  execute: async ({ scope, genre, category, tags, work, query, offset, limit }, ctx) => {
     const normalizedTags = new Set((tags ?? []).map((t: string) => t.toLowerCase()))
     const normalizedCategory = typeof category === 'string' ? category.toLowerCase() : ''
+    const normalizedGenre = normalizeGenre(genre)
+    const terms = queryTerms(query)
+    const start = offset ?? 0
+    const needsChapterLibrary = ['genres', 'library', 'chapter'].includes(scope ?? 'micro')
+    const allChapters = needsChapterLibrary ? discoverAllChapterExamples(ctx.dataDir) : []
+    const genreLookup = needsChapterLibrary ? buildChapterGenreLookup() : new Map<string, string>()
+
+    if (scope === 'genres') {
+      const categories = discoverCuratedCategories()
+      return [
+        '范文题材目录。local 表示本机可立即阅读全文的作品和章节数；candidates 只表示候选书目。',
+        '选择题材后使用 browse_examples(scope=\'library\', genre=\'题材 id\')；无需关键词。',
+        '',
+        ...categories.map(item => {
+          const localExamples = allChapters.filter(example =>
+            chapterMatchesGenre(example, item.id, genreLookup))
+          const localWorks = new Set(localExamples.map(example =>
+            example.workId || example.workTitle || example.id))
+          return [
+            `- ${item.title}`,
+            `  genre: ${item.id}`,
+            `  local: ${localWorks.size} works / ${localExamples.length} chapters`,
+            `  candidates: ${item.works.length}`,
+            `  focus: ${item.description}`,
+            `  browse: browse_examples(scope='library', genre='${item.id}')`,
+          ].join('\n')
+        }),
+      ].join('\n')
+    }
+
     if (scope === 'curated') {
-      const works = discoverCuratedExemplars()
+      const matchingWorks = discoverCuratedExemplars()
+        .filter(work => !normalizedGenre || work.categoryId === normalizedGenre)
         .filter(work => !normalizedCategory ||
           work.categoryId?.toLowerCase() === normalizedCategory ||
           work.categoryTitle?.toLowerCase().includes(normalizedCategory) ||
           work.tags.some(tag => tag.toLowerCase() === normalizedCategory))
         .filter(work => normalizedTags.size === 0 || work.tags.some(tag => normalizedTags.has(tag.toLowerCase())))
-        .slice(0, limit ?? 8)
+        .map(item => ({
+          item,
+          score: textQueryScore([
+            item.id,
+            item.title,
+            item.author,
+            item.categoryId,
+            item.categoryTitle,
+            ...item.tags,
+            ...item.learn,
+          ].filter(Boolean).join('\n').toLowerCase(), terms),
+        }))
+        .filter(entry => terms.length === 0 || entry.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .map(entry => entry.item)
+      const works = matchingWorks.slice(start, start + (limit ?? 8))
 
       if (works.length === 0) {
-        return 'No matching curated exemplars. Try category: xuanhuan_jianghu, xianxia, mystery_occult, western_fantasy_lordship.'
+        return '候选书目中没有匹配项。可去掉 category/tags，或先用 scope=genres 查看题材目录。注意：候选书目不含章节正文。'
       }
 
       return [
         '高质量候选范文清单使用原则：这里只是书目和学习目标，不含正文。需要章节时由用户本机 personal_study 库或合法来源导入；阅读后只学结构、节奏、信息分配和文风取舍。',
+        `结果 ${start + 1}-${start + works.length} / ${matchingWorks.length}${start + works.length < matchingWorks.length ? `；继续浏览使用 offset=${start + works.length}` : ''}`,
         '',
         ...works.map(renderCuratedEntry),
       ].join('\n')
     }
 
-    if (scope === 'chapter') {
-      const examples = discoverAllChapterExamples(ctx.dataDir)
-        .filter(e => !category || e.category === category)
+    if (scope === 'library') {
+      const workChapters = allChapters
+        .filter(e => !work || chapterMatchesWork(e, work))
+        .filter(e => chapterMatchesGenre(e, normalizedGenre, genreLookup))
+      const strictlyFiltered = workChapters
+        .filter(e => !normalizedCategory || e.category.toLowerCase() === normalizedCategory)
         .filter(e => normalizedTags.size === 0 || e.tags.some(t => normalizedTags.has(t.toLowerCase())))
-        .slice(0, limit ?? 5)
+      const filtersRelaxed = strictlyFiltered.length === 0 &&
+        workChapters.length > 0 &&
+        Boolean(normalizedCategory || normalizedTags.size > 0)
+      const chapterPool = filtersRelaxed ? workChapters : strictlyFiltered
+      const groupedWithScores = Array.from(
+        chapterPool
+          .reduce((map, example) => {
+            const key = example.workId || example.workTitle || example.id
+            const existing = map.get(key) ?? []
+            existing.push(example)
+            map.set(key, existing)
+            return map
+          }, new Map<string, ExampleMeta[]>()),
+      )
+        .map(([, examples]) => ({
+          examples,
+          score: terms.length === 0
+            ? 1
+            : Math.max(...examples.map(example => chapterQueryScore(example, terms))),
+        }))
+      const hasQueryMatches = groupedWithScores.some(entry => entry.score > 0)
+      const grouped = groupedWithScores
+        .filter(entry => !hasQueryMatches || entry.score > 0)
+        .sort((a, b) => {
+          if (a.score !== b.score) return b.score - a.score
+          const personalRank = Number(b.examples[0].license === 'personal_study') - Number(a.examples[0].license === 'personal_study')
+          if (personalRank !== 0) return personalRank
+          return (a.examples[0].workTitle || a.examples[0].workId || a.examples[0].title)
+            .localeCompare(b.examples[0].workTitle || b.examples[0].workId || b.examples[0].title, 'zh-CN')
+        })
+        .map(entry => entry.examples)
+      const page = grouped.slice(start, start + (limit ?? 8))
 
-      if (examples.length === 0) {
-        return 'No matching chapter exemplars. Try category: fantasy, historical, action, relationship, satire, wuxia, social.'
+      if (page.length === 0) {
+        return '本机书库没有可用作品。请先检查 personal_study/exemplars 是否存在章节文件；scope=curated 只能查看候选书目，不能读取正文。'
       }
 
       return [
-        '章节级范文库使用原则：先浏览目录，必要时再用 read_exemplar_chapter 读取整章；如果相同 id 的范文已经在当前上下文或工作集里，不要重复读取。',
-        '只学习结构、节奏、信息分配和场景推进；不要复用具体句子、设定或桥段。',
+        '本机章节范文库。你可以自主选择作品、继续分页、检索章节并阅读全文；不需要用户另行授权。',
+        filtersRelaxed ? '指定的 category/tags 没有命中，已自动放宽这些过滤条件。' : '',
+        terms.length > 0 && !hasQueryMatches ? '关键词没有直接命中；下面列出当前可用作品，供继续按作品浏览。' : '',
+        `结果 ${start + 1}-${start + page.length} / ${grouped.length}${start + page.length < grouped.length ? `；继续浏览使用 offset=${start + page.length}` : ''}`,
         '',
-        ...examples.map(renderChapterCatalogEntry),
-      ].join('\n')
+        ...page.map(examples => renderLocalWorkEntry(examples, genreLookup)),
+      ].filter(Boolean).join('\n')
     }
 
-    const examples = discoverExamples()
+    if (scope === 'chapter') {
+      const workExamples = allChapters
+        .filter(e => !work || chapterMatchesWork(e, work))
+        .filter(e => chapterMatchesGenre(e, normalizedGenre, genreLookup))
+      const strictlyFiltered = workExamples
+        .filter(e => !normalizedCategory || e.category.toLowerCase() === normalizedCategory)
+        .filter(e => normalizedTags.size === 0 || e.tags.some(t => normalizedTags.has(t.toLowerCase())))
+      let filtersRelaxed = false
+      let scoredExamples = strictlyFiltered
+        .map(example => ({ example, score: chapterQueryScore(example, terms) }))
+        .filter(entry => terms.length === 0 || entry.score > 0)
+
+      if (scoredExamples.length === 0 && terms.length > 0 && (normalizedCategory || normalizedTags.size > 0)) {
+        filtersRelaxed = true
+        scoredExamples = workExamples
+          .map(example => ({ example, score: chapterQueryScore(example, terms) }))
+          .filter(entry => entry.score > 0)
+      }
+
+      const matchingExamples = scoredExamples
+        .sort((a, b) => {
+          if (a.score !== b.score) return b.score - a.score
+          const personalRank = Number(b.example.license === 'personal_study') - Number(a.example.license === 'personal_study')
+          if (personalRank !== 0) return personalRank
+          return a.example.filePath.localeCompare(b.example.filePath, 'zh-CN')
+        })
+        .map(entry => entry.example)
+      const examples = matchingExamples.slice(start, start + (limit ?? 8))
+
+      if (examples.length === 0) {
+        return '章节正文中没有匹配项。请缩短 query、改用一两个具体词，或先用 scope=library 查看本机有哪些作品。只有成功调用 read_exemplar_chapter 才算真正读过章节。'
+      }
+
+      return [
+        '章节级范文库。可以按当前任务自主翻阅、比较或连续阅读；相同 id 已在当前上下文时优先复用，除非需要逐字核对或续读比较。',
+        '只学习结构、节奏、信息分配和场景推进；不要复用具体句子、设定或桥段。',
+        filtersRelaxed ? '指定的 category/tags 没有命中，已自动放宽这些过滤条件，并按正文关键词相关度排序。' : '',
+        `结果 ${start + 1}-${start + examples.length} / ${matchingExamples.length}${start + examples.length < matchingExamples.length ? `；继续浏览使用 offset=${start + examples.length}` : ''}`,
+        '',
+        ...examples.map(renderChapterCatalogEntry),
+      ].filter(Boolean).join('\n')
+    }
+
+    const matchingMicroExamples = discoverExamples()
       .filter(e => !category || e.category === category)
       .filter(e => normalizedTags.size === 0 || e.tags.some(t => normalizedTags.has(t.toLowerCase())))
-      .slice(0, limit ?? 3)
+      .map(example => ({
+        example,
+        score: textQueryScore(
+          fs.readFileSync(example.filePath, 'utf-8').toLowerCase(),
+          terms,
+        ),
+      }))
+      .filter(entry => terms.length === 0 || entry.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map(entry => entry.example)
+    const examples = matchingMicroExamples.slice(start, start + (limit ?? 3))
 
     if (examples.length === 0) {
-      return 'No matching examples. Try category: ai_tone, opening, dialogue, battle.'
+      return '微型正反例中没有匹配项。可尝试 category: ai_tone、opening、dialogue、battle，或去掉 query。微型案例不等于章节范文。'
     }
 
     return [
-      '范文库使用原则：只学习结构、节奏、信息分配和修订方向；不要复用具体句子、设定或桥段。',
-      '',
+      '以下是内置微型正反例，不是书库章节全文。只学习结构、节奏、信息分配和修订方向；不要把它描述成“读过某本小说的范文章节”。',
       ...examples.map(renderExample),
     ].join('\n\n---\n\n')
   },
@@ -269,7 +522,8 @@ export const readExemplarChapterTool: ToolDefinition = {
   name: 'read_exemplar_chapter',
   description: [
     '按 id 读取章节级范文全文。',
-    '只在当前任务确实需要章节级参照、且该 id 尚未出现在上下文时调用。',
+    'Agent 可按当前写作、比较研究、续读或风格校准需要自主调用；没有固定阅读章数。',
+    '同一 id 已在当前上下文时优先复用已有观察，需要逐字核对或重新比较时可以再次读取。',
     '用于学习结构、节奏、信息分配和场景推进；不得照搬具体句子、设定或桥段。',
   ].join('\n'),
   parameters: z.object({
@@ -280,7 +534,7 @@ export const readExemplarChapterTool: ToolDefinition = {
   execute: async ({ id }, ctx) => {
     const example = discoverAllChapterExamples(ctx.dataDir).find(item => item.id === id)
     if (!example) {
-      return `Error: unknown exemplar chapter id ${id}. Use browse_examples(scope='chapter') first.`
+      return `错误：未找到章节范文 ${id}。请先用 browse_examples(scope='chapter') 获取有效 id。`
     }
     const { body } = parseFrontmatter(fs.readFileSync(example.filePath, 'utf-8'))
     return [

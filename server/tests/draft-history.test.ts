@@ -5,9 +5,15 @@ import path from 'path'
 import {
   archivePriorDraft,
   chapterIdFromFilename,
+  compareDraftVersions,
+  contentHash,
   listDraftHistory,
+  listDraftVersions,
   MAX_DRAFT_VERSIONS,
   DRAFT_HISTORY_DIR,
+  DraftRevisionConflictError,
+  restoreDraftVersion,
+  saveDraftRevision,
 } from '../src/tools/draft-history.js'
 
 let tmpDir: string
@@ -93,18 +99,18 @@ describe('archivePriorDraft', () => {
 })
 
 describe('save_draft integration', () => {
-  it('archives the prior draft when save_draft overwrites an existing chapter', async () => {
+  it('records each resulting Agent revision with attribution', async () => {
     const { createAllTools } = await import('../src/tools/index.js')
     const registry = createAllTools()
 
     const longBody = (tag: string) => `# 第一章 ${tag}\n` + '正文内容。'.repeat(200)
 
-    // First save: no archive, file did not previously exist.
+    // First save creates the first attributed revision.
     await registry.execute('save_draft',
       { file_path: 'ch01.md', content: longBody('v1') },
       { bookId, dataDir: tmpDir },
     )
-    expect(listDraftHistory(bookDir(), 'ch01')).toHaveLength(0)
+    expect(listDraftHistory(bookDir(), 'ch01')).toHaveLength(1)
 
     // Second save: prior version should be archived before being overwritten.
     await registry.execute('save_draft',
@@ -112,15 +118,103 @@ describe('save_draft integration', () => {
       { bookId, dataDir: tmpDir },
     )
     const history = listDraftHistory(bookDir(), 'ch01')
-    expect(history).toHaveLength(1)
+    expect(history).toHaveLength(2)
 
     const archivedContent = fs.readFileSync(
-      path.join(bookDir(), DRAFT_HISTORY_DIR, 'ch01', history[0]),
+      path.join(bookDir(), DRAFT_HISTORY_DIR, 'ch01', history[1]),
       'utf-8',
     )
     expect(archivedContent).toContain('v1')
+    const versions = listDraftVersions(bookDir(), 'ch01', draftPath('ch01.md'))
+    expect(versions[0]).toMatchObject({ actor: 'agent', source: 'save_draft', is_current: true })
+    expect(versions[1]).toMatchObject({ actor: 'agent', source: 'save_draft' })
 
     // Live file holds the new version.
     expect(fs.readFileSync(path.join(bookDir(), '04_Drafts', 'ch01.md'), 'utf-8')).toContain('v2')
+  })
+})
+
+describe('attributed draft revisions', () => {
+  it('keeps legacy archives readable without inventing an actor', () => {
+    const historyDir = path.join(bookDir(), DRAFT_HISTORY_DIR, 'ch01')
+    fs.mkdirSync(historyDir, { recursive: true })
+    fs.writeFileSync(path.join(historyDir, '20260731T010203-004Z.md'), '旧稿', 'utf8')
+
+    const versions = listDraftVersions(bookDir(), 'ch01')
+    expect(versions).toHaveLength(1)
+    expect(versions[0]).toMatchObject({
+      actor: 'legacy',
+      source: 'legacy',
+      content_hash: contentHash('旧稿'),
+    })
+  })
+
+  it('records user and Agent saves, computes a real diff, and restores as a new revision', () => {
+    const target = draftPath('ch01.md')
+    const first = saveDraftRevision({
+      bookDir: bookDir(),
+      targetPath: target,
+      content: '第一行\n旧句',
+      actor: 'user',
+      source: 'workbench',
+    })
+    const second = saveDraftRevision({
+      bookDir: bookDir(),
+      targetPath: target,
+      content: '第一行\n新句\n第三行',
+      actor: 'agent',
+      source: 'save_draft',
+      expectedHash: first.content_hash,
+    })
+
+    const diff = compareDraftVersions(bookDir(), 'ch01', first.id, second.id, target)
+    expect(diff).not.toBeNull()
+    expect(diff?.additions).toBe(2)
+    expect(diff?.deletions).toBe(1)
+    expect(diff?.unified_diff).toContain('-旧句')
+    expect(diff?.unified_diff).toContain('+新句')
+
+    const restored = restoreDraftVersion(
+      bookDir(),
+      'ch01',
+      first.id,
+      target,
+      second.content_hash,
+    )
+    expect(restored).toMatchObject({
+      actor: 'user',
+      source: 'restore',
+      restored_from: first.id,
+    })
+    expect(fs.readFileSync(target, 'utf8')).toBe('第一行\n旧句')
+  })
+
+  it('rejects a stale save without changing the live draft', () => {
+    const target = draftPath('ch01.md')
+    const first = saveDraftRevision({
+      bookDir: bookDir(),
+      targetPath: target,
+      content: '版本一',
+      actor: 'user',
+      source: 'workbench',
+    })
+    saveDraftRevision({
+      bookDir: bookDir(),
+      targetPath: target,
+      content: '版本二',
+      actor: 'agent',
+      source: 'save_draft',
+      expectedHash: first.content_hash,
+    })
+
+    expect(() => saveDraftRevision({
+      bookDir: bookDir(),
+      targetPath: target,
+      content: '过期编辑器的内容',
+      actor: 'user',
+      source: 'workbench',
+      expectedHash: first.content_hash,
+    })).toThrow(DraftRevisionConflictError)
+    expect(fs.readFileSync(target, 'utf8')).toBe('版本二')
   })
 })

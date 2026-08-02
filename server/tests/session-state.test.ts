@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { createSessionState, updateSessionStateAfterToolCall } from '../src/context/session-state.js'
+import { buildPersistedSkillStateMessage, createSessionState, renderLoadedSkillsForPrompt, updateSessionStateAfterToolCall } from '../src/context/session-state.js'
 
 describe('session-state', () => {
   it('empty state has no reads + no skill', () => {
     const s = createSessionState()
     expect(s.recentReads).toEqual([])
-    expect(s.activeSkill).toBeNull()
+    expect(s.loadedSkills).toEqual([])
   })
 
   it('read_file call appends to recentReads', () => {
@@ -26,17 +26,67 @@ describe('session-state', () => {
     expect(s.recentReads[4].args.path).toBe('f6')
   })
 
-  it('load_skill sets activeSkill', () => {
+  it('load_skill activates the exact skill_name used by the tool', () => {
     const s = createSessionState()
-    updateSessionStateAfterToolCall(s, 'load_skill', { name: 'iceberg' }, 'skill body here')
-    expect(s.activeSkill?.name).toBe('iceberg')
-    expect(s.activeSkill?.body).toBe('skill body here')
+    updateSessionStateAfterToolCall(s, 'load_skill', { skill_name: 'iceberg_writing' }, 'skill body here')
+    expect(s.loadedSkills[0]?.name).toBe('iceberg_writing')
+    expect(s.loadedSkills[0]?.body).toBe('skill body here')
+  })
+
+  it('rebuilds active skills from the current branch and keeps the latest three', () => {
+    const toolMessage = (skillName: string) => ({
+      role: 'assistant',
+      segments: [{
+        type: 'tool_call',
+        name: 'load_skill',
+        status: 'done',
+        argsPreview: JSON.stringify({ skill_name: skillName }),
+      }],
+    })
+    const s = createSessionState([
+      toolMessage('iceberg_writing'),
+      toolMessage('scene_rhythm'),
+      toolMessage('chapter_edit'),
+      toolMessage('exemplar_study'),
+    ])
+
+    expect(s.loadedSkills.map(skill => skill.name)).toEqual([
+      'exemplar_study',
+      'chapter_edit',
+      'scene_rhythm',
+    ])
+    const prompt = renderLoadedSkillsForPrompt(s)
+    expect(prompt).toContain('不要再次调用 load_skill')
+    expect(prompt).toContain('## exemplar_study')
+    expect(prompt).not.toContain('## iceberg_writing')
+  })
+
+  it('keeps missing-skill advice inside the agent context', () => {
+    const prompt = renderLoadedSkillsForPrompt(createSessionState())
+    expect(prompt).toContain('尚未激活')
+    expect(prompt).toContain('不要建议、要求或提醒用户')
+  })
+
+  it('preserves active skills across manual compaction metadata', () => {
+    const before = createSessionState()
+    updateSessionStateAfterToolCall(before, 'load_skill', { skill_name: 'chapter_edit' }, 'skill body')
+    updateSessionStateAfterToolCall(before, 'load_skill', { skill_name: 'exemplar_study' }, 'study body')
+    const marker = buildPersistedSkillStateMessage(before)
+
+    const restored = createSessionState([
+      { role: 'system', content: '压缩摘要' },
+      marker!,
+    ])
+    expect(restored.loadedSkills.map(skill => skill.name)).toEqual([
+      'exemplar_study',
+      'chapter_edit',
+    ])
   })
 
   it('ignores non-read non-skill tools', () => {
     const s = createSessionState()
     updateSessionStateAfterToolCall(s, 'save_draft', { file_path: 'ch01.md' }, 'saved')
     expect(s.recentReads).toEqual([])
-    expect(s.activeSkill).toBeNull()
+    expect(s.loadedSkills).toEqual([])
   })
 })

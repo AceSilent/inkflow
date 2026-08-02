@@ -5,6 +5,7 @@ const READ_TOOLS = new Set([
   'search_lore',
   'query_unresolved_setups',
   'browse_examples',
+  'read_exemplar_chapter',
   'list_skills',
   'list_files',
   'load_skill',
@@ -25,6 +26,11 @@ const EDIT_TOOLS = new Set([
   'submit_for_review',
 ])
 
+const INTERNAL_ORCHESTRATION_TOOLS = new Set([
+  'list_skills',
+  'load_skill',
+])
+
 const VERBS = {
   read_file: ['authorChat.toolVerbRead', 'Read'],
   read_outline: ['authorChat.toolVerbRead', 'Read'],
@@ -32,6 +38,7 @@ const VERBS = {
   search_lore: ['authorChat.toolVerbSearch', 'Search'],
   query_unresolved_setups: ['authorChat.toolVerbQuery', 'Query'],
   browse_examples: ['authorChat.toolVerbBrowse', 'Browse'],
+  read_exemplar_chapter: ['authorChat.toolVerbStudy', 'Study'],
   list_skills: ['authorChat.toolVerbList', 'List'],
   list_files: ['authorChat.toolVerbList', 'List'],
   load_skill: ['authorChat.toolVerbLoad', 'Load'],
@@ -66,6 +73,11 @@ const ARG_LABEL_FIELDS = [
   'chapterId',
   'title',
   'name',
+  'id',
+  'query',
+  'work',
+  'genre',
+  'category',
 ]
 
 function parseArgsPreview(argsPreview) {
@@ -135,6 +147,7 @@ export function groupAssistantSegments(segments = []) {
 
   for (const segment of segments) {
     if (segment.type === 'tool_call') {
+      if (INTERNAL_ORCHESTRATION_TOOLS.has(segment.name)) continue
       const kind = toolActivityKind(segment)
       if (!currentToolGroup || currentToolGroup.kind !== kind) {
         currentToolGroup = { type: 'tool_group', kind, segments: [] }
@@ -158,6 +171,13 @@ export function toolActivitySummary(segments = [], t) {
     const label = literaryDocumentLabel(labelFromArgs(segments[0].argsPreview))
     if (label) {
       const template = t?.('authorChat.toolReadDocument') || '已阅读《{name}》'
+      return template.replace('{name}', label)
+    }
+  }
+  if (count === 1 && segments[0].name === 'read_exemplar_chapter') {
+    const label = literaryDocumentLabel(labelFromArgs(segments[0].argsPreview))
+    if (label) {
+      const template = t?.('authorChat.toolStudiedExemplar') || '已研读范文《{name}》'
       return template.replace('{name}', label)
     }
   }

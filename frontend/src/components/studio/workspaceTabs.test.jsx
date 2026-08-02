@@ -9,8 +9,9 @@ const labels = {
   'workspace.chapter': '章节',
   'workspace.outline': '大纲',
   'workspace.plot': '剧情图',
-  'workspace.lore': '设定',
+  'workspace.lore': '设定集',
   'workspace.game': '游戏文案',
+  'workspace.shortcuts': '工作区快捷入口',
 }
 
 describe('WorkspaceTabs', () => {
@@ -32,11 +33,12 @@ describe('WorkspaceTabs', () => {
     expect(html).toContain('章节')
     expect(html).toContain('大纲')
     expect(html).toContain('剧情图')
-    expect(html).toContain('设定')
+    expect(html).toContain('设定集')
     expect(html).toContain('游戏文案')
     expect(html).not.toContain('workspace-tab-icon')
     expect(html).toContain('workspace-tab-select')
-    expect(html).toContain('workspace-format-label')
+    expect(html).toContain('workspace-tab-shortcuts')
+    expect(html).toContain('工作区快捷入口')
     expect(html).not.toContain('workspace-flow-slot')
     expect(html).not.toContain('流程图')
   })

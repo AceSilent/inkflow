@@ -7,7 +7,14 @@ import fs from 'fs'
 import path from 'path'
 import { type ToolDefinition } from './base-tool.js'
 import { createBackup, appendAuditLog, withFileLock } from './safety.js'
-import { archivePriorDraft } from './draft-history.js'
+import {
+  LORE_CATEGORIES,
+  mergeLoreDocuments,
+  normalizeLoreDocument,
+  updateLoreDocument,
+  type LoreCategory,
+} from '../lore/lore-document.js'
+import { saveDraftRevision } from './draft-history.js'
 import { ensureDir, safeReadJson } from '../utils/file-io.js'
 import { formatDraftSelfCheck, runDraftSelfCheck } from './draft-self-check.js'
 import { generateLineIds } from '../services/line-id.js'
@@ -246,17 +253,23 @@ export const saveDraftTool: ToolDefinition = {
     // Serialize concurrent writes targeting the SAME draft file. Different
     // chapters still run fully in parallel (lock keyed on absolute path).
     return withFileLock(target, () => {
-      // Archive the prior version into .draft_history/{chapter}/ before the
-      // single .bak gets clobbered. .bak handles "oops, my last write was bad";
-      // .draft_history/ handles "I rewrote ch01 five times, give me version 3
-      // back." Both cheap, both worth keeping.
-      archivePriorDraft(bookDir, target)
-      createBackup(target)
-      fs.writeFileSync(target, content, 'utf-8')
+      const revision = saveDraftRevision({
+        bookDir,
+        targetPath: target,
+        content,
+        actor: 'agent',
+        source: 'save_draft',
+      })
 
       const logFile = path.join(bookDir, 'audit_log.jsonl')
       const relPath = path.posix.join('04_Drafts', baseName)
-      appendAuditLog(logFile, 'save_draft', { file_path: relPath }, `saved ${content.length} chars`, true)
+      appendAuditLog(
+        logFile,
+        'save_draft',
+        { file_path: relPath, revision_id: revision.id },
+        `saved ${content.length} chars`,
+        true,
+      )
 
       const warning = content.length < MIN_REVIEW_DRAFT_CHARS
         ? `\nWarning: 当前草稿 ${content.length} 字，低于送审最低要求 ${MIN_REVIEW_DRAFT_CHARS} 字。可以作为半成品保存，但必须扩写到达标后再调用 submit_to_editorial。`
@@ -265,7 +278,7 @@ export const saveDraftTool: ToolDefinition = {
       const selfCheckMessage = selfCheck.issues.length > 0
         ? `\n\n${formatDraftSelfCheck(selfCheck)}`
         : ''
-      return `Draft saved to ${relPath} (${content.length} chars)${warning}${selfCheckMessage}`
+      return `Draft saved to ${relPath} (${content.length} chars, revision ${revision.id})${warning}${selfCheckMessage}`
     })
   },
 }
@@ -377,27 +390,30 @@ function validateOutlineNode(node: any, where: string): string | null {
 
 export const saveLoreTool: ToolDefinition = {
   name: 'save_lore',
-  description: '保存/更新设定数据。支持 characters 和 world_setting 两个分类。',
+  description: [
+    '新增或更新设定集条目。支持 story_bible（总纲）、world_setting（世界观）和 characters（角色）。',
+    '设定集使用 entries 条目格式；每条包含 id、title、entry_type、status、tags、aliases、content（Markdown）和 updated_at。',
+    '来源明确时可用 source_refs 记录对话、附件、作品文件及小节；不要把整份长文机械复制成单条。',
+    '默认 merge：按稳定 id 更新已有条目并保留其他条目，禁止无意覆盖整册；只有用户明确要求重建设定集时才用 replace。',
+    '已确认事实用 status=confirmed，仍在讨论的内容用 draft，废弃但需留档的内容用 deprecated。',
+  ].join(' '),
   parameters: z.object({
-    category: z.enum(['characters', 'world_setting'])
-      .describe("分类：'characters'（角色库）或 'world_setting'（世界观/设定）"),
-    content_json: z.string().describe('设定数据的 JSON 字符串'),
+    category: z.enum(['story_bible', 'world_setting', 'characters'])
+      .describe("分类：'story_bible'（总纲）、'world_setting'（世界观/设定）或 'characters'（角色库）"),
+    content_json: z.string().describe(
+      '设定 JSON。推荐传单条 entry 或 {schema_version:1, category, revision:0, entries:[...]}；content 字段使用 Markdown。旧式对象会自动迁移为条目。'
+    ),
+    mode: z.enum(['merge', 'replace']).optional()
+      .describe("默认 merge；仅在用户明确要求整册替换时使用 'replace'"),
+    delete_entry_ids: z.array(z.string().min(1).max(128)).max(50).optional()
+      .describe('确认需要删除的条目 id；通常优先标记 deprecated 而不是删除'),
   }),
   permissionLevel: 'write',
   category: '写入',
-  execute: async ({ category, content_json }, ctx) => {
+  execute: async ({ category, content_json, mode, delete_entry_ids }, ctx) => {
     const bookDir = path.join(ctx.dataDir, ctx.bookId)
-    const loreDir = ensureDir(path.join(bookDir, '01_Global_Settings'))
-
-    // File names match what readers (routes/data.ts, tools/search-lore.ts,
-    // feishu/commands.ts, editorial) already look for in 01_Global_Settings/.
-    const fileMap: Record<string, string> = {
-      characters: 'characters.json',
-      world_setting: 'world_lore.json',
-    }
-
-    if (!(category in fileMap)) {
-      return `Error: Unknown category '${category}'. Use 'characters' or 'world_setting'.`
+    if (!LORE_CATEGORIES.includes(category as LoreCategory)) {
+      return `Error: Unknown category '${category}'. Use 'story_bible', 'world_setting', or 'characters'.`
     }
 
     let data: unknown
@@ -407,18 +423,29 @@ export const saveLoreTool: ToolDefinition = {
       return `Error: Invalid JSON — ${e}`
     }
 
-    const target = path.join(loreDir, fileMap[category])
-    // Serialize same-category concurrent writes. Different categories
-    // (characters vs world_setting) still run fully in parallel.
-    return withFileLock(target, () => {
-      createBackup(target)
-      fs.writeFileSync(target, JSON.stringify(data, null, 2), 'utf-8')
-
-      const logFile = path.join(bookDir, 'audit_log.jsonl')
-      appendAuditLog(logFile, 'save_lore', { category }, 'saved', true)
-
-      return `Lore '${category}' saved successfully.`
-    })
+    const loreCategory = category as LoreCategory
+    const incoming = normalizeLoreDocument(loreCategory, data)
+    const deleted = new Set((delete_entry_ids || []).map(String))
+    const saved = await updateLoreDocument(
+      bookDir,
+      loreCategory,
+      current => {
+        const base = mode === 'replace' ? incoming : mergeLoreDocuments(current, incoming)
+        return {
+          ...base,
+          entries: base.entries.filter(entry => !deleted.has(entry.id)),
+        }
+      },
+      {
+        auditTool: 'save_lore',
+        auditArgs: {
+          mode: mode || 'merge',
+          upserted: incoming.entries.map(entry => entry.id),
+          deleted: [...deleted],
+        },
+      },
+    )
+    return `Lore '${category}' saved successfully at revision ${saved.revision} (${saved.entries.length} entries).`
   },
 }
 

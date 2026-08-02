@@ -35,12 +35,19 @@ test('splits cleaned text into chapter markdown files with personal-study metada
       '------章节内容开始-------',
       '第一章七十二变',
       '李老头死了。',
+      '第七卷 倒吊人',
+      '汇报一下成绩',
+      '首订很好，感谢各位。',
+      '第11章月总结兼感谢名单',
+      '普V书友群：测试群',
       '第二章人头面',
       '月光恍若为线条勾勒的恶鬼注入了血肉。',
     ].join('\n'))
     const chapters = splitNovelChapters(cleaned)
     assert.equal(chapters.length, 2)
     assert.equal(chapters[0].title, '第一章七十二变')
+    assert.match(chapters[0].content, /第七卷 倒吊人/)
+    assert.doesNotMatch(chapters[0].content, /汇报一下成绩|首订很好|月总结|书友群/)
 
     const result = writePersonalStudyChapters({
       text: cleaned,
@@ -58,6 +65,31 @@ test('splits cleaned text into chapter markdown files with personal-study metada
     assert.match(first, /license: personal_study/)
     assert.match(first, /work_title: 地煞七十二变/)
     assert.match(first, /李老头死了。/)
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true })
+  }
+})
+
+test('uses enough index digits to keep thousand-chapter works in lexical order', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'novel-cleaner-long-'))
+  try {
+    const chapters = Array.from({ length: 1001 }, (_, index) => [
+      `第${index + 1}章 测试`,
+      `正文 ${index + 1}`,
+    ].join('\n')).join('\n')
+    const result = writePersonalStudyChapters({
+      text: chapters,
+      outputDir: tmpDir,
+      workId: 'long-work',
+      workTitle: '长篇',
+      author: '测试',
+      category: 'fantasy',
+      tags: ['chapter_corpus'],
+    })
+
+    assert.equal(path.basename(result.files[0]), '0001-第1章 测试.md')
+    assert.equal(path.basename(result.files.at(-1)), '1001-第1001章 测试.md')
+    assert.match(fs.readFileSync(result.files[0], 'utf8'), /id: long-work-0001/)
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true })
   }

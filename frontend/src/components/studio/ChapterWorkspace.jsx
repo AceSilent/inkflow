@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Check, Edit3, Loader, RefreshCw, Save, Send, X } from 'lucide-react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Check, Edit3, History, Loader, RefreshCw, Save, Send, X } from 'lucide-react'
+import { ChapterHistoryDialog } from './ChapterHistoryDialog'
 import { AnnotationPopover } from '../workbench/AnnotationPopover'
 import { CommentFeed } from '../workbench/CommentFeed'
 import { buildChapterAskMessage, normalizeChapterAskComment } from '../workbench/chapterAsk'
@@ -8,12 +9,14 @@ import { normalizeReviewPayload } from '../workbench/reviewPayload'
 import { useEditorSelection } from '../workbench/useEditorSelection'
 import {
   canEditLoadedChapter,
+  captureReaderPosition,
   chapterReviewActionLabel,
   chapterReviewStatusLabel,
   chapterWorkspaceKey,
   countCjkAwareWords,
   isDraftDirty,
   normalizeChapterContent,
+  readerScrollTopForPosition,
   shouldApplyChapterResult,
   shouldClearLoadErrorOnLoadStart,
   shouldPreserveDirtyDraft,
@@ -38,14 +41,20 @@ export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast, onAsk
   const [saving, setSaving] = useState(false)
   const [reviewAction, setReviewAction] = useState(null)
   const [sendingAnnotations, setSendingAnnotations] = useState(false)
+  const [processingAnnotationId, setProcessingAnnotationId] = useState(null)
   const [hasLoaded, setHasLoaded] = useState(false)
   const [loadError, setLoadError] = useState(false)
+  const [contentHash, setContentHash] = useState('')
+  const [historyOpen, setHistoryOpen] = useState(false)
   const { selection, setSelection } = useEditorSelection('.chapter-workspace-reader')
   const currentKeyRef = useRef(currentKey)
   const stateKeyRef = useRef('')
   const latestOriginalRef = useRef(original)
   const latestDraftRef = useRef(draft)
   const jumpCleanupRef = useRef(null)
+  const previewRef = useRef(null)
+  const editorRef = useRef(null)
+  const readerPositionRef = useRef({ top: 0, ratio: 0 })
 
   currentKeyRef.current = currentKey
   latestOriginalRef.current = original
@@ -77,9 +86,13 @@ export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast, onAsk
       setSaving(false)
       setReviewAction(null)
       setSendingAnnotations(false)
+      setProcessingAnnotationId(null)
       setHasLoaded(false)
       setLoadError(false)
+      setContentHash('')
+      setHistoryOpen(false)
       setSelection(null)
+      readerPositionRef.current = { top: 0, ratio: 0 }
       return
     }
 
@@ -103,8 +116,12 @@ export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast, onAsk
       setSaving(false)
       setReviewAction(null)
       setSendingAnnotations(false)
+      setProcessingAnnotationId(null)
       setHasLoaded(false)
+      setContentHash('')
+      setHistoryOpen(false)
       setSelection(null)
+      readerPositionRef.current = { top: 0, ratio: 0 }
     }
 
     async function loadChapter() {
@@ -134,6 +151,7 @@ export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast, onAsk
 
         stateKeyRef.current = requestKey
         setOriginal(content)
+        setContentHash(data?.content_hash ?? '')
         setReview(normalizeReviewPayload(reviewData))
         setSelfCheckReview(null)
         setAnnotations(Array.isArray(annotationsData) ? annotationsData : [])
@@ -184,39 +202,88 @@ export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast, onAsk
       ? 'rejected'
       : 'pending'
 
+  useLayoutEffect(() => {
+    if (!hasLoadedCurrent) return
+    const reader = mode === 'edit' ? editorRef.current : previewRef.current
+    if (!reader) return
+    reader.scrollTop = readerScrollTopForPosition(readerPositionRef.current, reader)
+  }, [currentKey, hasLoadedCurrent, mode])
+
+  const captureCurrentReaderPosition = useCallback(() => {
+    const reader = mode === 'edit' ? editorRef.current : previewRef.current
+    if (reader) readerPositionRef.current = captureReaderPosition(reader)
+  }, [mode])
+
+  const handleReaderScroll = useCallback((event) => {
+    readerPositionRef.current = captureReaderPosition(event.currentTarget)
+  }, [])
+
+  const handleStartEditing = useCallback(() => {
+    captureCurrentReaderPosition()
+    setMode('edit')
+  }, [captureCurrentReaderPosition])
+
   const handleCancel = useCallback(() => {
+    captureCurrentReaderPosition()
     setDraft(original)
     setMode('preview')
-  }, [original])
+  }, [captureCurrentReaderPosition, original])
 
   const handleSave = useCallback(async () => {
     if (!bookId || !chapterId || !currentKey || !dirty || saving || !canEdit) return
 
     const content = normalizeChapterContent(draft)
     const requestKey = currentKey
+    captureCurrentReaderPosition()
     setSaving(true)
     try {
       const response = await fetch(`/api/v1/books/${bookId}/chapters/${chapterId}/draft`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ content, expected_hash: contentHash }),
       })
-      if (!response.ok) throw new Error('draft save failed')
+      const body = await response.json().catch(() => null)
+      if (response.status === 409) {
+        setHistoryOpen(true)
+        const conflict = new Error('draft revision conflict')
+        conflict.code = 'DRAFT_REVISION_CONFLICT'
+        throw conflict
+      }
+      if (!response.ok) throw new Error(body?.error ?? 'draft save failed')
       if (!shouldApplyChapterResult(requestKey, currentKeyRef.current)) return
 
       setOriginal(content)
+      setContentHash(body?.content_hash ?? '')
       setSelfCheckReview(null)
       if (shouldReplaceDraftAfterSave(content, latestDraftRef.current)) {
         setDraft(content)
         setMode('preview')
       }
       addToast?.('已保存', 'success')
-    } catch {
-      if (shouldApplyChapterResult(requestKey, currentKeyRef.current)) addToast?.('保存失败', 'error')
+    } catch (error) {
+      if (!shouldApplyChapterResult(requestKey, currentKeyRef.current)) return
+      if (error?.code === 'DRAFT_REVISION_CONFLICT') {
+        addToast?.('正文已被其他操作更新，你的文字仍保留在编辑框中；请查看版本历史', 'info')
+      } else {
+        addToast?.('保存失败', 'error')
+      }
     } finally {
       if (shouldApplyChapterResult(requestKey, currentKeyRef.current)) setSaving(false)
     }
-  }, [addToast, bookId, canEdit, chapterId, currentKey, dirty, draft, saving])
+  }, [addToast, bookId, canEdit, captureCurrentReaderPosition, chapterId, contentHash, currentKey, dirty, draft, saving])
+
+  const handleRevisionRestored = useCallback(async () => {
+    if (!bookId || !chapterId) return
+    const response = await fetch(`/api/v1/books/${bookId}/chapters/${chapterId}`)
+    if (!response.ok) throw new Error('restored chapter load failed')
+    const body = await response.json()
+    const content = normalizeChapterContent(body?.content)
+    setOriginal(content)
+    setDraft(content)
+    setContentHash(body?.content_hash ?? '')
+    setSelfCheckReview(null)
+    setMode('preview')
+  }, [bookId, chapterId])
 
   const handleApprove = useCallback(async () => {
     if (!bookId || !chapterId || reviewControlsDisabled) return
@@ -365,83 +432,72 @@ export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast, onAsk
     addToast?.('已发送到作者对话', 'success')
   }, [addToast, bookId, chapterId, chapterTitle, mode, onAskAuthor, selection, setSelection])
 
-  const refreshAfterAgentAnnotations = useCallback(async () => {
-    const [draftResponse, annotationsResponse, statusResponse, reviewResponse] = await Promise.all([
-      fetch(`/api/v1/books/${bookId}/chapters/${chapterId}`),
-      fetch(`/api/v1/books/${bookId}/chapters/${chapterId}/annotations`).catch(() => null),
-      fetch(`/api/v1/books/${bookId}/chapters/${chapterId}/status`).catch(() => null),
-      fetch(`/api/v1/books/${bookId}/chapters/${chapterId}/reviews`).catch(() => null),
-    ])
-
-    if (draftResponse.ok) {
-      const data = await draftResponse.json()
-      const content = normalizeChapterContent(data?.content)
-      setOriginal(content)
-      setDraft(content)
-      setMode('preview')
+  const handleSendAnnotations = useCallback(async (annotationIds = null) => {
+    if (!bookId || !chapterId || sendingAnnotations || dirty || !canEdit) return
+    if (!onAskAuthor) {
+      addToast?.('作者对话暂不可用', 'error')
+      return
     }
 
-    if (annotationsResponse?.ok) {
-      const nextAnnotations = await annotationsResponse.json().catch(() => [])
-      setAnnotations(Array.isArray(nextAnnotations) ? nextAnnotations : [])
-    }
+    const openIds = annotations
+      .filter(annotation => annotation.status === 'open')
+      .map(annotation => annotation.id)
+    const requestedIds = Array.isArray(annotationIds)
+      ? annotationIds.filter(id => openIds.includes(id))
+      : openIds
+    if (requestedIds.length === 0) return
 
-    if (statusResponse?.ok) {
-      setStatus(await statusResponse.json().catch(() => ({ user_decision: null })))
-    }
-
-    if (reviewResponse?.ok) {
-      setReview(normalizeReviewPayload(await reviewResponse.json().catch(() => null)))
-    }
-  }, [bookId, chapterId])
-
-  const handleSendAnnotations = useCallback(async () => {
-    if (!bookId || !chapterId || openAnnotationCount === 0 || sendingAnnotations) return
-
-    const openIds = annotations.filter(annotation => annotation.status === 'open').map(annotation => annotation.id)
     setSendingAnnotations(true)
+    setProcessingAnnotationId(requestedIds.length === 1 ? requestedIds[0] : '__batch__')
     try {
       const prepResponse = await fetch(`/api/v1/books/${bookId}/chapters/${chapterId}/send-annotations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ annotation_ids: openIds, review_after_revision: 'none' }),
+        body: JSON.stringify({ annotation_ids: requestedIds, review_after_revision: 'none' }),
       })
       const prep = await prepResponse.json().catch(() => null)
       if (!prepResponse.ok || !prep?.prompt) throw new Error(prep?.error ?? 'no prompt')
 
-      const response = await fetch(`/api/v1/author-chat/${bookId}/send`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-        body: JSON.stringify({ message: prep.prompt }),
+      setAnnotations(current => current.map(annotation => (
+        requestedIds.includes(annotation.id)
+          ? {
+              ...annotation,
+              status: 'sent',
+              sent_batch_id: prep.batch_id,
+              sent_at: new Date().toISOString(),
+            }
+          : annotation
+      )))
+      onAskAuthor({
+        message: prep.prompt,
+        bookId,
+        chapterId,
+        chapterTitle,
+        annotationIds: requestedIds,
+        autoSend: true,
       })
-      if (!response.ok || !response.body) throw new Error('author request failed')
-
-      const reader = response.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ''
-      while (true) {
-        const { value, done } = await reader.read()
-        if (done) break
-        buffer += decoder.decode(value, { stream: true })
-        if (buffer.includes('event: done')) break
-      }
-
-      setSelfCheckReview(null)
-      await refreshAfterAgentAnnotations()
-      addToast?.('作者 Agent 已收到待处理问题', 'success')
+      addToast?.(
+        requestedIds.length === 1
+          ? '已开始处理，可在作者对话中查看进度'
+          : '待处理问题已排队，可在作者对话中查看进度',
+        'success',
+      )
     } catch (error) {
       addToast?.(`待处理问题发送失败：${error.message}`, 'error')
     } finally {
       setSendingAnnotations(false)
+      setProcessingAnnotationId(null)
     }
   }, [
     addToast,
     annotations,
     bookId,
+    canEdit,
     chapterId,
-    openAnnotationCount,
-    refreshAfterAgentAnnotations,
+    dirty,
+    onAskAuthor,
     sendingAnnotations,
+    chapterTitle,
   ])
 
   const jumpToQuote = useCallback((quote) => {
@@ -537,25 +593,40 @@ export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast, onAsk
   return (
     <div className="chapter-workspace">
       <header className="chapter-workspace-head">
-        <div>
+        <div className="chapter-workspace-heading">
           <div className="chapter-workspace-kicker">当前章节</div>
           <h2>{chapterTitle}</h2>
+          <div className="chapter-workspace-meta" aria-live="polite">
+            <span>{wordCount} 字/词</span>
+            <span aria-hidden="true">·</span>
+            <span>{saving ? '保存中' : dirty ? '有未保存修改' : '已保存'}</span>
+          </div>
         </div>
         <div className="chapter-workspace-actions">
-          <span className="chapter-workspace-stat">{wordCount} 字/词</span>
+          <button
+            className="chapter-workspace-command chapter-history-trigger"
+            type="button"
+            onClick={() => setHistoryOpen(true)}
+            disabled={!canEdit}
+            title="版本历史"
+            aria-label="版本历史"
+          >
+            <History size={16} />
+          </button>
+          <span className="chapter-workspace-action-divider" aria-hidden="true" />
           {mode === 'preview' ? (
-            <button className="btn btn-secondary btn-sm" type="button" onClick={() => setMode('edit')} disabled={!canEdit}>
-              <Edit3 size={14} />
+            <button className="chapter-workspace-command chapter-edit-command" type="button" onClick={handleStartEditing} disabled={!canEdit}>
+              <Edit3 size={15} />
               编辑
             </button>
           ) : (
             <>
-              <button className="btn btn-ghost btn-sm" type="button" onClick={handleCancel} disabled={saving}>
-                <X size={14} />
+              <button className="chapter-workspace-command chapter-cancel-command" type="button" onClick={handleCancel} disabled={saving}>
+                <X size={15} />
                 取消
               </button>
-              <button className="btn btn-primary btn-sm" type="button" onClick={handleSave} disabled={!dirty || saving || !canEdit}>
-                {saving ? <Loader size={14} className="anim-spin" /> : <Save size={14} />}
+              <button className="chapter-workspace-command chapter-save-command" type="button" onClick={handleSave} disabled={!dirty || saving || !canEdit}>
+                {saving ? <Loader size={15} className="anim-spin" /> : <Save size={15} />}
                 保存
               </button>
             </>
@@ -573,7 +644,7 @@ export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast, onAsk
             <button
               className="chapter-workspace-send-note"
               type="button"
-              onClick={handleSendAnnotations}
+              onClick={() => handleSendAnnotations()}
               disabled={dirty || sendingAnnotations || !canEdit}
               title={dirty ? '保存当前修改后可发送待处理问题' : '把待处理问题发送给作者 Agent'}
             >
@@ -621,14 +692,16 @@ export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast, onAsk
         <div className="chapter-workspace-reader">
           {mode === 'edit' ? (
             <textarea
+              ref={editorRef}
               className="chapter-workspace-editor"
               value={draft}
               onChange={event => setDraft(event.target.value)}
+              onScroll={handleReaderScroll}
               disabled={!canEdit}
               aria-label={`${chapterTitle} 正文`}
             />
           ) : (
-            <article className="chapter-workspace-preview">
+            <article ref={previewRef} className="chapter-workspace-preview" onScroll={handleReaderScroll}>
               {paragraphs.length > 0 ? (
                 paragraphs.map((paragraph, index) => (
                   <p key={index}>{paragraph}</p>
@@ -657,7 +730,10 @@ export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast, onAsk
             onAdopt={handleAdoptReviewIssue}
             onIgnore={handleIgnoreReviewIssue}
             onDelete={handleDeleteAnnotation}
-            onSendBatch={handleSendAnnotations}
+            onProcess={(annotationId) => handleSendAnnotations([annotationId])}
+            onSendBatch={() => handleSendAnnotations()}
+            processingAnnotationId={processingAnnotationId}
+            processingDisabled={dirty || sendingAnnotations || !canEdit}
           />
         </aside>
       </div>
@@ -665,15 +741,15 @@ export function ChapterWorkspace({ bookId, chapter, dataVersion, addToast, onAsk
       {loadError && hasLoadedCurrent && (
         <div className="chapter-workspace-save-state">章节刷新失败，请稍后重试</div>
       )}
-      {!loadError && mode === 'edit' && dirty && (
-        <div className="chapter-workspace-save-state">有未保存修改</div>
-      )}
-      {!loadError && mode === 'preview' && !dirty && canEdit && (
-        <div className="chapter-workspace-save-state">
-          <Check size={12} />
-          已保存 · {chapterReviewStatusLabel(status.user_decision, hasReview)}
-        </div>
-      )}
+      <ChapterHistoryDialog
+        open={historyOpen}
+        bookId={bookId}
+        chapterId={chapterId}
+        currentHash={contentHash}
+        onClose={() => setHistoryOpen(false)}
+        onRestored={handleRevisionRestored}
+        addToast={addToast}
+      />
     </div>
   )
 }

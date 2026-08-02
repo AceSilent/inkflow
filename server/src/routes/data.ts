@@ -15,10 +15,25 @@ import { safeReadJson, writeJson, ensureDir } from '../utils/file-io.js'
 import { collectChapters, findChapterById } from '../utils/outline.js'
 import { outlineBody } from './schemas.js'
 import { loadStats } from '../stats/tool-stats.js'
-import { archivePriorDraft } from '../tools/draft-history.js'
-import { createBackup } from '../tools/safety.js'
+import {
+  compareDraftVersions,
+  contentHash,
+  DraftRevisionConflictError,
+  listDraftVersions,
+  restoreDraftVersion,
+  saveDraftRevision,
+} from '../tools/draft-history.js'
+import { appendAuditLog, withFileLock } from '../tools/safety.js'
 import { getCreativeStageStatus } from '../agent/creative-stage.js'
 import { defaultGameOutline, validateGameOutlineRoot } from '../game-outline.js'
+import {
+  LORE_CATEGORIES,
+  LoreRevisionConflictError,
+  loreDocumentSchema,
+  readLoreDocument,
+  updateLoreDocument,
+  type LoreCategory,
+} from '../lore/lore-document.js'
 
 // ── Helper functions (exported for direct testing) ──
 
@@ -45,12 +60,13 @@ export function readGameOutline(dataDir: string, bookId: string): any {
 export function readLore(
   dataDir: string,
   bookId: string
-): { meta: any; world_setting: any; characters: any; outline: any } {
+): { meta: any; story_bible: any; world_setting: any; characters: any; outline: any } {
   const bookDir = path.join(dataDir, bookId)
   return {
     meta: safeReadJson(path.join(bookDir, '00_Config', 'book_meta.json')),
-    world_setting: safeReadJson(path.join(bookDir, '01_Global_Settings', 'world_lore.json')),
-    characters: safeReadJson(path.join(bookDir, '01_Global_Settings', 'characters.json')),
+    story_bible: readLoreDocument(bookDir, 'story_bible'),
+    world_setting: readLoreDocument(bookDir, 'world_setting'),
+    characters: readLoreDocument(bookDir, 'characters'),
     outline: safeReadJson(path.join(bookDir, '02_Outlines', 'outline.json')),
   }
 }
@@ -95,6 +111,7 @@ export function getChapterDetail(
       content,
       status: 'draft',
       word_count: content.length,
+      content_hash: contentHash(content),
     }
   }
 
@@ -133,6 +150,7 @@ export function getChapterDetail(
     content,
     status,
     word_count: content ? content.length : 0,
+    content_hash: contentHash(content ?? ''),
   }
 }
 
@@ -283,6 +301,53 @@ export async function dataRoutes(app: FastifyInstance): Promise<void> {
     }
   )
 
+  // PUT /api/v1/books/:bookId/lore/:category
+  app.put<{ Params: { bookId: string; category: string } }>(
+    '/api/v1/books/:bookId/lore/:category',
+    async (request, reply) => {
+      try {
+        const bookId = sanitizePathSegment(request.params.bookId, 'bookId')
+        const category = request.params.category as LoreCategory
+        if (!LORE_CATEGORIES.includes(category)) {
+          reply.code(400)
+          return { error: "category must be 'story_bible', 'world_setting', or 'characters'" }
+        }
+
+        const parsed = loreDocumentSchema.safeParse(request.body)
+        if (!parsed.success) {
+          reply.code(400)
+          return { error: parsed.error.issues.map(issue => `${issue.path.join('.')}: ${issue.message}`).join('; ') }
+        }
+        if (parsed.data.category !== category) {
+          reply.code(400)
+          return { error: 'document category does not match route category' }
+        }
+
+        return await updateLoreDocument(
+          path.join(dataDir(), bookId),
+          category,
+          () => parsed.data,
+          {
+            expectedRevision: parsed.data.revision,
+            auditTool: 'user_save_lore',
+            auditArgs: { entries: parsed.data.entries.length },
+          },
+        )
+      } catch (error) {
+        if (error instanceof LoreRevisionConflictError) {
+          reply.code(409)
+          return {
+            error: 'lore_revision_conflict',
+            expected_revision: error.expectedRevision,
+            actual_revision: error.actualRevision,
+          }
+        }
+        reply.code(400)
+        return { error: error instanceof Error ? error.message : String(error) }
+      }
+    }
+  )
+
   // GET /api/v1/books/:bookId/creative-stage
   app.get<{ Params: { bookId: string } }>(
     '/api/v1/books/:bookId/creative-stage',
@@ -344,7 +409,7 @@ export async function dataRoutes(app: FastifyInstance): Promise<void> {
   // PUT /api/v1/books/:bookId/chapters/:chapterId/draft — manual save from workbench
   app.put<{
     Params: { bookId: string; chapterId: string }
-    Body: { content: string }
+    Body: { content: string; expected_hash?: string }
   }>(
     '/api/v1/books/:bookId/chapters/:chapterId/draft',
     async (request, reply) => {
@@ -355,16 +420,148 @@ export async function dataRoutes(app: FastifyInstance): Promise<void> {
         reply.code(400)
         return { error: 'content required' }
       }
+      if (body.expected_hash !== undefined && typeof body.expected_hash !== 'string') {
+        reply.code(400)
+        return { error: 'expected_hash must be a string' }
+      }
       const bookDir = path.join(dataDir(), bookId)
       const draftFile = path.join(bookDir, '04_Drafts', `${chapterId}.md`)
       ensureDir(path.dirname(draftFile))
-      // Archive the prior draft into .draft_history/ and drop a .bak alongside
-      // the file — same safety story as save_draft uses.
-      archivePriorDraft(bookDir, draftFile)
-      createBackup(draftFile)
-      fs.writeFileSync(draftFile, body.content, 'utf-8')
-      return { ok: true, bytes: Buffer.byteLength(body.content, 'utf-8') }
+      try {
+        return await withFileLock(draftFile, () => {
+          const revision = saveDraftRevision({
+            bookDir,
+            targetPath: draftFile,
+            content: body.content,
+            actor: 'user',
+            source: 'workbench',
+            expectedHash: body.expected_hash,
+          })
+          appendAuditLog(
+            path.join(bookDir, 'audit_log.jsonl'),
+            'save_draft_user',
+            { file_path: path.posix.join('04_Drafts', `${chapterId}.md`), revision_id: revision.id },
+            `saved ${body.content.length} chars`,
+            true,
+          )
+          return {
+            ok: true,
+            bytes: Buffer.byteLength(body.content, 'utf-8'),
+            revision,
+            content_hash: revision.content_hash,
+          }
+        })
+      } catch (error) {
+        if (error instanceof DraftRevisionConflictError) {
+          reply.code(409)
+          return {
+            error: 'Draft changed after it was loaded',
+            code: 'DRAFT_REVISION_CONFLICT',
+            current_hash: error.currentHash,
+          }
+        }
+        throw error
+      }
     }
+  )
+
+  app.get<{ Params: { bookId: string; chapterId: string } }>(
+    '/api/v1/books/:bookId/chapters/:chapterId/history',
+    async (request) => {
+      const bookId = sanitizePathSegment(request.params.bookId, 'bookId')
+      const chapterId = sanitizePathSegment(request.params.chapterId, 'chapterId')
+      const bookDir = path.join(dataDir(), bookId)
+      const draftFile = path.join(bookDir, '04_Drafts', `${chapterId}.md`)
+      return {
+        revisions: listDraftVersions(bookDir, chapterId, draftFile),
+        current_hash: fs.existsSync(draftFile)
+          ? contentHash(fs.readFileSync(draftFile, 'utf8'))
+          : contentHash(''),
+      }
+    },
+  )
+
+  app.get<{
+    Params: { bookId: string; chapterId: string }
+    Querystring: { from?: string; to?: string }
+  }>(
+    '/api/v1/books/:bookId/chapters/:chapterId/diff',
+    async (request, reply) => {
+      const bookId = sanitizePathSegment(request.params.bookId, 'bookId')
+      const chapterId = sanitizePathSegment(request.params.chapterId, 'chapterId')
+      if (!request.query.from) {
+        reply.code(400)
+        return { error: 'from revision required' }
+      }
+      const fromRevision = sanitizePathSegment(request.query.from, 'from revision')
+      const toRevision = sanitizePathSegment(request.query.to ?? 'current', 'to revision')
+      const bookDir = path.join(dataDir(), bookId)
+      const draftFile = path.join(bookDir, '04_Drafts', `${chapterId}.md`)
+      const diff = compareDraftVersions(
+        bookDir,
+        chapterId,
+        fromRevision,
+        toRevision,
+        draftFile,
+      )
+      if (!diff) {
+        reply.code(404)
+        return { error: 'Draft revision not found' }
+      }
+      return diff
+    },
+  )
+
+  app.post<{
+    Params: { bookId: string; chapterId: string }
+    Body: { revision_id?: string; expected_hash?: string }
+  }>(
+    '/api/v1/books/:bookId/chapters/:chapterId/restore',
+    async (request, reply) => {
+      const bookId = sanitizePathSegment(request.params.bookId, 'bookId')
+      const chapterId = sanitizePathSegment(request.params.chapterId, 'chapterId')
+      const revisionId = sanitizePathSegment(request.body?.revision_id ?? '', 'revision_id')
+      const expectedHash = request.body?.expected_hash
+      if (typeof expectedHash !== 'string') {
+        reply.code(400)
+        return { error: 'expected_hash required' }
+      }
+      const bookDir = path.join(dataDir(), bookId)
+      const draftFile = path.join(bookDir, '04_Drafts', `${chapterId}.md`)
+      try {
+        return await withFileLock(draftFile, () => {
+          const revision = restoreDraftVersion(
+            bookDir,
+            chapterId,
+            revisionId,
+            draftFile,
+            expectedHash,
+          )
+          if (!revision) {
+            reply.code(404)
+            return { error: 'Draft revision not found' }
+          }
+          appendAuditLog(
+            path.join(bookDir, 'audit_log.jsonl'),
+            'restore_draft_user',
+            { chapter_id: chapterId, revision_id: revision.id, restored_from: revisionId },
+            `restored ${revision.chars} chars`,
+            true,
+          )
+          return { ok: true, revision, content_hash: revision.content_hash }
+        })
+      } catch (error) {
+        if (error instanceof DraftRevisionConflictError) {
+          reply.code(409)
+          return {
+            error: 'Draft changed after it was loaded',
+            code: 'DRAFT_REVISION_CONFLICT',
+            current_hash: error.currentHash,
+          }
+        }
+        throw error
+      }
+    },
   )
 
   // GET /api/v1/books/:bookId/chapters/:chapterId/reviews

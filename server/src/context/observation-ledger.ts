@@ -172,9 +172,11 @@ function resultPreview(result: unknown): string {
 function labelFor(toolName: string, args: Record<string, unknown>): string {
   if (toolName === 'load_skill' && typeof args.skill_name === 'string') return args.skill_name
   if (toolName === 'browse_examples') {
+    const work = typeof args.work === 'string' ? args.work : ''
+    const query = typeof args.query === 'string' ? args.query : ''
     const category = typeof args.category === 'string' ? args.category : ''
     const tags = Array.isArray(args.tags) ? args.tags.filter(tag => typeof tag === 'string').join(',') : ''
-    return [category, tags].filter(Boolean).join(' / ') || 'examples'
+    return [work, category, tags, query].filter(Boolean).join(' / ') || String(args.scope ?? 'examples')
   }
   if (toolName === 'read_exemplar_chapter' && typeof args.id === 'string') return `exemplar:${args.id}`
   if (toolName === 'read_graph') return 'plot_graph'
@@ -209,9 +211,11 @@ function workingSetIdentity(input: {
     return `${input.toolName}:skill:${args.skill_name}`
   }
   if (input.toolName === 'browse_examples') {
+    const work = typeof args.work === 'string' ? args.work : ''
+    const query = typeof args.query === 'string' ? args.query : ''
     const category = typeof args.category === 'string' ? args.category : ''
     const tags = Array.isArray(args.tags) ? args.tags.filter(tag => typeof tag === 'string').sort().join(',') : ''
-    return `${input.toolName}:${args.scope ?? 'micro'}:${category}:${tags}`
+    return `${input.toolName}:${args.scope ?? 'micro'}:${work}:${category}:${tags}:${query}:${args.offset ?? 0}`
   }
   if (input.toolName === 'read_exemplar_chapter' && typeof args.id === 'string') {
     return `${input.toolName}:${args.id}`
@@ -687,7 +691,9 @@ export function ensureObservationMigration(dataDir: string, bookId: string): Obs
 
 export function renderWorkingSetForPrompt(dataDir: string, bookId: string, limit = 8): string {
   const entries = loadWorkingSet(dataDir, bookId).entries
-    .filter(entry => entry.status === 'active')
+    // Skill activation is conversation-scoped, while this ledger is book-scoped.
+    // Rendering load_skill here would resurrect skills after /clear or a rewind.
+    .filter(entry => entry.status === 'active' && entry.toolName !== 'load_skill')
     .slice(0, limit)
   if (entries.length === 0) return ''
 

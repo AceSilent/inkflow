@@ -4,7 +4,7 @@
  */
 import { ToolRegistry } from './base-tool.js'
 import { readFileTool } from './read-file.js'
-import { searchLoreTool } from './search-lore.js'
+import { readLoreEntryTool, searchLoreTool } from './search-lore.js'
 import {
   saveDraftTool,
   saveOutlineTool,
@@ -31,6 +31,7 @@ import { analyzeStyleProfileTool, browseExamplesTool, readExemplarChapterTool } 
 import { submitToEditorialTool } from '../editorial/editorial.js'
 import { createBookTool } from './create-book.js'
 import { updateBookTool } from './update-book.js'
+import { compareDraftVersionsTool, listDraftVersionsTool } from './draft-versions.js'
 
 export interface CreateAllToolsOptions {
   includeCreateBook?: boolean
@@ -43,9 +44,12 @@ export function createAllTools(options: CreateAllToolsOptions = {}): ToolRegistr
   // Read tools
   registry.register(readFileTool)
   registry.register(searchLoreTool)
+  registry.register(readLoreEntryTool)
   registry.register(readOutlineTool)
   registry.register(readGameOutlineTool)
   registry.register(scriptValidateTool)
+  registry.register(listDraftVersionsTool)
+  registry.register(compareDraftVersionsTool)
 
   // Write tools
   if (includeCreateBook) registry.register(createBookTool)

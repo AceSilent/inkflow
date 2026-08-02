@@ -13,7 +13,7 @@ export function ToolActivityGroup({ segments }) {
   const { t } = useI18n()
   const [expanded, setExpanded] = useState(false)
   const running = segments.some(segment => segment.status === 'running')
-  const allReading = segments.every(segment => ['read_file', 'read_outline', 'read_graph', 'browse_examples'].includes(segment.name))
+  const allReading = segments.every(segment => ['read_file', 'read_outline', 'read_graph', 'browse_examples', 'read_exemplar_chapter'].includes(segment.name))
   const allEditing = segments.every(segment => ['save_draft', 'save_outline', 'save_lore'].includes(segment.name))
   const ActivityIcon = allReading ? BookOpen : allEditing ? PencilLine : SquareTerminal
 

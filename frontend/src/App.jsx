@@ -275,6 +275,8 @@ export default function App() {
           <LoreWorkspace
             currentBook={currentBook}
             dataVersion={dataVersion}
+            addToast={addToast}
+            onDataChanged={refreshData}
           />
         }
         game={

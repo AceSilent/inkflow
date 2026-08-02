@@ -77,6 +77,29 @@ describe('StudioShell drag region', () => {
     expect(html).not.toContain('lucide-chevron-right')
   })
 
+  it('puts a persistent library toggle beside the mac traffic lights', () => {
+    const html = renderToStaticMarkup(
+      <I18nContext.Provider value={{ t: key => key }}>
+        <StudioShell
+          theme="mist"
+          currentBook={{ book_id: 'book_a', title: 'Book A' }}
+          sidebar={<div>sidebar</div>}
+          chat={<div>chat</div>}
+          chapter={<div>chapter</div>}
+          outline={<div>outline</div>}
+          plot={<div>plot</div>}
+          activeWorkspaceTab="chapter"
+          onWorkspaceTabChange={() => {}}
+        />
+      </I18nContext.Provider>
+    )
+
+    expect(html).toContain('studio-titlebar-leading-actions')
+    expect(html).toContain('library-titlebar-toggle')
+    expect(html).toContain('lucide-panel-left-close')
+    expect(html).toContain('aria-expanded="true"')
+  })
+
   it('mounts the creative flow notch as a direct chat overlay for the active book', () => {
     const html = renderToStaticMarkup(
       <I18nContext.Provider value={{ t: key => key }}>

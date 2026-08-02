@@ -117,6 +117,7 @@ describe('BrowseExamples Tool', () => {
       '第一章七十二变',
       '',
       '李老头死了。',
+      '办公室里，他等到天黑，眼皮发沉。门外有人低声对话。',
     ].join('\n'), 'utf8')
 
     try {
@@ -129,6 +130,58 @@ describe('BrowseExamples Tool', () => {
       }, { bookId: 'test-book', dataDir: booksDir })
       expect(catalog).toContain('seventy-two-transformations-001')
       expect(catalog).toContain('personal_study')
+
+      const library = await registry.execute('browse_examples', {
+        scope: 'library',
+      }, { bookId: 'test-book', dataDir: booksDir })
+      expect(library).toContain('地煞七十二变')
+      expect(library).toContain('chapters: 1')
+      expect(library).toContain("scope='chapter'")
+
+      const searched = await registry.execute('browse_examples', {
+        scope: 'chapter',
+        work: '地煞七十二',
+        query: '李老头死了',
+        offset: 0,
+        limit: 8,
+      }, { bookId: 'test-book', dataDir: booksDir })
+      expect(searched).toContain('seventy-two-transformations-001')
+      expect(searched).toContain('结果 1-1 / 1')
+
+      const genres = await registry.execute('browse_examples', {
+        scope: 'genres',
+      }, { bookId: 'test-book', dataDir: booksDir })
+      expect(genres).toContain('仙侠')
+      expect(genres).toContain('local: 1 works / 1 chapters')
+      expect(genres).toContain("scope='library', genre='xianxia'")
+
+      const genreLibrary = await registry.execute('browse_examples', {
+        scope: 'library',
+        genre: '仙侠',
+      }, { bookId: 'test-book', dataDir: booksDir })
+      expect(genreLibrary).toContain('地煞七十二变')
+      expect(genreLibrary).toContain('genres: xianxia')
+
+      const genreChapters = await registry.execute('browse_examples', {
+        scope: 'chapter',
+        genre: '修仙',
+      }, { bookId: 'test-book', dataDir: booksDir })
+      expect(genreChapters).toContain('seventy-two-transformations-001')
+
+      const genreCatalog = await registry.execute('browse_examples', {
+        scope: 'genres',
+      }, { bookId: 'test-book', dataDir: booksDir })
+      expect(genreCatalog).toContain('轻小说 / 衍生 / 日常喜剧')
+      expect(genreCatalog).toContain("genre: light_novel_fanfiction")
+
+      const relaxedNaturalLanguageSearch = await registry.execute('browse_examples', {
+        scope: 'chapter',
+        category: 'dialogue',
+        tags: ['webnovel_clean'],
+        query: '办公室 等待 疲惫',
+      }, { bookId: 'test-book', dataDir: booksDir })
+      expect(relaxedNaturalLanguageSearch).toContain('seventy-two-transformations-001')
+      expect(relaxedNaturalLanguageSearch).toContain('已自动放宽')
 
       const chapter = await registry.execute('read_exemplar_chapter', {
         id: 'seventy-two-transformations-001',
@@ -419,9 +472,96 @@ describe('Write Tools', () => {
     const chars = JSON.stringify({ '萧炎': { level: '斗帝' } })
     const result = await registry.execute('save_lore', { category: 'characters', content_json: chars }, { bookId: 'test-book', dataDir: tmpDir })
     expect(result).toContain('saved successfully')
-    expect(fs.existsSync(path.join(tmpDir, 'test-book', '01_Global_Settings', 'characters.json'))).toBe(true)
+    const target = path.join(tmpDir, 'test-book', '01_Global_Settings', 'characters.json')
+    expect(fs.existsSync(target)).toBe(true)
+    const saved = JSON.parse(fs.readFileSync(target, 'utf-8'))
+    expect(saved.schema_version).toBe(1)
+    expect(saved.category).toBe('characters')
+    expect(saved.entries).toHaveLength(1)
+    expect(saved.entries[0].title).toBe('萧炎')
+    expect(saved.entries[0].content).toContain('斗帝')
     // The legacy `lore/` duplicate should no longer be produced.
     expect(fs.existsSync(path.join(tmpDir, 'test-book', 'lore', 'characters.json'))).toBe(false)
+  })
+
+  it('save_lore merges entries by default instead of overwriting the lore book', async () => {
+    const registry = createAllTools()
+    const context = { bookId: 'test-book', dataDir: tmpDir }
+
+    await registry.execute('save_lore', {
+      category: 'world_setting',
+      content_json: JSON.stringify({
+        schema_version: 1,
+        category: 'world_setting',
+        revision: 0,
+        entries: [{
+          id: 'old-city',
+          title: '旧城',
+          entry_type: '世界与地点',
+          status: 'confirmed',
+          tags: ['地点'],
+          aliases: [],
+          content: '终年落雪。',
+          updated_at: '',
+        }],
+      }),
+    }, context)
+
+    await registry.execute('save_lore', {
+      category: 'world_setting',
+      content_json: JSON.stringify({
+        schema_version: 1,
+        category: 'world_setting',
+        revision: 0,
+        entries: [{
+          id: 'salt-church',
+          title: '圣盐教会',
+          entry_type: '组织与阵营',
+          status: 'draft',
+          tags: ['组织'],
+          aliases: [],
+          content: '控制南岸盐业。',
+          updated_at: '',
+        }],
+      }),
+    }, context)
+
+    const target = path.join(tmpDir, 'test-book', '01_Global_Settings', 'world_lore.json')
+    const saved = JSON.parse(fs.readFileSync(target, 'utf-8'))
+    expect(saved.revision).toBe(2)
+    expect(saved.entries.map((entry: any) => entry.id)).toEqual(['old-city', 'salt-church'])
+  })
+
+  it('read_lore_entry reads a complete story-bible entry or one Markdown section', async () => {
+    const registry = createAllTools()
+    const context = { bookId: 'test-book', dataDir: tmpDir }
+    await registry.execute('save_lore', {
+      category: 'story_bible',
+      content_json: JSON.stringify({
+        id: 'long-route',
+        title: '长期路线',
+        entry_type: '长期路线',
+        status: 'draft',
+        tags: [],
+        aliases: [],
+        content: '# 长期路线\n\n## 第一阶段\n\n调查寄生案件。\n\n## 第二阶段\n\n揭开七罪结构。',
+        updated_at: '',
+        source_refs: [{
+          source_name: '大纲.md',
+          source_section: '各卷概要',
+          source_type: 'attachment',
+        }],
+      }),
+    }, context)
+
+    const section = await registry.execute('read_lore_entry', {
+      category: 'story_bible',
+      entry_id: 'long-route',
+      section: '第二阶段',
+    }, context)
+    expect(section).toContain('揭开七罪结构')
+    expect(section).not.toContain('调查寄生案件')
+    expect(section).toContain('大纲.md#各卷概要')
   })
 })
 

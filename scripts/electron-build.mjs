@@ -21,4 +21,7 @@ run(process.execPath, [path.join(root, 'scripts', 'build-sidecar.mjs'), '--mac']
 run(process.execPath, [path.join(root, 'scripts', 'build-frontend.mjs')])
 
 const builderBin = path.join(root, 'node_modules', '.bin', process.platform === 'win32' ? 'electron-builder.cmd' : 'electron-builder')
-run(builderBin, args.length ? args : ['--mac'])
+const builderArgs = args.length ? [...args] : ['--mac']
+const hasPublishMode = builderArgs.some(arg => arg === '--publish' || arg.startsWith('--publish='))
+if (!hasPublishMode) builderArgs.push('--publish', 'never')
+run(builderBin, builderArgs)

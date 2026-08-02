@@ -2,9 +2,11 @@ import { type ModelMessage } from 'ai'
 import { type AssistantSegment } from './stream-segments.js'
 import { saveHistory, type ChatHistoryMessage } from './chat-history.js'
 import { type ChatAttachment } from './chat-attachments.js'
+import { PERSISTED_SKILL_STATE_HEADING } from '../context/session-state.js'
 
 export type AuthorChatTurnStatus = 'incomplete' | 'aborted'
 export const TRANSIENT_WORKBENCH_STATE_HEADING = '# 最近工作台状态'
+export const TRANSIENT_SKILL_STATE_HEADING = '# 当前已激活写作 Skill'
 
 const RECENT_OBSERVATION_TOOLS = new Set([
   'read_file',
@@ -126,10 +128,18 @@ export function buildTransientWorkbenchStateMessages(recentObservations: string)
   return [{ role: 'system', content: `${TRANSIENT_WORKBENCH_STATE_HEADING}\n${trimmed}` }]
 }
 
+export function buildTransientSkillStateMessages(skillState: string): ModelMessage[] {
+  const trimmed = skillState.trim()
+  if (!trimmed) return []
+  return [{ role: 'system', content: `${TRANSIENT_SKILL_STATE_HEADING}\n${trimmed}` }]
+}
+
 export function stripTransientWorkbenchStateMessages(messages: ModelMessage[]): ModelMessage[] {
   return messages.filter((message) => {
     if (message.role !== 'system') return true
     if (typeof message.content !== 'string') return true
-    return !message.content.startsWith(TRANSIENT_WORKBENCH_STATE_HEADING)
+    return !message.content.startsWith(TRANSIENT_WORKBENCH_STATE_HEADING) &&
+      !message.content.startsWith(TRANSIENT_SKILL_STATE_HEADING) &&
+      !message.content.startsWith(PERSISTED_SKILL_STATE_HEADING)
   })
 }

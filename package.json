@@ -13,6 +13,7 @@
     "desktop:dev:electron": "node scripts/electron-dev.mjs",
     "desktop:build:electron:mac": "node scripts/electron-build.mjs --mac",
     "desktop:install:electron:mac": "node scripts/electron-install-mac.mjs",
+    "migrate:lore": "npm --prefix server run build && node scripts/migrate-lore-v1.mjs",
     "test:electron-config": "node --test scripts/electron-desktop-config.node-test.mjs",
     "test": "npm --prefix server test",
     "start": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-dev.ps1"

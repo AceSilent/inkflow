@@ -42,11 +42,13 @@ test('Electron sidecar uses the existing InkFlow data directory', async () => {
 test('Electron builder packages the frontend and backend sidecar without changing app identity', async () => {
   assert.equal(existsSync(new URL('../electron-builder.yml', import.meta.url)), true)
   const builder = await readFile(new URL('../electron-builder.yml', import.meta.url), 'utf8')
+  const buildScript = await readFile(new URL('./electron-build.mjs', import.meta.url), 'utf8')
   assert.match(builder, /appId:\s*com\.inkflow\.studio/)
   assert.match(builder, /productName:\s*InkFlow/)
   assert.match(builder, /frontend\/dist\/\*\*\//)
   assert.match(builder, /desktop\/binaries\/inkflow-server/)
   assert.match(builder, /desktop\/icon\.icns/)
+  assert.match(buildScript, /builderArgs\.push\('--publish', 'never'\)/)
 })
 
 test('frontend build emits relative asset URLs for Electron file loading', () => {

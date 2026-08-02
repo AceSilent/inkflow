@@ -79,14 +79,14 @@ function LoreEntry({ label, value, isComplex, depth }) {
   )
 }
 
-const emptyLoreFiles = { world_setting: null, characters: null }
+const emptyLoreFiles = { story_bible: null, world_setting: null, characters: null }
 
 export function BrainstormPanel({ addToast, currentBook, onDataChanged }) {
   const { t } = useI18n()
 
-  // Lore Book State — world_setting + characters files
+  // Lore Book State — story bible + world setting + characters files
   const [loreFiles, setLoreFiles] = useState(emptyLoreFiles)
-  const [loreSection, setLoreSection] = useState('world') // 'world' | 'chars'
+  const [loreSection, setLoreSection] = useState('bible')
   const [prevBookId, setPrevBookId] = useState(undefined)
 
   // Reset lore state on book change (during render, avoids useEffect cascading renders)
@@ -104,6 +104,7 @@ export function BrainstormPanel({ addToast, currentBook, onDataChanged }) {
       .then(data => {
         if (!data) return
         setLoreFiles({
+          story_bible: data.story_bible || null,
           world_setting: data.world_setting || null,
           characters: data.characters || null,
         })
@@ -136,7 +137,11 @@ export function BrainstormPanel({ addToast, currentBook, onDataChanged }) {
           <div style={{ flex: 1, padding: '12px 16px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
             {/* Section Tabs */}
             <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-              {[['world', t('brainstorm.world')],['chars', t('brainstorm.chars')]].map(([key, label]) => (
+              {[
+                ['bible', t('brainstorm.bible')],
+                ['world', t('brainstorm.world')],
+                ['chars', t('brainstorm.chars')],
+              ].map(([key, label]) => (
                 <button key={key} onClick={() => setLoreSection(key)} style={{
                   padding: '4px 10px', borderRadius: 4, fontSize: 11, border: 'none', cursor: 'pointer',
                   background: loreSection === key ? 'var(--accent)' : 'var(--bg-subtle)',
@@ -145,6 +150,16 @@ export function BrainstormPanel({ addToast, currentBook, onDataChanged }) {
                 }}>{label}</button>
               ))}
             </div>
+
+            {loreSection === 'bible' && (
+              <div style={{ fontSize: 12, color: 'var(--ink-secondary)', lineHeight: 1.8 }}>
+                {loreFiles.story_bible ? (
+                  <LoreJsonViewer data={loreFiles.story_bible} />
+                ) : (
+                  <div style={{ color: 'var(--ink-muted)', textAlign: 'center', padding: 20 }}>{t('brainstorm.noBible')}<br/>{t('brainstorm.willAutoGen')}</div>
+                )}
+              </div>
+            )}
 
             {/* World Setting Section */}
             {loreSection === 'world' && (

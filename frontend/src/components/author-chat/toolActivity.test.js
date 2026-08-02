@@ -46,6 +46,26 @@ describe('tool activity presentation', () => {
     expect(grouped[1].segments).toHaveLength(2)
   })
 
+  it('hides internal skill orchestration from the user-visible activity feed', () => {
+    const grouped = groupAssistantSegments([
+      { type: 'tool_call', name: 'list_skills', argsPreview: '{}' },
+      { type: 'tool_call', name: 'load_skill', argsPreview: '{"skill_name":"chapter_edit"}' },
+      { type: 'tool_call', name: 'read_file', argsPreview: '{"relative_path":"ch01.md"}' },
+      { type: 'content', text: '改好了。' },
+    ])
+
+    expect(grouped).toEqual([
+      {
+        type: 'tool_group',
+        kind: 'read',
+        segments: [
+          { type: 'tool_call', name: 'read_file', argsPreview: '{"relative_path":"ch01.md"}' },
+        ],
+      },
+      { type: 'content', text: '改好了。' },
+    ])
+  })
+
   it('summarizes read and edit groups in a compact Chinese label', () => {
     expect(toolActivitySummary([
       { type: 'tool_call', name: 'read_file' },
@@ -69,6 +89,27 @@ describe('tool activity presentation', () => {
     expect(toolActivitySummary([
       { type: 'tool_call', name: 'read_file', argsPreview: '{"relative_path":"04_Drafts/第十七章 · 低吟.md"}' },
     ], t)).toBe('已阅读《第十七章 · 低吟》')
+  })
+
+  it('distinguishes browsing the catalog from reading an exemplar chapter', () => {
+    const t = key => key === 'authorChat.toolStudiedExemplar' ? '已研读范文《{name}》' : key
+    expect(toolActivitySummary([
+      {
+        type: 'tool_call',
+        name: 'read_exemplar_chapter',
+        argsPreview: '{"id":"seventy-two-transformations-134"}',
+      },
+    ], t)).toBe('已研读范文《seventy-two-transformations-134》')
+
+    expect(toolActivityLine({
+      name: 'browse_examples',
+      argsPreview: '{"query":"办公室 等待 疲惫"}',
+    })).toBe('Browse 办公室 等待 疲惫')
+
+    expect(toolActivityLine({
+      name: 'browse_examples',
+      argsPreview: '{"scope":"library","genre":"仙侠"}',
+    })).toBe('Browse 仙侠')
   })
 
   it('extracts readable activity lines from tool arguments', () => {

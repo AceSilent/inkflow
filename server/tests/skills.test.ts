@@ -14,6 +14,7 @@ describe('Skill Discovery', () => {
     expect(skills['volume_planning']).toBeDefined()
     expect(skills['chapter_edit']).toBeDefined()
     expect(skills['chapter_rewrite']).toBeDefined()
+    expect(skills['lore_authoring']).toBeDefined()
   })
 
   it('should parse YAML frontmatter correctly', () => {
@@ -36,16 +37,39 @@ describe('Skill Discovery', () => {
   it('should load skill content without frontmatter', () => {
     const content = loadSkillContent('iceberg_writing', PROMPTS_DIR)
     expect(content).not.toMatch(/^---/)
-    expect(content).toContain('信息差地图')
+    expect(content).toContain('给证据，不代替判断')
     expect(content.length).toBeGreaterThan(100)
   })
 
-  it('should teach exemplar study through chapter-level reading without repeated reads', () => {
+  it('should teach autonomous exemplar browsing with context-aware reuse', () => {
     const content = loadSkillContent('exemplar_study', PROMPTS_DIR)
-    expect(content).toContain('章节级范文')
+    expect(content).toContain('个人书库')
     expect(content).toContain('read_exemplar_chapter')
     expect(content).toContain('上下文')
-    expect(content).toContain('不要重复读取')
+    expect(content).toContain("scope='library'")
+    expect(content).toContain("scope='genres'")
+    expect(content).toContain('不必依赖关键词')
+    expect(content).toContain('没有固定章数上限')
+    expect(content).toContain('可以再次读取')
+    expect(content).toContain('不要建议用户加载 Skill')
+  })
+
+  it('treats omission as reader participation instead of a rigid prose formula', () => {
+    const content = loadSkillContent('iceberg_writing', PROMPTS_DIR)
+    expect(content).toContain('解释尾巴')
+    expect(content).toContain('留白不能破坏因果')
+    expect(content).not.toContain('每章最多')
+    expect(content).not.toContain('完全禁止使用')
+  })
+
+  it('teaches structured lore authoring before and during drafting', () => {
+    const content = loadSkillContent('lore_authoring', PROMPTS_DIR)
+    expect(content).toContain('story_bible')
+    expect(content).toContain('source_refs')
+    expect(content).toContain('read_lore_entry')
+    expect(content).toContain('默认 `merge`')
+    expect(content).toContain('写作过程中产生新设定')
+    expect(content).toContain('设定回收')
   })
 
   it('should return error for unknown skill', () => {

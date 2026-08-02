@@ -86,8 +86,8 @@ jobs:
       - name: Upload macOS bundle artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: inkflow-macos-${{ github.sha }}
+          name: inkflow-macos-arm64-${{ github.sha }}
           if-no-files-found: error
           path: |
-            dist-electron/mac-arm64/InkFlow.app
             dist-electron/*.dmg
+            dist-electron/*.dmg.blockmap

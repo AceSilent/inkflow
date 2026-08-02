@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
   canEditLoadedChapter,
+  captureReaderPosition,
   chapterReviewActionLabel,
   chapterReviewStatusLabel,
   chapterWorkspaceKey,
   countCjkAwareWords,
   isDraftDirty,
   normalizeChapterContent,
+  readerScrollTopForPosition,
   shouldApplyChapterResult,
   shouldClearLoadErrorOnLoadStart,
   shouldPreserveDirtyDraft,
@@ -54,6 +56,20 @@ describe('chapter workspace state', () => {
   it('does not replace draft after save when user typed newer content', () => {
     expect(shouldReplaceDraftAfterSave('sent content', 'sent content')).toBe(true)
     expect(shouldReplaceDraftAfterSave('sent content', 'sent content plus more')).toBe(false)
+  })
+
+  it('keeps the same reading position across containers with different heights', () => {
+    const position = captureReaderPosition({ scrollTop: 600, scrollHeight: 1600, clientHeight: 400 })
+
+    expect(position).toEqual({ top: 600, ratio: 0.5 })
+    expect(readerScrollTopForPosition(position, { scrollHeight: 2400, clientHeight: 400 })).toBe(1000)
+  })
+
+  it('clamps invalid reading positions to the available scroll range', () => {
+    expect(captureReaderPosition({ scrollTop: 900, scrollHeight: 500, clientHeight: 200 }))
+      .toEqual({ top: 300, ratio: 1 })
+    expect(readerScrollTopForPosition({ ratio: 2 }, { scrollHeight: 500, clientHeight: 200 })).toBe(300)
+    expect(readerScrollTopForPosition({ ratio: -1 }, { scrollHeight: 500, clientHeight: 200 })).toBe(0)
   })
 
   it('blocks editing when loaded content is unknown or refresh failed', () => {

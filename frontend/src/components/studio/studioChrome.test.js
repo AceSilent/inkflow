@@ -7,8 +7,10 @@ describe('studio chrome layout', () => {
     expect(studioChromeLayout).toEqual({
       showTitlebarBrand: false,
       showBottomStatusbar: false,
-      titlebarLeftInset: 68,
-      titlebarHeight: 40,
+      titlebarLeftInset: 72,
+      titlebarHeight: 54,
+      titlebarControlCenterY: 28,
+      panelIconSize: 18,
       draggableTitlebar: true,
       dragRegionStrategy: 'css-app-region',
     })

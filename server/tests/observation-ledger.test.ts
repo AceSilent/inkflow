@@ -112,6 +112,28 @@ describe('observation ledger', () => {
     expect(readEntries[0].label).toBe('04_Drafts/ch01.md')
   })
 
+  it('does not treat book-scoped skill observations as an active chat skill', () => {
+    recordToolObservation(
+      dataDir,
+      bookId,
+      'load_skill',
+      { skill_name: 'chapter_edit' },
+      '# 章节局部编辑',
+    )
+    recordToolObservation(
+      dataDir,
+      bookId,
+      'read_file',
+      { relative_path: '04_Drafts/ch01.md' },
+      '当前正文',
+    )
+
+    const prompt = renderWorkingSetForPrompt(dataDir, bookId)
+    expect(prompt).toContain('04_Drafts/ch01.md')
+    expect(prompt).not.toContain('chapter_edit')
+    expect(prompt).not.toContain('load_skill')
+  })
+
   it('indexes existing memories without rewriting their markdown files', () => {
     const originalBody = '# 偏好\n\n用户不喜欢旁白讲解。'
     const memoryPath = writeMemory(dataDir, {

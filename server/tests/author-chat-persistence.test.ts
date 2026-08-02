@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { buildTransientWorkbenchStateMessages, persistAuthorChatTurn, prepareHistoryForAuthorChatSend, renderRecentToolObservationsForPrompt, stripTransientWorkbenchStateMessages } from '../src/routes/author-chat-persistence.js'
+import { buildTransientSkillStateMessages, buildTransientWorkbenchStateMessages, persistAuthorChatTurn, prepareHistoryForAuthorChatSend, renderRecentToolObservationsForPrompt, stripTransientWorkbenchStateMessages } from '../src/routes/author-chat-persistence.js'
 import { loadHistoryFull } from '../src/routes/chat-history.js'
 
 let tmpDir: string
@@ -119,9 +119,11 @@ describe('author chat persistence', () => {
 
   it('keeps transient workbench state out of memory extraction history', () => {
     const workbench = buildTransientWorkbenchStateMessages('刚读过 04_Drafts/ch01.md')
+    const skillState = buildTransientSkillStateMessages('chapter_edit 已激活')
     const messages = [
       { role: 'user' as const, content: '刚才那段不满意' },
       ...workbench,
+      ...skillState,
       { role: 'assistant' as const, content: '我会按刚才读过的版本继续讨论。' },
     ]
 

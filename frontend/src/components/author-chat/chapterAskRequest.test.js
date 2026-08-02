@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { clearConsumedChapterAsk, isChapterAskForBook } from './chapterAskRequest'
+import {
+  annotationStatusAfterChapterAsk,
+  clearConsumedChapterAsk,
+  isChapterAskForBook,
+  shouldDeferChapterAsk,
+} from './chapterAskRequest'
 
 describe('chapter ask request lifecycle', () => {
   it('only delivers an annotation question to its source book', () => {
@@ -15,5 +20,17 @@ describe('chapter ask request lifecycle', () => {
 
     expect(clearConsumedChapterAsk(request, 'ask-new')).toBeNull()
     expect(clearConsumedChapterAsk(request, 'ask-old')).toBe(request)
+  })
+
+  it('keeps automatic annotation work queued while the author is busy', () => {
+    expect(shouldDeferChapterAsk({ autoSend: true }, true)).toBe(true)
+    expect(shouldDeferChapterAsk({ autoSend: false }, true)).toBe(false)
+    expect(shouldDeferChapterAsk({ autoSend: true }, false)).toBe(false)
+  })
+
+  it('resolves annotations only after the agent saves a draft', () => {
+    expect(annotationStatusAfterChapterAsk({ toolsUsed: ['read_file', 'save_draft'] })).toBe('resolved')
+    expect(annotationStatusAfterChapterAsk({ toolsUsed: ['read_file'] })).toBe('open')
+    expect(annotationStatusAfterChapterAsk({ ok: false })).toBe('open')
   })
 })

@@ -7,7 +7,7 @@
  * it survives process restart.
  *
  * Inputs: cold / warm / hot message buckets + SessionState (recent reads +
- * active skill) + llmConfig + bookDir.
+ * active skills) + llmConfig + bookDir.
  * Outputs: newMessages = [summary, ...warm, ...hot], summaryText, stats.
  */
 import fs from 'fs'
@@ -51,9 +51,11 @@ function renderSessionState(state: SessionState): string {
       parts.push(`- ${r.tool}(${JSON.stringify(r.args)}) → "${r.excerpt.slice(0, 200)}..."`)
     }
   }
-  if (state.activeSkill) {
-    parts.push('## 激活的 skill')
-    parts.push(`${state.activeSkill.name}:\n${state.activeSkill.body.slice(0, 1000)}`)
+  if (state.loadedSkills.length > 0) {
+    parts.push('## 当前对话已激活的 Skill')
+    for (const skill of state.loadedSkills) {
+      parts.push(`${skill.name}:\n${skill.body.slice(0, 1600)}`)
+    }
   }
   return parts.join('\n\n')
 }

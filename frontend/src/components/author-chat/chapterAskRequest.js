@@ -9,3 +9,11 @@ export function isChapterAskForBook(request, book) {
 export function clearConsumedChapterAsk(currentRequest, consumedId) {
   return currentRequest?.id === consumedId ? null : currentRequest
 }
+
+export function shouldDeferChapterAsk(request, authorBusy) {
+  return Boolean(authorBusy && request?.autoSend)
+}
+
+export function annotationStatusAfterChapterAsk(outcome) {
+  return outcome?.toolsUsed?.includes('save_draft') ? 'resolved' : 'open'
+}

@@ -20,6 +20,7 @@ import { initFeishu } from './feishu/index.js'
 
 const app = Fastify({ logger: true, ignoreTrailingSlash: true })
 const dataDir = process.env.AUTONOVEL_DATA_DIR || 'books'
+const port = Number.parseInt(process.env.PORT ?? '3001', 10)
 
 await app.register(cors, corsOptions)
 await app.register(authorChatRoutes)
@@ -38,8 +39,8 @@ await app.register(codexAuthRoutes, { prefix: '/api/v1', dataDir })
 app.get('/health', async () => ({ status: 'ok', engine: 'autonovel-ts' }))
 
 const start = async () => {
-  await app.listen({ port: 3001, host: '0.0.0.0' })
-  console.log('AutoNovel TS backend running on :3001')
+  await app.listen({ port, host: '0.0.0.0' })
+  console.log(`AutoNovel TS backend running on :${port}`)
   await initFeishu(app)
 }
 start()

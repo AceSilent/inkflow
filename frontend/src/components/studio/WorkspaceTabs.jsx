@@ -10,6 +10,8 @@ const tabs = [
   { id: 'game', labelKey: 'workspace.game' },
 ]
 
+const shortcuts = ['outline', 'plot', 'lore']
+
 export function WorkspaceTabs({ activeTab, onTabChange, chapterTitle, chapter, outline, plot, lore, game }) {
   const { t } = useI18n()
   const tabSetId = useId()
@@ -36,9 +38,22 @@ export function WorkspaceTabs({ activeTab, onTabChange, chapterTitle, chapter, o
             ))}
           </select>
         </div>
-        <span className="workspace-format-label" aria-hidden="true">
-          {activeTab === 'chapter' ? 'MD' : t(activeDefinition.labelKey)}
-        </span>
+        <div className="workspace-tab-shortcuts" aria-label={t('workspace.shortcuts')}>
+          {shortcuts.map(id => {
+            const definition = tabs.find(tab => tab.id === id)
+            return (
+              <button
+                key={id}
+                type="button"
+                className={activeTab === id ? 'active' : ''}
+                onClick={() => onTabChange(id)}
+                aria-pressed={activeTab === id}
+              >
+                {t(definition.labelKey)}
+              </button>
+            )
+          })}
+        </div>
       </div>
       <div
         id={panelId}

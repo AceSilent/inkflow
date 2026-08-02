@@ -111,7 +111,7 @@ describe('Data read endpoints', () => {
     expect(result.children[0].children[0].type).toBe('story_package')
   })
 
-  it('readLore returns structured data with meta and null for missing files', () => {
+  it('readLore returns canonical empty lore documents when files are missing', () => {
     const bookDir = path.join(TEST_DIR, 'lore-book')
     const configDir = path.join(bookDir, '00_Config')
     fs.mkdirSync(configDir, { recursive: true })
@@ -125,8 +125,24 @@ describe('Data read endpoints', () => {
 
     const result = readLore(TEST_DIR, 'lore-book')
     expect(result.meta).toEqual(meta)
-    expect(result.world_setting).toBeNull()
-    expect(result.characters).toBeNull()
+    expect(result.story_bible).toEqual({
+      schema_version: 1,
+      category: 'story_bible',
+      revision: 0,
+      entries: [],
+    })
+    expect(result.world_setting).toEqual({
+      schema_version: 1,
+      category: 'world_setting',
+      revision: 0,
+      entries: [],
+    })
+    expect(result.characters).toEqual({
+      schema_version: 1,
+      category: 'characters',
+      revision: 0,
+      entries: [],
+    })
     expect(result.outline).toBeNull()
   })
 

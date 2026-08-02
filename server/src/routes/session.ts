@@ -4,7 +4,7 @@ import type { FastifyInstance } from 'fastify'
 import { sanitizePathSegment } from '../utils/path-sanitizer.js'
 import { clearAuthorChatSession, loadAuthorChatConfig } from './author-chat-support.js'
 import { loadHistoryFull, saveHistory } from './chat-history.js'
-import { createSessionState } from '../context/session-state.js'
+import { buildPersistedSkillStateMessage, createSessionState } from '../context/session-state.js'
 import { processContext } from '../context/decision.js'
 import { getModelContextWindow } from '../context/model-window.js'
 import { organizePendingMemories } from '../memory/organizer.js'
@@ -46,17 +46,25 @@ export async function sessionRoutes(app: FastifyInstance, opts: SessionRoutesOpt
       const { llmConfig } = loadAuthorChatConfig(dataDir)
       const bookDir = path.join(dataDir, bookId)
       const windowSize = getModelContextWindow(llmConfig.model)
+      const sessionState = createSessionState(history)
       const processed = await processContext({
         messages: history,
         model: llmConfig.model,
         lastUsage: { total_tokens: windowSize },
-        sessionState: createSessionState(),
+        sessionState,
         bookDir,
         llmConfig,
         mode: 'auto',
       })
 
-      saveHistory(dataDir, bookId, processed.newMessages)
+      const persistedSkillState = buildPersistedSkillStateMessage(sessionState)
+      saveHistory(
+        dataDir,
+        bookId,
+        persistedSkillState
+          ? [...processed.newMessages, persistedSkillState]
+          : processed.newMessages,
+      )
       fs.mkdirSync(bookDir, { recursive: true })
       fs.appendFileSync(
         path.join(bookDir, 'context_log.jsonl'),

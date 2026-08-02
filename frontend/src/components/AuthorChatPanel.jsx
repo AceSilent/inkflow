@@ -26,7 +26,11 @@ import { presentCompactResult } from './author-chat/compactResult'
 import { agentLifecycleState } from './author-chat/agentState'
 import { groupAssistantSegments } from './author-chat/toolActivity'
 import { buildAuthorChatRequestBody } from './author-chat/requestPayload'
-import { isChapterAskForBook } from './author-chat/chapterAskRequest'
+import {
+  annotationStatusAfterChapterAsk,
+  isChapterAskForBook,
+  shouldDeferChapterAsk,
+} from './author-chat/chapterAskRequest'
 
 const CHAT_MODE_STORAGE_KEY = 'inkflow.chatMode'
 
@@ -750,7 +754,8 @@ export function AuthorChatPanel({
     }))
     const useAttachments = attachmentPayload.length > 0
     const replaceMessageId = options?.replaceMessageId
-    if ((!baseInput && !useAttachments) || loading) return
+    if ((!baseInput && !useAttachments) || loading) return { ok: false, toolsUsed: [] }
+    const completedTools = new Set()
 
     const slash = fromOverride || useAttachments ? null : parseSlashCommand(baseInput)
     if (slash) {
@@ -902,6 +907,7 @@ export function AuthorChatPanel({
               })
               setStreamingMsg(prev => ({ ...prev, segments: [...segments] }))
             } else if (evt.type === 'tool_done') {
+              completedTools.add(evt.name)
               // Update the last matching running tool
               for (let i = segments.length - 1; i >= 0; i--) {
                 if (segments[i].type === 'tool_call' && segments[i].name === evt.name && segments[i].status === 'running') {
@@ -962,6 +968,7 @@ export function AuthorChatPanel({
       } else {
         await loadChatHistory()
       }
+      return { ok: true, toolsUsed: [...completedTools] }
 
     } catch (e) {
       if (e.name === 'AbortError') {
@@ -973,6 +980,7 @@ export function AuthorChatPanel({
           addToast?.(t('authorChat.sendFailed') + ': ' + e.message, 'error')
         }
       }
+      return { ok: false, toolsUsed: [...completedTools] }
     } finally {
       abortRef.current = null
       setLoading(false)
@@ -988,6 +996,7 @@ export function AuthorChatPanel({
     if (!isChapterAskForBook(incomingChapterAsk, currentBook)) return
     const message = String(incomingChapterAsk.message || '').trim()
     if (!message) return
+    if (shouldDeferChapterAsk(incomingChapterAsk, loading)) return
 
     handledChapterAskRef.current = incomingChapterAsk.id
     onChapterAskConsumed?.(incomingChapterAsk.id)
@@ -998,8 +1007,42 @@ export function AuthorChatPanel({
       return
     }
 
-    handleSendRef.current?.(message)
-  }, [addToast, currentBook, incomingChapterAsk, loading, onChapterAskConsumed, updateInput])
+    const deliverChapterAsk = async () => {
+      const outcome = await handleSendRef.current?.(message)
+      const annotationIds = Array.isArray(incomingChapterAsk.annotationIds)
+        ? incomingChapterAsk.annotationIds
+        : []
+      if (!incomingChapterAsk.chapterId || annotationIds.length === 0) return
+
+      const nextStatus = annotationStatusAfterChapterAsk(outcome)
+      const timestampField = nextStatus === 'resolved'
+        ? { resolved_at: new Date().toISOString() }
+        : {}
+      await Promise.all(annotationIds.map(async annotationId => {
+        const response = await fetch(
+          `/api/v1/books/${encodeURIComponent(incomingChapterAsk.bookId)}/chapters/${encodeURIComponent(incomingChapterAsk.chapterId)}/annotations/${encodeURIComponent(annotationId)}`,
+          {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: nextStatus, ...timestampField }),
+          },
+        )
+        if (!response.ok) throw new Error('annotation status update failed')
+      })).then(() => {
+        onLoreUpdated?.()
+        addToast?.(
+          nextStatus === 'resolved'
+            ? `${annotationIds.length} 条待处理问题已完成`
+            : '作者未保存修改，问题已恢复为待处理',
+          nextStatus === 'resolved' ? 'success' : 'warning',
+        )
+      }).catch(error => {
+        addToast?.(`待处理状态更新失败：${error.message}`, 'error')
+      })
+    }
+
+    void deliverChapterAsk()
+  }, [addToast, currentBook, incomingChapterAsk, loading, onChapterAskConsumed, onLoreUpdated, updateInput])
 
   const openCheckpointEditor = (msg) => {
     if (loading || checkpointResending || !msg?.id || !msg?.checkpoint_id) return
